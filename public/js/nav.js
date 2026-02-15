@@ -1,9 +1,6 @@
 // public/js/nav.js
 import { auth } from "./firebase.js";
-import {
-  onAuthStateChanged,
-  signOut
-} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getUserProfile } from "./guard.js";
 
 const NAV_ITEMS = [
@@ -13,6 +10,7 @@ const NAV_ITEMS = [
   ["Manager", "/manager.html", "manager", ["admin", "manager"]],
   ["Admin", "/admin.html", "admin", ["admin"]],
   ["Dropoff", "/dropoff.html", "dropoff", ["admin", "manager", "advisor", "wash", "staff"]],
+  ["Settings", "/settings.html", "settings", ["admin", "manager"]],
 ];
 
 function escapeHtml(s) {
@@ -26,7 +24,6 @@ function escapeHtml(s) {
 }
 
 export function renderNav(active = "") {
-  // Return a shell immediately
   const shell = `
     <style>
       .topnav { margin: 6px 0 10px 0; }
@@ -54,7 +51,6 @@ export function renderNav(active = "") {
     <hr />
   `;
 
-  // Hydrate once auth is known
   onAuthStateChanged(auth, async (user) => {
     const linksEl = document.getElementById("nav-links");
     const userEl = document.getElementById("nav-user");

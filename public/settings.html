@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>DOS Settings</title>
+  <style>
+    body { font-family: "Times New Roman", Times, serif; margin: 16px; }
+    button, input { font-family: inherit; font-size: 16px; }
+  </style>
+</head>
+
+<body>
+
+  <!-- Shared nav (gives you exit links) -->
+  <div id="nav"></div>
+
+  <h2>Dealer Operations System — Settings</h2>
+
+  <hr style="margin: 20px 0;" />
+
+  <!-- Pickup Feature Toggle -->
+  <h3>Features</h3>
+
+  <label style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
+    <input type="checkbox" id="pickupEnabledToggle" />
+    Enable Pickup Workflow
+  </label>
+
+  <div id="settingsMsg" style="margin-top:10px; font-size:14px;"></div>
+
+  <hr style="margin: 24px 0;" />
+
+  <!-- Wash Bay Configuration -->
+  <h3>Wash Configuration</h3>
+
+  <label style="display:block; margin-bottom:8px;">
+    Number of Wash Bays (1–10)
+  </label>
+
+  <input
+    type="number"
+    id="washBayCountInput"
+    min="1"
+    max="10"
+    style="width:100px; padding:6px;"
+  />
+
+  <button
+    id="saveWashBayBtn"
+    style="margin-left:10px; padding:6px 12px;"
+  >
+    Save
+  </button>
+
+  <div id="washBayVisual" style="margin-top:12px;"></div>
+
+  <!-- FORCE RE-LOGIN ON SETTINGS -->
+  <script type="module">
+    import { auth } from "./js/firebase.js";
+    import { signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    const url = new URL(window.location.href);
+    const reauth = url.searchParams.get("reauth");
+
+    // If we haven't reauthed yet, sign out and send to login with a return URL
+    if (!reauth) {
+      await signOut(auth);
+      window.location.href = "/login.html?next=/settings.html?reauth=1";
+    }
+  </script>
+
+  <!-- Nav + role guard -->
+  <script type="module">
+    import { requireRole } from "./js/guard.js";
+    import { renderNav } from "./js/nav.js";
+
+    document.getElementById("nav").innerHTML = renderNav("settings");
+    requireRole(["admin", "manager"]);
+  </script>
+
+  <!-- Page logic -->
+  <script type="module" src="./js/settingsPage.js"></script>
+
+</body>
+</html>

@@ -30,8 +30,18 @@
     manager: "/manager.html",
     advisor: "/advisor.html",
     wash: "/wash.html",
-    staff: "/dropoff.html"   // optional: if you ever use "staff"
+    staff: "/dropoff.html"
   };
+
+  function getNextPath() {
+    const params = new URLSearchParams(window.location.search);
+    const next = params.get("next");
+    // basic safety: only allow internal relative paths
+    if (!next || typeof next !== "string") return null;
+    if (!next.startsWith("/")) return null;
+    if (next.startsWith("//")) return null;
+    return next;
+  }
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -43,7 +53,7 @@
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
 
-      // ✅ Redirect immediately based on role
+      // Load role + active
       const snap = await getDoc(doc(db, "users", cred.user.uid));
       const role = snap.exists() ? String(snap.data().role || "pending").toLowerCase() : "pending";
       const active = snap.exists() ? (snap.data().active !== false) : true;
@@ -58,6 +68,14 @@
         return;
       }
 
+      // ✅ If settings (or anything) sent us here with ?next=..., go there first
+      const next = getNextPath();
+      if (next) {
+        window.location.href = next;
+        return;
+      }
+
+      // fallback: normal role routing
       window.location.href = ROLE_TO_PAGE[role] || "/index.html";
     } catch (err) {
       errorEl.textContent = err.message;
