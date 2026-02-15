@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Admin – Dealer Wash System</title>
+</head>
+<body>
+
+<h1>Dealer Wash System</h1>
+
+<nav>
+  <a href="/index.html">Home</a> |
+  <a href="/advisor.html">Advisor</a> |
+  <a href="/wash.html">Wash</a> |
+  <a href="/manager.html">Manager</a> |
+  <a href="/admin.html">Admin</a> |
+  <a href="/dropoff.html">Dropoff</a>
+</nav>
+
+<hr>
+
+<h2>Admin / User Management</h2>
+
+<div id="status">Loading...</div>
+<button id="signOutBtn">Sign out</button>
+
+<hr>
+
+<h3>Pending approvals</h3>
+
+<table border="1" cellpadding="6">
+  <thead>
+    <tr>
+      <th>Email</th>
+      <th>Name</th>
+      <th>Employee ID</th>
+      <th>Set role</th>
+      <th>Approve</th>
+    </tr>
+  </thead>
+  <tbody id="pendingTable"></tbody>
+</table>
+
+<hr>
+
+<h3>All users</h3>
+
+<table border="1" cellpadding="6">
+  <thead>
+    <tr>
+      <th>Email</th>
+      <th>Name</th>
+      <th>Employee ID</th>
+      <th>Role</th>
+      <th>Active</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody id="usersTable"></tbody>
+</table>
+
+<script type="module">
+  import { requireRole } from "./js/guard.js";
+  import { bindSignOut } from "./js/signout.js";
+  import "./js/admin.js";
+
+  requireRole(["admin"]);
+  bindSignOut();
+</script>
+
+</body>
+</html>

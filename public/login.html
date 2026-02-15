@@ -1,0 +1,69 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Dealer Wash System – Login</title>
+</head>
+<body>
+
+<h2>Dealer Wash System</h2>
+
+<form id="loginForm">
+  <div><input type="email" id="email" placeholder="Email" required /></div>
+  <div><input type="password" id="password" placeholder="Password" required /></div>
+  <button type="submit">Sign in</button>
+</form>
+
+<p><a href="/register.html">Create an account</a></p>
+<p id="error" style="color:red"></p>
+
+<script type="module">
+  import { auth, db } from "./js/firebase.js";
+  import { signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+  import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+  const form = document.getElementById("loginForm");
+  const errorEl = document.getElementById("error");
+
+  const ROLE_TO_PAGE = {
+    admin: "/admin.html",
+    manager: "/manager.html",
+    advisor: "/advisor.html",
+    wash: "/wash.html",
+    staff: "/dropoff.html"   // optional: if you ever use "staff"
+  };
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    errorEl.textContent = "";
+
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+
+      // ✅ Redirect immediately based on role
+      const snap = await getDoc(doc(db, "users", cred.user.uid));
+      const role = snap.exists() ? String(snap.data().role || "pending").toLowerCase() : "pending";
+      const active = snap.exists() ? (snap.data().active !== false) : true;
+
+      if (!active) {
+        window.location.href = "/index.html";
+        return;
+      }
+
+      if (role === "pending") {
+        window.location.href = "/pending.html";
+        return;
+      }
+
+      window.location.href = ROLE_TO_PAGE[role] || "/index.html";
+    } catch (err) {
+      errorEl.textContent = err.message;
+    }
+  });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dropoff</title>
+  <style>
+    body { font-family: "Times New Roman", Times, serif; margin: 16px; }
+    input, textarea, button, select { font-family: inherit; font-size: 16px; }
+    .card { border: 1px solid #ccc; padding: 12px; border-radius: 8px; max-width: 720px; }
+    label { display:block; margin-top: 10px; }
+    #msg { margin-top: 10px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+    th { text-align: left; }
+    .muted { color: #666; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; }
+    .row > div { flex: 1 1 220px; }
+    .ok { color:#0a6; }
+    .err { color:#b00; }
+  </style>
+</head>
+<body>
+  <div id="nav"></div>
+  <p id="status"></p>
+
+  <h2>Dropoff</h2>
+
+  <div class="card">
+    <h3>Create Wash Ticket</h3>
+
+    <div class="row">
+      <div>
+        <label>
+          Tag # (required)
+          <input id="tag" placeholder="e.g. 1234" />
+        </label>
+      </div>
+
+      <div>
+        <label>
+          Waiter?
+          <select id="waiter">
+            <option value="false" selected>No</option>
+            <option value="true">Yes (Waiter)</option>
+          </select>
+        </label>
+      </div>
+
+      <div>
+        <label>
+          Location (required)
+          <select id="location">
+            <option value="" selected>Select…</option>
+            <option value="Service Lane">Service Lane</option>
+            <option value="Wash Bay">Wash Bay</option>
+            <option value="Front Row">Front Row</option>
+            <option value="Back Lot">Back Lot</option>
+            <option value="Other">Other</option>
+          </select>
+        </label>
+      </div>
+    </div>
+
+    <label>
+      Notes (optional)
+      <textarea id="notes" rows="3" placeholder="Anything wash team should know..."></textarea>
+    </label>
+
+    <button id="createBtn">Create Ticket</button>
+    <div id="msg" class="muted"></div>
+  </div>
+
+  <div style="height:16px"></div>
+
+  <div class="card">
+    <h3>Queue (Live)</h3>
+    <div class="muted">Shows tickets in <b>queued</b> status.</div>
+    <div style="height:10px"></div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:120px">Tag</th>
+          <th style="width:100px">Waiter</th>
+          <th style="width:160px">Location</th>
+          <th style="width:140px">Status</th>
+          <th style="width:220px">Created</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <script type="module">
+    import { auth } from "./js/firebase.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    import { requireRole } from "./js/guard.js";
+    import { renderNav } from "./js/nav.js";
+    import { createWashTicket, listenTickets, fmtTime } from "./js/washTickets.js";
+
+    document.getElementById("nav").innerHTML = renderNav("dropoff");
+
+    requireRole(["staff", "advisor", "wash", "manager", "admin"]);
+
+    const tagEl = document.getElementById("tag");
+    const notesEl = document.getElementById("notes");
+    const waiterEl = document.getElementById("waiter");
+    const locationEl = document.getElementById("location");
+
+    const msgEl = document.getElementById("msg");
+    const rowsEl = document.getElementById("rows");
+    const btn = document.getElementById("createBtn");
+
+    let currentUser = null;
+    onAuthStateChanged(auth, (u) => { currentUser = u; });
+
+    btn.addEventListener("click", async () => {
+      msgEl.className = "muted";
+      msgEl.textContent = "";
+      if (!currentUser) return;
+
+      const tag = String(tagEl.value || "").trim();
+      const location = String(locationEl.value || "").trim();
+      const waiter = waiterEl.value === "true";
+      const notes = String(notesEl.value || "").trim();
+
+      if (!tag) {
+        msgEl.className = "err";
+        msgEl.textContent = "Tag # is required.";
+        tagEl.focus();
+        return;
+      }
+
+      if (!location) {
+        msgEl.className = "err";
+        msgEl.textContent = "Location is required.";
+        locationEl.focus();
+        return;
+      }
+
+      try {
+        btn.disabled = true;
+
+        const id = await createWashTicket({ tag, notes, waiter, location }, currentUser, "staff");
+
+
+        msgEl.className = "ok";
+        msgEl.textContent = `Created ticket: ${id}`;
+
+        tagEl.value = "";
+        notesEl.value = "";
+        waiterEl.value = "false";
+        locationEl.value = "";
+        tagEl.focus();
+      } catch (e) {
+        msgEl.className = "err";
+        msgEl.textContent = e?.message || "Error creating ticket.";
+        console.error(e);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    listenTickets({ statuses: ["queued"] }, (rows) => {
+      rowsEl.innerHTML = rows.map(r => `
+        <tr>
+          <td><b>${escapeHtml(r.tag || "")}</b></td>
+          <td>${r.waiter ? "Yes" : "No"}</td>
+          <td>${escapeHtml(r.location || "")}</td>
+          <td>${escapeHtml(r.status || "")}</td>
+          <td>${escapeHtml(fmtTime(r.createdAtMs))}</td>
+          <td>${escapeHtml(r.notes || "")}</td>
+        </tr>
+      `).join("") || `
+        <tr><td colspan="6" class="muted">No queued tickets.</td></tr>
+      `;
+    });
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
+      }[c]));
+    }
+  </script>
+</body>
+</html>

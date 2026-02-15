@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Wash</title>
+  <style>
+    body {
+      font-family: "Times New Roman", Times, serif;
+      margin: 16px;
+    }
+
+    input,
+    textarea,
+    button,
+    select {
+      font-family: inherit;
+      font-size: 16px;
+    }
+
+    .card {
+      border: 1px solid #ccc;
+      padding: 12px;
+      border-radius: 8px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      vertical-align: top;
+    }
+
+    th {
+      text-align: left;
+    }
+
+    .muted {
+      color: #666;
+    }
+
+    .ok {
+      color: #0a6;
+    }
+
+    .err {
+      color: #b00;
+    }
+
+    .row-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    /* ADDED: horizontal scroll container */
+    .table-scroll {
+      overflow-x: auto;
+    }
+
+    /* ADDED: allow table to grow wider than container */
+    .table-scroll table {
+      width: max-content;
+      min-width: 100%;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="nav"></div>
+  <p id="status"></p>
+
+  <h2>Wash Team</h2>
+  <div class="muted">
+    Work queue: <b>queued</b> and <b>washing</b>. (You can mark <b>washed</b>.)
+  </div>
+  <div style="height:12px"></div>
+
+  <div class="card">
+    <div id="msg" class="muted"></div>
+    <div style="height:10px"></div>
+
+    <!-- CHANGED: wrapper now uses class -->
+    <div class="table-scroll">
+      <table id="ticketsTable"></table>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { auth } from "./js/firebase.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    import { requireRole } from "./js/guard.js";
+    import { renderNav } from "./js/nav.js";
+
+    import { mountTicketsUI } from "./js/ticketsUI.js";
+
+    document.getElementById("nav").innerHTML = renderNav("wash");
+    requireRole(["wash", "manager", "admin"]);
+
+    const msgEl = document.getElementById("msg");
+    const tableEl = document.getElementById("ticketsTable");
+
+    onAuthStateChanged(auth, (u) => {
+      if (!u) {
+        msgEl.className = "err";
+        msgEl.textContent = "Not signed in.";
+      } else {
+        msgEl.className = "muted";
+        msgEl.textContent = "";
+      }
+    });
+
+    mountTicketsUI({
+      role: "wash",
+      tableEl,
+      msgEl
+    });
+  </script>
+</body>
+
+</html>

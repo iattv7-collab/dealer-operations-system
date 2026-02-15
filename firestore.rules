@@ -1,0 +1,123 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() { return request.auth != null; }
+    function userDoc() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
+    function role() { return userDoc().data.role; }
+    function isActive() { return userDoc().data.active == true; }
+
+    function isAdmin() { return signedIn() && isActive() && role() == "admin"; }
+    function isManager() { return signedIn() && isActive() && role() == "manager"; }
+    function isAdvisor() { return signedIn() && isActive() && role() == "advisor"; }
+    function isWash() { return signedIn() && isActive() && role() == "wash"; }
+    function isstaff() { return signedIn() && isActive() && role() == "staff"; }
+
+    function isStaff() { return isAdmin() || isManager() || isAdvisor() || isWash() || isstaff(); }
+
+    function onlyChanges(allowedKeys) {
+      return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowedKeys);
+    }
+
+    match /users/{uid} {
+      allow list: if isAdmin() || isManager();
+      allow get: if (signedIn() && request.auth.uid == uid) || isAdmin() || isManager();
+
+      allow create: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role == "pending"
+        && request.resource.data.active == true;
+
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.role == resource.data.role
+        && request.resource.data.active == resource.data.active;
+
+      allow update: if isManager()
+        && uid != request.auth.uid
+        && request.resource.data.role in ["manager", "advisor", "wash", "staff", "pending"]
+        && request.resource.data.role != "admin";
+
+      allow update: if isAdmin();
+      allow delete: if isAdmin() && uid != request.auth.uid;
+    }
+
+    match /washTickets/{ticketId} {
+
+      // Staff can read
+      allow read: if isStaff();
+
+      // Any staff can create
+      allow create: if isStaff();
+
+      // ✅ UPDATE RULES
+
+      // Admin/Manager can update anything (for now)
+      allow update: if isAdmin() || isManager();
+
+      // Wash can ONLY change wash process fields (+ lastEdited*)
+      allow update: if isWash()
+        && onlyChanges([
+          "status",
+          "washedAt",
+          "washedBy",
+          "updatedAt",
+          "lastEditedAtMs",
+          "lastEditedBy",
+          "lastEditedRole",
+          "lastEditedFields"
+        ]);
+
+      // Advisor can ONLY set Need By fields (+ ro + lastEdited*)
+      allow update: if isAdvisor()
+        && onlyChanges([
+          "priorityType",
+          "needByAtMs",
+          "needBySetBy",
+          "ro",
+          "updatedAt",
+          "lastEditedAtMs",
+          "lastEditedBy",
+          "lastEditedRole",
+          "lastEditedFields"
+        ]);
+
+      // Advisor can request REWASH ONLY if the ticket was washed and they send it back to washing
+      // ✅ UPDATED: also allows setting priorityType + needBy fields in the same update (Option A)
+      // ✅ UPDATED: also allows ro + lastEdited*
+      allow update: if isAdvisor()
+        && resource.data.status == "washed"
+        && request.resource.data.status == "washing"
+        && request.resource.data.rewashRequestedBy == request.auth.uid
+        && request.resource.data.rewashRequestedAtMs is int
+        && request.resource.data.priorityType == "rewash"
+        && onlyChanges([
+          "status",
+          "rewashRequestedAtMs",
+          "rewashRequestedBy",
+          "priorityType",
+          "needByAtMs",
+          "needBySetBy",
+          "ro",
+          "updatedAt",
+          "lastEditedAtMs",
+          "lastEditedBy",
+          "lastEditedRole",
+          "lastEditedFields"
+        ]);
+
+      // Delete: manager/admin only
+      allow delete: if isAdmin() || isManager();
+    }
+
+    match /settings/{docId} {
+      allow read: if isStaff();
+      allow write: if isAdmin() || isManager();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

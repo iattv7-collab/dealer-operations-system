@@ -1,0 +1,14 @@
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Pending Approval</title></head>
+<body>
+  <h2>Waiting for approval</h2>
+  <p>Your account is pending. Please contact your manager/admin.</p>
+  <p id="status"></p>
+  <script type="module">
+    import { requireRole } from "./js/guard.js";
+    // No roles required — this page is safe for pending users
+    requireRole([]);
+  </script>
+</body>
+</html>

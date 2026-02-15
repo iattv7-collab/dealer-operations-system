@@ -1,0 +1,80 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Dealer Wash System – Register</title>
+</head>
+<body>
+
+<h2>Dealer Wash System</h2>
+<h3>Create account</h3>
+
+<form id="regForm">
+  <div>
+    <input type="text" id="name" placeholder="Full name" required />
+  </div>
+
+  <div>
+    <input type="text" id="employeeId" placeholder="Employee ID" required />
+  </div>
+
+  <div>
+    <input type="email" id="email" placeholder="Email" required />
+  </div>
+
+  <div>
+    <input type="password" id="password" placeholder="Password" required />
+  </div>
+
+  <button type="submit">Register</button>
+</form>
+
+<p id="msg"></p>
+<p><a href="/login.html">Back to login</a></p>
+
+<script type="module">
+  import { auth, db } from "./js/firebase.js";
+  import { createUserWithEmailAndPassword } from
+    "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+  import { doc, setDoc, serverTimestamp } from
+    "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+  const form = document.getElementById("regForm");
+  const msg = document.getElementById("msg");
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    msg.textContent = "";
+
+    const name = document.getElementById("name").value.trim();
+    const employeeId = document.getElementById("employeeId").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+
+    try {
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+
+      // Create Firestore profile for admin approval
+      await setDoc(doc(db, "users", cred.user.uid), {
+        name,
+        employeeId,
+        email,
+        role: "pending",
+        active: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+
+      msg.innerHTML =
+        "<b>Account created.</b> Now sign in. (Admin approval required.)";
+
+      form.reset();
+
+    } catch (err) {
+      msg.textContent = err.message;
+    }
+  });
+</script>
+
+</body>
+</html>
