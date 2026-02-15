@@ -10,7 +10,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 // Canonical roles (must match your handoff)
-export const VALID_ROLES = ["admin", "manager", "advisor", "wash", "staff", "pending"];
+export const VALID_ROLES = ["admin", "manager", "advisor", "wash", "staff", "dropoff", "booker", "qc", "pending"];
 
 let cache = { uid: null, data: null };
 

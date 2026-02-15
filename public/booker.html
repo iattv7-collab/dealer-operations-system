@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Booker</title>
+  <style>
+    body { font-family: "Times New Roman", Times, serif; margin: 16px; }
+    button { font-family: inherit; font-size: 16px; }
+    .card { border: 1px solid #ccc; padding: 12px; border-radius: 8px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+    th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
+    th { text-align: left; }
+    .muted { color: #666; }
+    .ok { color: #0a6; }
+    .err { color: #b00; }
+    .grid { display: flex; gap: 16px; align-items: flex-start; }
+    .left-col { flex: 1 1 auto; min-width: 0; }
+    .table-scroll { overflow-x: auto; }
+    .table-scroll table { width: max-content; min-width: 100%; }
+  </style>
+</head>
+
+<body>
+  <div id="nav"></div>
+  <p id="status"></p>
+
+  <h2>Booker</h2>
+
+  <div class="card">
+    <div class="grid">
+      <div class="left-col">
+        <div class="muted">Universal tabs + columns. Booker actions are enabled by role.</div>
+
+        <div id="msg" class="muted" style="margin-top:10px;"></div>
+
+        <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <label for="searchInput" class="muted">Search:</label>
+          <input id="searchInput" type="text" placeholder="Tag or RO..." style="padding:6px 8px; width:240px;" />
+        </div>
+
+        <div class="table-scroll" style="margin-top:10px;">
+          <table id="ticketsTable"></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireRole } from "./js/guard.js";
+    import { renderNav } from "./js/nav.js";
+    import { mountTicketsUI } from "./js/ticketsUI.js";
+
+    document.getElementById("nav").innerHTML = renderNav("booker");
+    requireRole(["booker", "manager", "admin"]);
+
+    mountTicketsUI({
+      role: "booker",
+      tableEl: document.getElementById("ticketsTable"),
+      msgEl: document.getElementById("msg"),
+      showTabs: true,
+      searchEl: document.getElementById("searchInput")
+    });
+  </script>
+</body>
+</html>

@@ -11,6 +11,9 @@ const NAV_ITEMS = [
   ["Admin", "/admin.html", "admin", ["admin"]],
   ["Dropoff", "/dropoff.html", "dropoff", ["admin", "manager", "advisor", "wash", "staff"]],
   ["Settings", "/settings.html", "settings", ["admin", "manager"]],
+  ["Booker", "/booker.html", "booker", ["admin", "manager", "booker"]],
+  ["QC", "/qc.html", "qc", ["admin", "manager", "qc"]],
+
 ];
 
 function escapeHtml(s) {

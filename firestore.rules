@@ -12,9 +12,17 @@ service cloud.firestore {
     function isManager() { return signedIn() && isActive() && role() == "manager"; }
     function isAdvisor() { return signedIn() && isActive() && role() == "advisor"; }
     function isWash() { return signedIn() && isActive() && role() == "wash"; }
+
     function isstaff() { return signedIn() && isActive() && role() == "staff"; }
 
-    function isStaff() { return isAdmin() || isManager() || isAdvisor() || isWash() || isstaff(); }
+    // ✅ NEW ROLES
+    function isBooker() { return signedIn() && isActive() && role() == "booker"; }
+    function isQc() { return signedIn() && isActive() && role() == "qc"; }
+
+    // ✅ include them in staff umbrella
+    function isStaff() {
+      return isAdmin() || isManager() || isAdvisor() || isWash() || isstaff() || isBooker() || isQc();
+    }
 
     function onlyChanges(allowedKeys) {
       return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowedKeys);
@@ -34,9 +42,10 @@ service cloud.firestore {
         && request.resource.data.role == resource.data.role
         && request.resource.data.active == resource.data.active;
 
+      // ✅ manager can assign booker + qc too
       allow update: if isManager()
         && uid != request.auth.uid
-        && request.resource.data.role in ["manager", "advisor", "wash", "staff", "pending"]
+        && request.resource.data.role in ["manager", "advisor", "wash", "staff", "booker", "qc", "pending"]
         && request.resource.data.role != "admin";
 
       allow update: if isAdmin();
@@ -84,8 +93,6 @@ service cloud.firestore {
         ]);
 
       // Advisor can request REWASH ONLY if the ticket was washed and they send it back to washing
-      // ✅ UPDATED: also allows setting priorityType + needBy fields in the same update (Option A)
-      // ✅ UPDATED: also allows ro + lastEdited*
       allow update: if isAdvisor()
         && resource.data.status == "washed"
         && request.resource.data.status == "washing"

@@ -35,6 +35,10 @@ const ROLE_CAPS = {
   dropoff: { canNeedBy: false, canRewash: false, canWashOps: false, canArchive: false, canEditRO: false },
   staff: { canNeedBy: false, canRewash: false, canWashOps: false, canArchive: false, canEditRO: false },
 
+  // NEW
+  booker: { canNeedBy: false, canRewash: false, canWashOps: false, canArchive: false, canEditRO: false },
+  qc: { canNeedBy: false, canRewash: false, canWashOps: false, canArchive: false, canEditRO: false },
+
   wash: { canNeedBy: false, canRewash: false, canWashOps: true, canArchive: false, canEditRO: false },
 
   advisor: { canNeedBy: true, canRewash: true, canWashOps: false, canArchive: false, canEditRO: true },
@@ -60,6 +64,9 @@ const MASTER_COLS = [
   { key: "status", label: "Status" },
   { key: "created", label: "Created" },
   { key: "washed", label: "Last Washed" },
+  { key: "cpBooked", label: "CP Booked" },
+  { key: "wtyBooked", label: "WTY Booked" },
+  { key: "qcDone", label: "QC Done" },
   { key: "notes", label: "Notes" },
   { key: "_actions", label: "Actions" }
 ];
@@ -69,9 +76,13 @@ const VISIBLE_COLS_BY_ROLE = {
   staff: ["tag", "ro", "priority", "eta", "location", "status", "created", "notes", "_actions"],
 
   wash: ["tag", "ro", "priority", "needBy", "eta", "location", "status", "created", "washed", "notes", "_actions"],
-  advisor: ["tag", "ro", "priority", "needBy", "eta", "location", "status", "created", "washed", "notes", "_actions"],
-  manager: ["tag", "ro", "priority", "needBy", "eta", "location", "status", "created", "washed", "notes", "_actions"],
-  admin: ["tag", "ro", "priority", "needBy", "eta", "location", "status", "created", "washed", "notes", "_actions"]
+  advisor: ["tag", "ro", "priority", "needBy", "eta", "location", "status", "created", "washed", "cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
+  // ✅ add these two lines
+  booker: ["tag", "ro" , "status","cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
+  qc: ["tag", "ro" , "location", "status", "qcDone", "notes", "_actions"],
+
+  manager: ["tag", "ro", "priority", "needBy", "eta", "location", "status", "created", "washed", "cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
+  admin: ["tag", "ro", "priority", "needBy", "eta", "location", "status", "created", "washed", "cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
 };
 
 function colsForRole(role) {
@@ -458,6 +469,33 @@ function renderRow(t, role, cols, etaMap) {
       tr.appendChild(el("td", { text: t.ro || "" }));
       return;
     }
+
+    // ✅ Booking/QC indicator cells (with tooltip)
+    if (c.key === "cpBooked" || c.key === "wtyBooked" || c.key === "qcDone") {
+      const td = el("td");
+
+      let at = null;
+      let by = "";
+
+      if (c.key === "cpBooked") { at = t.cpBookedAt; by = t.cpBookedBy || ""; }
+      if (c.key === "wtyBooked") { at = t.wtyBookedAt; by = t.wtyBookedBy || ""; }
+      if (c.key === "qcDone") { at = t.qcAt; by = t.qcBy || ""; }
+
+      const isDone = !!at;
+
+      td.textContent = isDone ? "✅" : "";
+
+      // Tooltip shows who + time (works on hover)
+      if (isDone) {
+        const when = fmtTs(at) || "";
+        td.title = `By: ${by || "unknown"}${when ? " — " + when : ""}`;
+        td.style.cursor = "help";
+      }
+
+      tr.appendChild(td);
+      return;
+    }
+
 
     // Actions column (unchanged)
     if (c.key === "_actions") {
