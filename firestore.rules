@@ -3,69 +3,142 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() { return request.auth != null; }
-    function userDoc() { return get(/databases/$(database)/documents/users/$(request.auth.uid)); }
-    function role() { return userDoc().data.role; }
-    function isActive() { return userDoc().data.active == true; }
+    /* ---------------------------------------
+       AUTH HELPERS
+    --------------------------------------- */
 
-    function isAdmin() { return signedIn() && isActive() && role() == "admin"; }
-    function isManager() { return signedIn() && isActive() && role() == "manager"; }
-    function isAdvisor() { return signedIn() && isActive() && role() == "advisor"; }
-    function isWash() { return signedIn() && isActive() && role() == "wash"; }
+    function signedIn() {
+      return request.auth != null;
+    }
 
-    function isstaff() { return signedIn() && isActive() && role() == "staff"; }
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
 
-    // ✅ NEW ROLES
-    function isBooker() { return signedIn() && isActive() && role() == "booker"; }
-    function isQc() { return signedIn() && isActive() && role() == "qc"; }
+    function role() {
+      return userDoc().data.role;
+    }
 
-    // ✅ include them in staff umbrella
+    function isActive() {
+      return userDoc().data.active == true;
+    }
+
+    function isAdmin() {
+      return signedIn() && isActive() && role() == "admin";
+    }
+
+    function isManager() {
+      return signedIn() && isActive() && role() == "manager";
+    }
+
+    function isAdvisor() {
+      return signedIn() && isActive() && role() == "advisor";
+    }
+
+    function isWash() {
+      return signedIn() && isActive() && role() == "wash";
+    }
+
+    function isstaff() {
+      return signedIn() && isActive() && role() == "staff";
+    }
+
+    function isBooker() {
+      return signedIn() && isActive() && role() == "booker";
+    }
+
+    function isQc() {
+      return signedIn() && isActive() && role() == "qc";
+    }
+
     function isStaff() {
-      return isAdmin() || isManager() || isAdvisor() || isWash() || isstaff() || isBooker() || isQc();
+      return isAdmin()
+        || isManager()
+        || isAdvisor()
+        || isWash()
+        || isstaff()
+        || isBooker()
+        || isQc();
     }
 
     function onlyChanges(allowedKeys) {
-      return request.resource.data.diff(resource.data).changedKeys().hasOnly(allowedKeys);
+      return request.resource.data
+        .diff(resource.data)
+        .changedKeys()
+        .hasOnly(allowedKeys);
     }
 
-    match /users/{uid} {
-      allow list: if isAdmin() || isManager();
-      allow get: if (signedIn() && request.auth.uid == uid) || isAdmin() || isManager();
 
-      allow create: if signedIn()
+    /* ---------------------------------------
+       USERS COLLECTION
+    --------------------------------------- */
+
+    match /users/{uid} {
+
+      allow list: if isAdmin() || isManager() || isBooker();
+
+      allow get: if
+        (signedIn() && request.auth.uid == uid)
+        || isAdmin()
+        || isManager();
+
+      allow create: if
+        signedIn()
         && request.auth.uid == uid
         && request.resource.data.role == "pending"
         && request.resource.data.active == true;
 
-      allow update: if signedIn()
+      allow update: if
+        signedIn()
         && request.auth.uid == uid
         && request.resource.data.role == resource.data.role
         && request.resource.data.active == resource.data.active;
 
-      // ✅ manager can assign booker + qc too
-      allow update: if isManager()
+      // manager can assign roles (including booker and qc)
+      allow update: if
+        isManager()
         && uid != request.auth.uid
-        && request.resource.data.role in ["manager", "advisor", "wash", "staff", "booker", "qc", "pending"]
+        && request.resource.data.role in [
+          "manager",
+          "advisor",
+          "wash",
+          "staff",
+          "booker",
+          "qc",
+          "pending"
+        ]
         && request.resource.data.role != "admin";
 
       allow update: if isAdmin();
-      allow delete: if isAdmin() && uid != request.auth.uid;
+
+      allow delete: if isAdmin()
+        && uid != request.auth.uid;
     }
+
+
+    /* ---------------------------------------
+       WASH TICKETS COLLECTION
+    --------------------------------------- */
 
     match /washTickets/{ticketId} {
 
-      // Staff can read
+      /* READ */
+
       allow read: if isStaff();
 
-      // Any staff can create
+
+      /* CREATE */
+
       allow create: if isStaff();
 
-      // ✅ UPDATE RULES
 
-      // Admin/Manager can update anything (for now)
+      /* UPDATE */
+
+      // Admin / Manager: full control
       allow update: if isAdmin() || isManager();
 
-      // Wash can ONLY change wash process fields (+ lastEdited*)
+
+      // Wash role: washing workflow only
       allow update: if isWash()
         && onlyChanges([
           "status",
@@ -78,7 +151,8 @@ service cloud.firestore {
           "lastEditedFields"
         ]);
 
-      // Advisor can ONLY set Need By fields (+ ro + lastEdited*)
+
+      // Advisor: Need By + RO edit
       allow update: if isAdvisor()
         && onlyChanges([
           "priorityType",
@@ -92,7 +166,8 @@ service cloud.firestore {
           "lastEditedFields"
         ]);
 
-      // Advisor can request REWASH ONLY if the ticket was washed and they send it back to washing
+
+      // Advisor: REWASH workflow
       allow update: if isAdvisor()
         && resource.data.status == "washed"
         && request.resource.data.status == "washing"
@@ -114,17 +189,82 @@ service cloud.firestore {
           "lastEditedFields"
         ]);
 
-      // Delete: manager/admin only
+      // Advisor can also request/assign QC (+ audit fields)
+      allow update: if isAdvisor()
+        && onlyChanges([
+          "cpBookedAt",
+          "cpBookedBy",
+          "qcRequestedAt",
+          "qcRequestedBy",
+          "qcAssignedTo",
+          "updatedAt",
+          "lastEditedAtMs",
+          "lastEditedBy",
+          "lastEditedRole",
+          "lastEditedFields"
+        ]);
+
+
+
+      // BOOKER: CP / WTY booked + QC assign/request
+      allow update: if isBooker()
+        && onlyChanges([
+          "cpBookedAt",
+          "cpBookedBy",
+          "wtyBookedAt",
+          "wtyBookedBy",
+          "qcRequestedAt",
+          "qcRequestedBy",
+          "qcAssignedTo",
+          "updatedAt",
+          "lastEditedAtMs",
+          "lastEditedBy",
+          "lastEditedRole",
+          "lastEditedFields"
+        ]);
+
+
+      // QC: mark QC complete ONLY if assigned
+      allow update: if isQc()
+        && resource.data.qcAssignedTo == request.auth.uid
+        && onlyChanges([
+          "qcDoneAt",
+          "qcDoneBy",
+          "updatedAt",
+          "lastEditedAtMs",
+          "lastEditedBy",
+          "lastEditedRole",
+          "lastEditedFields"
+        ]);
+
+
+      /* DELETE */
+
       allow delete: if isAdmin() || isManager();
+
     }
 
+
+    /* ---------------------------------------
+       SETTINGS COLLECTION
+    --------------------------------------- */
+
     match /settings/{docId} {
+
       allow read: if isStaff();
+
       allow write: if isAdmin() || isManager();
+
     }
+
+
+    /* ---------------------------------------
+       DEFAULT DENY
+    --------------------------------------- */
 
     match /{document=**} {
       allow read, write: if false;
     }
+
   }
 }

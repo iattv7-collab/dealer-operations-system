@@ -9,9 +9,13 @@ import {
 } from "./washTickets.js";
 
 import {
-  doc,
+  collection,
+  getDocs,
+  query,
+  where,
   updateDoc,
-  serverTimestamp
+  doc,
+  serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 /* -------------------------------------------
@@ -35,7 +39,6 @@ const ROLE_CAPS = {
   dropoff: { canNeedBy: false, canRewash: false, canWashOps: false, canArchive: false, canEditRO: false },
   staff: { canNeedBy: false, canRewash: false, canWashOps: false, canArchive: false, canEditRO: false },
 
-  // NEW
   booker: { canNeedBy: false, canRewash: false, canWashOps: false, canArchive: false, canEditRO: false },
   qc: { canNeedBy: false, canRewash: false, canWashOps: false, canArchive: false, canEditRO: false },
 
@@ -77,9 +80,9 @@ const VISIBLE_COLS_BY_ROLE = {
 
   wash: ["tag", "ro", "priority", "needBy", "eta", "location", "status", "created", "washed", "notes", "_actions"],
   advisor: ["tag", "ro", "priority", "needBy", "eta", "location", "status", "created", "washed", "cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
-  // ✅ add these two lines
-  booker: ["tag", "ro" , "status","cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
-  qc: ["tag", "ro" , "location", "status", "qcDone", "notes", "_actions"],
+
+  booker: ["tag", "ro", "status", "cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
+  qc: ["tag", "ro", "location", "status", "qcDone", "notes", "_actions"],
 
   manager: ["tag", "ro", "priority", "needBy", "eta", "location", "status", "created", "washed", "cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
   admin: ["tag", "ro", "priority", "needBy", "eta", "location", "status", "created", "washed", "cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
@@ -157,7 +160,7 @@ function el(tag, props = {}, children = []) {
   Object.entries(props).forEach(([k, v]) => {
     if (k === "className") node.className = v;
     else if (k === "text") node.textContent = v;
-    else if (k === "value") node.value = v;        // ✅ important for inputs
+    else if (k === "value") node.value = v;
     else if (k === "checked") node.checked = !!v;
     else node.setAttribute(k, v);
   });
@@ -283,6 +286,65 @@ function formatCell(key, t, etaMap) {
 }
 
 /* -------------------------------------------
+   Booker/QC helpers
+--------------------------------------------*/
+const NO_QC_TOKEN = "__NO_QC__";
+
+function buildLastEditedPatch(role, uid, fields) {
+  return {
+    updatedAt: serverTimestamp(),
+    lastEditedAtMs: Date.now(),
+    lastEditedBy: uid,
+    lastEditedRole: role,
+    lastEditedFields: fields
+  };
+}
+
+let __qcUsersCache = null;
+
+async function getQcUsers() {
+  if (__qcUsersCache) return __qcUsersCache;
+
+  const uq = query(collection(db, "users"), where("role", "==", "qc"));
+  const snap = await getDocs(uq);
+
+  const users = [];
+  snap.forEach((d) => {
+    const u = d.data() || {};
+    users.push({
+      uid: d.id,
+      email: u.email || "",
+      name: u.name || u.displayName || ""
+    });
+  });
+
+  __qcUsersCache = users;
+  return users;
+}
+
+async function pickQcUserUid() {
+  const users = await getQcUsers();
+  if (!users.length) {
+    alert("No QC users found.");
+    return null;
+  }
+
+  const lines = users.map((u, i) => {
+    const label = String((u.name || u.email || u.uid) || "").trim();
+    return `${i + 1}) ${label}`;
+  });
+
+  const choice = prompt(
+    `Assign QC to which user?\n\n${lines.join("\n")}\n\nType a number:`
+  );
+
+  const n = Number(choice);
+  if (!Number.isFinite(n) || n < 1 || n > users.length) return null;
+
+  return users[n - 1].uid;
+}
+
+/* -------------------------------------------
    Actions
 --------------------------------------------*/
 function canRequestRewash(t) {
@@ -403,7 +465,6 @@ async function pickDateTimeMs(titleText) {
   });
 }
 
-// Option A: rewash uses needByAtMs
 async function requestRewashWithNeedBy(ticketId, user, needByMs) {
   const ref = doc(db, "washTickets", ticketId);
   await updateDoc(ref, {
@@ -470,7 +531,7 @@ function renderRow(t, role, cols, etaMap) {
       return;
     }
 
-    // ✅ Booking/QC indicator cells (with tooltip)
+    // Booking/QC indicator cells
     if (c.key === "cpBooked" || c.key === "wtyBooked" || c.key === "qcDone") {
       const td = el("td");
 
@@ -479,13 +540,12 @@ function renderRow(t, role, cols, etaMap) {
 
       if (c.key === "cpBooked") { at = t.cpBookedAt; by = t.cpBookedBy || ""; }
       if (c.key === "wtyBooked") { at = t.wtyBookedAt; by = t.wtyBookedBy || ""; }
-      if (c.key === "qcDone") { at = t.qcAt; by = t.qcBy || ""; }
+      if (c.key === "qcDone") { at = t.qcDoneAt; by = t.qcDoneBy || ""; }
 
       const isDone = !!at;
 
       td.textContent = isDone ? "✅" : "";
 
-      // Tooltip shows who + time (works on hover)
       if (isDone) {
         const when = fmtTs(at) || "";
         td.title = `By: ${by || "unknown"}${when ? " — " + when : ""}`;
@@ -496,12 +556,12 @@ function renderRow(t, role, cols, etaMap) {
       return;
     }
 
-
-    // Actions column (unchanged)
+    // Actions column
     if (c.key === "_actions") {
       const td = el("td");
       const wrap = el("div", { className: "row-actions" });
 
+      // Existing buttons
       const bRewash = el("button", { type: "button", className: "btn-rewash", text: "Request Rewash" });
       const bNeedBy = el("button", { type: "button", className: "btn-needby", text: "Set Need By" });
 
@@ -510,19 +570,85 @@ function renderRow(t, role, cols, etaMap) {
 
       const bArchive = el("button", { type: "button", className: "btn-archive", text: "Archive" });
 
+      // Booker/QC workflow buttons
+      const bCpBooked = el("button", { type: "button", className: "btn-cpbooked", text: "CP Booked" });
+      const bWtyBooked = el("button", { type: "button", className: "btn-wtybooked", text: "WTY Booked" });
+      const bRequestQc = el("button", { type: "button", className: "btn-requestqc", text: "Request QC" });
+      const bNoQc = el("button", { type: "button", className: "btn-noqc", text: "No QC Required" });
+
+      const bQcDone = el("button", { type: "button", className: "btn-qcdone", text: "Mark QC Complete" });
+
       const status = String(t.status || "").toLowerCase();
       const isClosed = status === "closed";
 
+      // Existing enable/disable (unchanged)
       bRewash.disabled = isClosed || !(caps.canRewash && canRequestRewash(t));
       bNeedBy.disabled = isClosed || !(caps.canNeedBy && (status === "queued" || status === "washing"));
       bWashing.disabled = isClosed || !(caps.canWashOps && status === "queued");
       bWashed.disabled = isClosed || !(caps.canWashOps && status === "washing");
       bArchive.disabled = !(caps.canArchive && !isClosed);
 
+      // Role permissions for new workflow
+      // - Advisor CAN mark CP booked, but CANNOT mark WTY booked
+      // - Booker CAN mark CP/WTY and make QC decisions
+      // - Manager/Admin can do all
+      const canCpBook = (role === "booker" || role === "advisor" || role === "manager" || role === "admin");
+      const canWtyBook = (role === "booker" || role === "manager" || role === "admin");
+      const canQcDecision = (role === "booker" || role === "advisor" || role === "manager" || role === "admin");
+
+      // If QC is assigned to a real uid, don't allow "Request QC" again.
+      const qcAssigned = typeof t.qcAssignedTo === "string" ? t.qcAssignedTo : "";
+      const qcIsNoQc = qcAssigned === NO_QC_TOKEN;
+      const qcIsRealAssigned = !!qcAssigned && !qcIsNoQc;
+
+      // Booking stamps (fixed to use permissions, not isBooker)
+      bCpBooked.disabled = !canCpBook || isClosed || !!t.cpBookedAt;
+      bWtyBooked.disabled = !canWtyBook || isClosed || !!t.wtyBookedAt;
+
+      // Request QC rules:
+      // - Allowed by canQcDecision
+      // - Not closed
+      // - Not already assigned to a real qc uid
+      // - Not already QC done
+      bRequestQc.disabled = !canQcDecision || isClosed || !!t.qcDoneAt || qcIsRealAssigned;
+
+      // No QC rules:
+      // - Allowed by canQcDecision
+      // - Not closed
+      // - Not already NO_QC
+      // - Not already QC done
+      bNoQc.disabled = !canQcDecision || isClosed || !!t.qcDoneAt || qcIsNoQc;
+
+      // If QC already assigned, show that in tooltip so user understands why disabled
+      if (qcIsRealAssigned) bRequestQc.title = "QC already assigned.";
+      if (qcIsNoQc) bNoQc.title = "Already set to No QC Required.";
+
+      // QC only
+      const isQc = role === "qc";
+      bQcDone.disabled = !isQc || isClosed || !!t.qcDoneAt;
+
+      // Append buttons (keep existing base buttons always present)
       wrap.appendChild(bRewash);
       wrap.appendChild(bNeedBy);
       wrap.appendChild(bWashing);
       wrap.appendChild(bWashed);
+
+      // Show CP Booked button to allowed roles
+      if (canCpBook) wrap.appendChild(bCpBooked);
+
+      // Show WTY Booked ONLY to booker/manager/admin
+      if (canWtyBook) wrap.appendChild(bWtyBooked);
+
+      // Show QC decision buttons to allowed roles
+      if (canQcDecision) {
+        wrap.appendChild(bRequestQc);
+        wrap.appendChild(bNoQc);
+      }
+
+      // QC complete button only for QC role
+      if (isQc) wrap.appendChild(bQcDone);
+
+      // Archive always last (and remains role-gated by disabled state)
       wrap.appendChild(bArchive);
 
       td.appendChild(wrap);
@@ -537,8 +663,19 @@ function renderRow(t, role, cols, etaMap) {
   return tr;
 }
 
+/* FIXED: freeze buttons during update WITHOUT destroying role/status gating */
 function setRowButtonsDisabled(tr, disabled) {
-  tr.querySelectorAll("button").forEach((b) => (b.disabled = disabled));
+  tr.querySelectorAll("button").forEach((b) => {
+    if (disabled) {
+      b.dataset.prevDisabled = b.disabled ? "1" : "0";
+      b.disabled = true;
+    } else {
+      if (b.dataset.prevDisabled != null) {
+        b.disabled = b.dataset.prevDisabled === "1";
+        delete b.dataset.prevDisabled;
+      }
+    }
+  });
 }
 
 /* -------------------------------------------
@@ -573,7 +710,23 @@ export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl
   let searchText = "";
 
   const unsub = listenTickets({ statuses: ["queued", "washing", "washed", "closed"] }, (rows) => {
-    lastRows = rows || [];
+    let out = rows || [];
+
+    // QC view requirement: only tickets assigned to this qc uid
+    if (role === "qc") {
+      const uid = auth.currentUser?.uid || null;
+      out = uid ? out.filter((t) => t.qcAssignedTo === uid) : [];
+
+      // Keep QC list clean:
+      // - When NOT searching: show only QC-pending (no qcDoneAt yet)
+      // - When searching: allow completed to appear for lookup
+      const isSearching = !!String(searchText || "").trim();
+      if (!isSearching) {
+        out = out.filter((t) => !t.qcDoneAt);
+      }
+    }
+
+    lastRows = out;
     if (typeof rerender === "function") rerender();
   });
 
@@ -596,7 +749,7 @@ export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl
       set.has(String(r.status || "").toLowerCase())
     );
 
-    // ✅ Search by Tag OR RO
+    // Search by Tag OR RO
     if (searchText) {
       rows = rows.filter((t) => {
         const tag = String(t.tag || "").toLowerCase();
@@ -652,6 +805,92 @@ export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl
     try {
       setRowButtonsDisabled(tr, true);
 
+      // Permission helpers (must match renderRow permissions)
+      const canCpBook = (role === "booker" || role === "advisor" || role === "manager" || role === "admin");
+      const canWtyBook = (role === "booker" || role === "manager" || role === "admin");
+      const canQcDecision = (role === "booker" || role === "advisor" || role === "manager" || role === "admin");
+
+      // CP Booked (advisor allowed, not just booker)
+      if (btn.classList.contains("btn-cpbooked")) {
+        if (!canCpBook) return;
+
+        const ref = doc(db, "washTickets", id);
+        await updateDoc(ref, {
+          cpBookedAt: serverTimestamp(),
+          cpBookedBy: user.uid,
+          ...buildLastEditedPatch(role, user.uid, ["cpBookedAt", "cpBookedBy"])
+        });
+
+        if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "CP booked saved."; }
+        return;
+      }
+
+      // WTY Booked (advisor NOT allowed)
+      if (btn.classList.contains("btn-wtybooked")) {
+        if (!canWtyBook) return;
+
+        const ref = doc(db, "washTickets", id);
+        await updateDoc(ref, {
+          wtyBookedAt: serverTimestamp(),
+          wtyBookedBy: user.uid,
+          ...buildLastEditedPatch(role, user.uid, ["wtyBookedAt", "wtyBookedBy"])
+        });
+
+        if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "WTY booked saved."; }
+        return;
+      }
+
+      // Request QC (advisor/manager/admin/booker allowed)
+      if (btn.classList.contains("btn-requestqc")) {
+        if (!canQcDecision) return;
+
+        const assignedUid = await pickQcUserUid();
+        if (!assignedUid) return;
+
+        const ref = doc(db, "washTickets", id);
+        await updateDoc(ref, {
+          qcRequestedAt: serverTimestamp(),
+          qcRequestedBy: user.uid,
+          qcAssignedTo: assignedUid,
+          ...buildLastEditedPatch(role, user.uid, ["qcRequestedAt", "qcRequestedBy", "qcAssignedTo"])
+        });
+
+        if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "QC requested & assigned."; }
+        return;
+      }
+
+      // No QC Required (advisor/manager/admin/booker allowed)
+      if (btn.classList.contains("btn-noqc")) {
+        if (!canQcDecision) return;
+
+        const ref = doc(db, "washTickets", id);
+        await updateDoc(ref, {
+          qcRequestedAt: serverTimestamp(),
+          qcRequestedBy: user.uid,
+          qcAssignedTo: NO_QC_TOKEN,
+          ...buildLastEditedPatch(role, user.uid, ["qcRequestedAt", "qcRequestedBy", "qcAssignedTo"])
+        });
+
+        if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "Set to No QC Required."; }
+        return;
+      }
+
+      // QC: mark complete
+      if (btn.classList.contains("btn-qcdone")) {
+        if (role !== "qc") return;
+
+        const ref = doc(db, "washTickets", id);
+        await updateDoc(ref, {
+          qcDoneAt: serverTimestamp(),
+          qcDoneBy: user.uid,
+          ...buildLastEditedPatch("qc", user.uid, ["qcDoneAt", "qcDoneBy"])
+        });
+
+        if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "QC marked complete."; }
+        return;
+      }
+
+      // Existing actions (unchanged)
       if (btn.classList.contains("btn-rewash")) {
         if (!caps.canRewash) return;
 
@@ -710,8 +949,6 @@ export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl
     }
   });
 
-  // initial render
   rerender?.();
-
   return unsub;
 }
