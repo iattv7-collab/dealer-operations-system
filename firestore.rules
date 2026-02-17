@@ -39,6 +39,7 @@ service cloud.firestore {
       return signedIn() && isActive() && role() == "wash";
     }
 
+    // NOTE: you had both isstaff() and isStaff(). Keeping both to avoid breaking anything.
     function isstaff() {
       return signedIn() && isActive() && role() == "staff";
     }
@@ -67,7 +68,6 @@ service cloud.firestore {
         .changedKeys()
         .hasOnly(allowedKeys);
     }
-
 
     /* ---------------------------------------
        USERS COLLECTION
@@ -115,7 +115,6 @@ service cloud.firestore {
         && uid != request.auth.uid;
     }
 
-
     /* ---------------------------------------
        WASH TICKETS COLLECTION
     --------------------------------------- */
@@ -123,36 +122,56 @@ service cloud.firestore {
     match /washTickets/{ticketId} {
 
       /* READ */
-
       allow read: if isStaff();
 
-
       /* CREATE */
-
       allow create: if isStaff();
-
 
       /* UPDATE */
 
       // Admin / Manager: full control
       allow update: if isAdmin() || isManager();
 
-
-      // Wash role: washing workflow only
+      // ---------------------------------------------------------
+      // WASH ROLE: washing workflow (expanded to match your model)
+      // ---------------------------------------------------------
       allow update: if isWash()
         && onlyChanges([
+          // status workflow
           "status",
-          "washedAt",
-          "washedBy",
           "updatedAt",
+
+          // wash start fields
+          "washingStartedAt",
+          "washingStartedAtMs",
+          "washingStartedBy",
+
+          // wash complete fields
+          "washedAt",
+          "washedAtMs",
+          "washedBy",
+
+          // counters / rewash state
+          "washCount",
+          "rewashCount",
+          "priorityType",
+          "isRewashCycle",
+          "rewashRequestedAtMs",
+          "rewashRequestedBy",
+
+          // audit
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
-          "lastEditedFields"
+          "lastEditedFields",
+
+          // event log
+          "events"
         ]);
 
-
-      // Advisor: Need By + RO edit
+      // ---------------------------------------------------------
+      // ADVISOR: Need By + RO edit (as before)
+      // ---------------------------------------------------------
       allow update: if isAdvisor()
         && onlyChanges([
           "priorityType",
@@ -166,30 +185,46 @@ service cloud.firestore {
           "lastEditedFields"
         ]);
 
-
-      // Advisor: REWASH workflow
+      // ---------------------------------------------------------
+      // ADVISOR: REWASH REQUEST (FIXED)
+      // Your UI moves washed -> queued (Active), not washed -> washing
+      // Also allows events + isRewashCycle that requestRewash() writes
+      // ---------------------------------------------------------
       allow update: if isAdvisor()
         && resource.data.status == "washed"
-        && request.resource.data.status == "washing"
+        && request.resource.data.status == "queued"
         && request.resource.data.rewashRequestedBy == request.auth.uid
         && request.resource.data.rewashRequestedAtMs is int
         && request.resource.data.priorityType == "rewash"
+        && request.resource.data.isRewashCycle == true
         && onlyChanges([
           "status",
+
           "rewashRequestedAtMs",
           "rewashRequestedBy",
+
           "priorityType",
+          "isRewashCycle",
+
+          // optional: advisor may also set need-by for the rewash
           "needByAtMs",
           "needBySetBy",
+
+          // optional: RO field
           "ro",
+
+          // audit + events
           "updatedAt",
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
-          "lastEditedFields"
+          "lastEditedFields",
+          "events"
         ]);
 
+      // ---------------------------------------------------------
       // Advisor can also request/assign QC (+ audit fields)
+      // ---------------------------------------------------------
       allow update: if isAdvisor()
         && onlyChanges([
           "cpBookedAt",
@@ -204,9 +239,9 @@ service cloud.firestore {
           "lastEditedFields"
         ]);
 
-
-
+      // ---------------------------------------------------------
       // BOOKER: CP / WTY booked + QC assign/request
+      // ---------------------------------------------------------
       allow update: if isBooker()
         && onlyChanges([
           "cpBookedAt",
@@ -223,8 +258,9 @@ service cloud.firestore {
           "lastEditedFields"
         ]);
 
-
+      // ---------------------------------------------------------
       // QC: mark QC complete ONLY if assigned
+      // ---------------------------------------------------------
       allow update: if isQc()
         && resource.data.qcAssignedTo == request.auth.uid
         && onlyChanges([
@@ -237,26 +273,18 @@ service cloud.firestore {
           "lastEditedFields"
         ]);
 
-
       /* DELETE */
-
       allow delete: if isAdmin() || isManager();
-
     }
-
 
     /* ---------------------------------------
        SETTINGS COLLECTION
     --------------------------------------- */
 
     match /settings/{docId} {
-
       allow read: if isStaff();
-
       allow write: if isAdmin() || isManager();
-
     }
-
 
     /* ---------------------------------------
        DEFAULT DENY
@@ -265,6 +293,5 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if false;
     }
-
   }
 }
