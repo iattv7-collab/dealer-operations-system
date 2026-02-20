@@ -1,11 +1,20 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <meta charset="UTF-8" />
   <title>DOS Settings</title>
   <style>
-    body { font-family: "Times New Roman", Times, serif; margin: 16px; }
-    button, input { font-family: inherit; font-size: 16px; }
+    body {
+      font-family: "Times New Roman", Times, serif;
+      margin: 16px;
+    }
+
+    button,
+    input {
+      font-family: inherit;
+      font-size: 16px;
+    }
   </style>
 </head>
 
@@ -30,29 +39,42 @@
 
   <hr style="margin: 24px 0;" />
 
-  <!-- Wash Bay Configuration -->
+
+
+  <!-- Wash Configuration -->
   <h3>Wash Configuration</h3>
 
-  <label style="display:block; margin-bottom:8px;">
-    Number of Wash Bays (1–10)
-  </label>
+  <div style="display:grid; gap:12px; max-width:520px;">
 
-  <input
-    type="number"
-    id="washBayCountInput"
-    min="1"
-    max="10"
-    style="width:100px; padding:6px;"
-  />
+    <div>
+      <label style="display:block; margin-bottom:6px;">Wash Duration (minutes)</label>
+      <input type="number" id="washDurationMin" min="1" max="120" style="width:120px; padding:6px;" />
+    </div>
 
-  <button
-    id="saveWashBayBtn"
-    style="margin-left:10px; padding:6px 12px;"
-  >
-    Save
-  </button>
+    <div>
+      <label style="display:block; margin-bottom:6px;">Open Bays (today)</label>
+      <input type="number" id="openBays" min="0" max="50" style="width:120px; padding:6px;" />
+    </div>
 
-  <div id="washBayVisual" style="margin-top:12px;"></div>
+    <div>
+      <label style="display:block; margin-bottom:6px;">Buffer (minutes)</label>
+      <input type="number" id="bufferMin" min="0" max="60" style="width:120px; padding:6px;" />
+    </div>
+
+    <div>
+      <label style="display:block; margin-bottom:6px;">Effective Bays (auto)</label>
+      <div id="effectiveBays" style="padding:6px 0; font-weight:bold;"></div>
+    </div>
+
+    <div>
+      <button id="saveSystemSettingsBtn" style="padding:6px 12px; width:140px;">Save</button>
+      <span id="systemSettingsMsg" style="margin-left:10px; font-size:14px;"></span>
+    </div>
+
+  </div>
+
+
+
 
   <!-- FORCE RE-LOGIN ON SETTINGS -->
   <script type="module">
@@ -82,4 +104,5 @@
   <script type="module" src="./js/settingsPage.js"></script>
 
 </body>
+
 </html>

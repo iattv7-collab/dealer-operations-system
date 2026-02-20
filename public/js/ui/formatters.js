@@ -26,7 +26,8 @@ export function priorityLabel(t) {
  * - MISSED   -> ETA is late by more than 15 minutes
  */
 export function needByRiskLabel(t, etaMap) {
-  const needBy = (typeof t.needByAtMs === "number" && t.needByAtMs > 0) ? t.needByAtMs : null;
+  const needBy =
+    typeof t.needByAtMs === "number" && t.needByAtMs > 0 ? t.needByAtMs : null;
   if (!needBy) return "";
 
   const eta = etaMap?.get(t.id);
@@ -54,7 +55,9 @@ export function formatCell({ key, t, etaMap, fmtCreated, fmtTs, fmtTime }) {
   }
 
   if (key === "needBy") {
-    return (typeof t.needByAtMs === "number" && t.needByAtMs > 0) ? fmtTime(t.needByAtMs) : "";
+    return typeof t.needByAtMs === "number" && t.needByAtMs > 0
+      ? fmtTime(t.needByAtMs)
+      : "";
   }
 
   if (key === "eta") {
@@ -62,9 +65,15 @@ export function formatCell({ key, t, etaMap, fmtCreated, fmtTs, fmtTime }) {
     return ms ? fmtTime(ms) : "";
   }
 
-  // ✅ NEW COLUMN: needByRisk
+  // ✅ Need By Risk
   if (key === "needByRisk") {
     return needByRiskLabel(t, etaMap);
+  }
+
+  // ✅ Bay (pull from scheduler field)
+  if (key === "bay") {
+    const b = typeof t.scheduledBay === "number" ? t.scheduledBay : null;
+    return b ? String(b) : "";
   }
 
   if (key === "location") return t.location || "";

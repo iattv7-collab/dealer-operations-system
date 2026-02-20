@@ -1,4 +1,4 @@
-const functions = require("firebase-functions");
+const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
 
 admin.initializeApp();
@@ -244,3 +244,227 @@ exports.deleteUser = functions.https.onCall(async (data, context) => {
 
   return { ok: true };
 });
+
+// =====================================================
+// SCHEDULER (writes schedule fields onto washTickets)
+// v1 triggers (matches your current functions setup)
+// =====================================================
+
+const SCHEDULER_KEYS = [
+
+  "scheduledAtMs",
+  "scheduledEndAtMs",
+  "scheduledBay",
+  "scheduleRisk",
+  "scheduleUpdatedAtMs"
+];
+
+function minsToMs(m) {
+  return Math.floor(m * 60 * 1000);
+}
+
+function clampIntLocal(v, min, max, fallback) {
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.max(min, Math.min(max, n));
+}
+
+function pickMinIndex(arr) {
+  let idx = 0;
+  for (let i = 1; i < arr.length; i++) if (arr[i] < arr[idx]) idx = i;
+  return idx;
+}
+
+function pickSecondMinValue(arr) {
+  if (arr.length <= 1) return arr[0];
+  let min1 = Infinity, min2 = Infinity;
+  for (const v of arr) {
+    if (v < min1) { min2 = min1; min1 = v; }
+    else if (v < min2) { min2 = v; }
+  }
+  return min2;
+}
+
+async function recomputeScheduleV1(reason = "unknown") {
+
+  const db = admin.firestore();
+  const settingsSnap = await db.doc("settings/system").get();
+  const s = settingsSnap.exists ? settingsSnap.data() : {};
+
+  const washDurationMin = clampIntLocal(s.washDurationMin, 1, 120, 15);
+  const openBays = clampIntLocal(s.openBays, 0, 50, 1);
+  const bufferMin = clampIntLocal(s.bufferMin, 0, 60, 0);
+
+  const effectiveBays = openBays; // your chosen model
+  const slotMs = minsToMs(washDurationMin + bufferMin);
+
+  if (effectiveBays <= 0) {
+    functions.logger.warn("Scheduler skipped: openBays is 0", { reason });
+    return;
+  }
+
+  const snap = await db.collection("washTickets")
+    .where("status", "in", ["queued", "washing"])
+    .get();
+
+  const now = Date.now();
+
+  const tickets = [];
+  snap.forEach((doc) => {
+    const t = doc.data();
+    const pt = (t.priorityType || "normal");
+    tickets.push({
+      id: doc.id,
+      status: t.status || "queued",
+      waiter: !!t.waiter,
+      priorityType: (pt === "waiter" ? "normal" : pt), // normalize old data
+      needByAtMs: typeof t.needByAtMs === "number" ? t.needByAtMs : null,
+
+
+      // if already washing
+      washingStartedAtMs: typeof t.washingStartedAtMs === "number" ? t.washingStartedAtMs : null,
+      scheduledBay: typeof t.scheduledBay === "number" ? t.scheduledBay : null,
+
+      createdAtMs: typeof t.createdAtMs === "number" ? t.createdAtMs : now
+    });
+  });
+
+  const bayNext = Array.from({ length: effectiveBays }, () => now);
+
+  // Lock bays for currently washing tickets
+  const washing = tickets.filter(t => t.status === "washing");
+  washing.sort((a, b) => (a.washingStartedAtMs || now) - (b.washingStartedAtMs || now));
+
+  const used = new Set();
+  for (const t of washing) {
+    let bay = t.scheduledBay;
+    if (!bay || bay < 1 || bay > effectiveBays || used.has(bay)) {
+      let found = null;
+      for (let i = 1; i <= effectiveBays; i++) if (!used.has(i)) { found = i; break; }
+      bay = found || 1;
+    }
+    used.add(bay);
+
+    const start = t.washingStartedAtMs || now;
+    const end = Math.max(now, start + slotMs);
+    bayNext[bay - 1] = Math.max(bayNext[bay - 1], end);
+
+    t._schedule = { scheduledBay: bay, scheduledAtMs: start, scheduledEndAtMs: end };
+  }
+
+  const queued = tickets.filter(t => t.status === "queued");
+
+  const waiters = queued.filter(t => t.waiter === true).sort((a, b) => a.createdAtMs - b.createdAtMs);
+  const needbys = queued
+    .filter(t => t.priorityType === "needby" && typeof t.needByAtMs === "number")
+    .sort((a, b) => a.needByAtMs - b.needByAtMs);
+  const rewash = queued.filter(t => t.priorityType === "rewash").sort((a, b) => a.createdAtMs - b.createdAtMs);
+  const normal = queued
+    .filter(t => !t.waiter && t.priorityType !== "needby" && t.priorityType !== "rewash")
+    .sort((a, b) => a.createdAtMs - b.createdAtMs);
+
+  function needByWouldBeBrokenIfWeDoOneWaiterFirst() {
+    if (needbys.length === 0) return false;
+    const nb = needbys[0];
+
+    const t0 = Math.min(...bayNext);
+    const t1 = pickSecondMinValue(bayNext);
+
+    // waiter takes earliest bay slot
+    const afterWaiterEarliest = Math.min(t1, t0 + slotMs);
+    const nbEndIfWaiterFirst = afterWaiterEarliest + slotMs;
+
+    return nbEndIfWaiterFirst > nb.needByAtMs;
+  }
+
+  const scheduledQueued = [];
+
+  while (waiters.length || needbys.length || rewash.length || normal.length) {
+    let next = null;
+
+    // Your rule:
+    // Waiters first ONLY if it does not break earliest Need-By promise
+    if (waiters.length && needbys.length) {
+      next = needByWouldBeBrokenIfWeDoOneWaiterFirst() ? needbys.shift() : waiters.shift();
+    } else if (needbys.length) next = needbys.shift();
+    else if (waiters.length) next = waiters.shift();
+    else if (rewash.length) next = rewash.shift();
+    else next = normal.shift();
+
+    const bayIdx = pickMinIndex(bayNext);
+    const start = bayNext[bayIdx];
+    const end = start + slotMs;
+    bayNext[bayIdx] = end;
+
+    const risk = (next.priorityType === "needby" && next.needByAtMs)
+      ? (end <= next.needByAtMs ? "onTime" : "late")
+      : "onTime";
+
+    next._schedule = {
+      scheduledBay: bayIdx + 1,
+      scheduledAtMs: start,
+      scheduledEndAtMs: end,
+      scheduleRisk: risk
+    };
+
+    scheduledQueued.push(next);
+  }
+
+  const batch = db.batch();
+  const updatedAtMs = Date.now();
+
+  for (const t of [...washing, ...scheduledQueued]) {
+    const ref = db.collection("washTickets").doc(t.id);
+    batch.set(ref, {
+      scheduledBay: t._schedule.scheduledBay,
+      scheduledAtMs: t._schedule.scheduledAtMs,
+      scheduledEndAtMs: t._schedule.scheduledEndAtMs,
+      scheduleRisk: t._schedule.scheduleRisk || "onTime",
+      scheduleUpdatedAtMs: updatedAtMs
+    }, { merge: true });
+  }
+
+  await batch.commit();
+
+  functions.logger.info("Scheduler updated", {
+    reason,
+    count: washing.length + scheduledQueued.length,
+    openBays,
+    washDurationMin,
+    bufferMin
+  });
+}
+
+// Trigger 1: washTickets changes
+exports.onWashTicketWrite = functions.firestore
+  .document("washTickets/{ticketId}")
+  .onWrite(async (change, context) => {
+    const before = change.before.exists ? change.before.data() : null;
+    const after = change.after.exists ? change.after.data() : null;
+    if (!after) return null;
+
+    // loop guard: if ONLY scheduler fields changed, ignore
+    if (before) {
+      const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+      const changed = [];
+      for (const k of keys) {
+        const a = JSON.stringify(before[k]);
+        const b = JSON.stringify(after[k]);
+        if (a !== b) changed.push(k);
+      }
+      if (changed.length && changed.every(k => SCHEDULER_KEYS.includes(k))) {
+        return null;
+      }
+    }
+
+    await recomputeScheduleV1("washTickets write");
+    return null;
+  });
+
+// Trigger 2: settings/system changes
+exports.onSettingsSystemWrite = functions.firestore
+  .document("settings/system")
+  .onWrite(async () => {
+    await recomputeScheduleV1("settings/system write");
+    return null;
+  });

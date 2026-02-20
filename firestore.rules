@@ -166,7 +166,13 @@ service cloud.firestore {
           "lastEditedFields",
 
           // event log
-          "events"
+          "events",
+
+          "scheduledAtMs",
+          "scheduledEndAtMs",
+          "scheduledBay",
+          "scheduleRisk",
+          "scheduleUpdatedAtMs"
         ]);
 
       // ---------------------------------------------------------

@@ -1,15 +1,35 @@
 // public/js/ui/scheduler.js
 
+/**
+ * UI ETA map:
+ * ✅ Prefer server scheduler fields (scheduledEndAtMs)
+ * ✅ Fallback to old UI calculation ONLY if scheduler fields are missing
+ *
+ * NOTE: With Option A, this file should be “mostly fallback”.
+ */
+
 const DEFAULT_MINUTES_PER_CAR = 15;
 
-/**
- * Compute ETA map for the *displayed* active list.
- * This version assumes the list is already sorted correctly (NeedBy first, then arrival order),
- * which is handled by sortActiveQueue().
- *
- * NOTE: baysOpen will come from settings later. For now it's 1 bay by default.
- */
 export function computeEtaMap(activeSorted, opts = {}) {
+  const map = new Map();
+
+  // ✅ FIRST: if scheduler fields exist, use them
+  let sawAnySchedulerEta = false;
+
+  (activeSorted || []).forEach((t) => {
+    if (typeof t?.scheduledEndAtMs === "number" && t.scheduledEndAtMs > 0) {
+      map.set(t.id, t.scheduledEndAtMs);
+      sawAnySchedulerEta = true;
+    }
+  });
+
+  // If at least one ticket has scheduler ETA, we assume scheduler is active.
+  // For tickets missing it, leave blank (or fallback per-ticket if you want later).
+  if (sawAnySchedulerEta) return map;
+
+  // -----------------------------
+  // FALLBACK (legacy UI scheduler)
+  // -----------------------------
   const minutesPerCar =
     Number.isFinite(opts.minutesPerCar) && opts.minutesPerCar > 0
       ? opts.minutesPerCar
@@ -23,12 +43,6 @@ export function computeEtaMap(activeSorted, opts = {}) {
   const slotMs = minutesPerCar * 60 * 1000;
   const now = Date.now();
 
-  const map = new Map();
-
-  // With multiple bays:
-  // index 0..bays-1 finish at 1 slot
-  // index bays..2*bays-1 finish at 2 slots
-  // finishMs = now + (floor(i/baysOpen)+1)*slotMs
   (activeSorted || []).forEach((t, i) => {
     const finishMs = now + (Math.floor(i / baysOpen) + 1) * slotMs;
     map.set(t.id, finishMs);
@@ -37,12 +51,6 @@ export function computeEtaMap(activeSorted, opts = {}) {
   return map;
 }
 
-/**
- * OPTIONAL (not used yet): risk map for NeedBy tickets.
- * Returns Map(ticketId -> { lateByMin, etaMs, needByMs })
- *
- * lateByMin = 0 means safe.
- */
 export function computeRiskMap(activeSorted, etaMap) {
   const risk = new Map();
 
