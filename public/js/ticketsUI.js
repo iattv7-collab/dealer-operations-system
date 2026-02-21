@@ -3,7 +3,7 @@ import { auth } from "./firebase.js";
 import { listenTickets } from "./washTickets.js";
 
 import { tabDefsForRole } from "./ui/roles.js";
-import { colsForRole, colsForView } from "./ui/columns.js";
+import { colsForView } from "./ui/columns.js";
 import { sortActiveQueue } from "./ui/sort.js";
 import { computeEtaMap } from "./ui/scheduler.js";
 
@@ -11,10 +11,19 @@ import { ensureBaseStyles, buildTabs, buildTableSkeleton, el } from "./ui/dom.js
 import { renderRow } from "./ui/render.js";
 import { buildActionsCell, handleTableClick } from "./ui/actions.js";
 
+import { listenSystemSettings } from "./settings.js";
+
 /* -------------------------------------------
    Public mount
 --------------------------------------------*/
-export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl = null, viewColumnKeys = [] }) {
+export function mountTicketsUI({
+  role,
+  tableEl,
+  msgEl,
+  showTabs = true,
+  searchEl = null,
+  viewColumnKeys = []
+}) {
   if (!tableEl) throw new Error("mountTicketsUI: missing tableEl");
   ensureBaseStyles();
 
@@ -24,6 +33,9 @@ export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl
 
   let currentTab = "active";
   let tabsEl = null;
+
+  // ✅ System settings cache (bays + minutes)
+  let sys = null;
 
   if (showTabs) {
     tabsEl = buildTabs(containerEl, TAB_DEFS);
@@ -43,12 +55,15 @@ export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl
   let rerender = null;
   let searchText = "";
 
+  // ✅ Listen system settings (so CLOSED means baysOpen = 0 everywhere)
+  const unsubSys = listenSystemSettings((s) => {
+    sys = s || null;
+    if (typeof rerender === "function") rerender();
+  });
+
   const unsub = listenTickets(
     { statuses: ["queued", "washing", "washed", "closed"] },
     (rows) => {
-      // ✅ IMPORTANT: DO NOT auto-clear msgEl.err here.
-      // If an action is denied by Firestore rules, we WANT the red message to remain visible.
-
       let out = rows || [];
 
       if (role === "qc") {
@@ -56,9 +71,7 @@ export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl
         out = uid ? out.filter((t) => t.qcAssignedTo === uid) : [];
 
         const isSearching = !!String(searchText || "").trim();
-        if (!isSearching) {
-          out = out.filter((t) => !t.qcDoneAt);
-        }
+        if (!isSearching) out = out.filter((t) => !t.qcDoneAt);
       }
 
       lastRows = out;
@@ -94,9 +107,23 @@ export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl
     }
 
     let etaMap = null;
+
     if (currentTab === "active") {
       rows = rows.slice().sort(sortActiveQueue);
-      etaMap = computeEtaMap(rows);
+
+      // ✅ PASS SETTINGS INTO scheduler
+      const minutesPerCar = Number(sys?.washDurationMin) || 15;
+      const bufferMin = Number(sys?.bufferMin) || 0;
+
+      // effectiveBays already accounts for autoStart + isOpen
+      const baysOpen = Number.isFinite(sys?.effectiveBays)
+        ? Math.floor(sys.effectiveBays)
+        : 0;
+
+      etaMap = computeEtaMap(rows, {
+        minutesPerCar: minutesPerCar + bufferMin,
+        baysOpen
+      });
     }
 
     tbody.innerHTML = "";
@@ -115,8 +142,6 @@ export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl
     rows.forEach((t) => {
       const tr = renderRow(t, role, cols, etaMap);
 
-      // ✅ Correct fix:
-      // Fill the existing actions <td> placeholder instead of replacing/adding cells.
       if (hasActions) {
         const actionsTd = tr.querySelector('td[data-actions-cell="1"]');
         if (actionsTd) {
@@ -141,5 +166,10 @@ export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl
   });
 
   rerender?.();
-  return unsub;
+
+  // return combined unsubscribe (optional)
+  return () => {
+    try { unsub?.(); } catch {}
+    try { unsubSys?.(); } catch {}
+  };
 }

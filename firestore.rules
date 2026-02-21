@@ -69,6 +69,13 @@ service cloud.firestore {
         .hasOnly(allowedKeys);
     }
 
+    // ✅ NEW: supervisors can control wash day/settings
+    function canControlWashDay() {
+      return isAdmin()
+        || isManager()
+        || (signedIn() && isActive() && userDoc().data.permissions.canControlWashDay == true);
+    }
+
     /* ---------------------------------------
        USERS COLLECTION
     --------------------------------------- */
@@ -109,11 +116,13 @@ service cloud.firestore {
         ]
         && request.resource.data.role != "admin";
 
-      // ✅ admin/manager can set per-user column layout
+      // ✅ admin/manager can set wash-day supervisor permission (single boolean)
       allow update: if
         (isAdmin() || isManager())
         && uid != request.auth.uid
-        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["viewColumns"]);
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["permissions", "updatedAt"])
+        && request.resource.data.permissions.keys().hasOnly(["canControlWashDay"])
+        && request.resource.data.permissions.canControlWashDay is bool;
 
       allow update: if isAdmin();
 
@@ -199,8 +208,6 @@ service cloud.firestore {
 
       // ---------------------------------------------------------
       // ADVISOR: REWASH REQUEST (FIXED)
-      // Your UI moves washed -> queued (Active), not washed -> washing
-      // Also allows events + isRewashCycle that requestRewash() writes
       // ---------------------------------------------------------
       allow update: if isAdvisor()
         && resource.data.status == "washed"
@@ -295,7 +302,8 @@ service cloud.firestore {
 
     match /settings/{docId} {
       allow read: if isStaff();
-      allow write: if isAdmin() || isManager();
+      // ✅ CHANGED: allow supervisor permission to write settings too
+      allow write: if canControlWashDay();
     }
 
     /* ---------------------------------------

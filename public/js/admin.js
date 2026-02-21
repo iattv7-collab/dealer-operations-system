@@ -314,6 +314,11 @@ async function loadAllUsers() {
     activeCheckbox.type = "checkbox";
     activeCheckbox.checked = data.active !== false;
 
+    // Supervisor permission checkbox
+    const supervisorCheckbox = document.createElement("input");
+    supervisorCheckbox.type = "checkbox";
+    supervisorCheckbox.checked = data.permissions?.canControlWashDay === true;
+
     // ✅ REAL Columns button (opens modal)
     const columnsBtn = document.createElement("button");
     columnsBtn.textContent = "Columns";
@@ -344,15 +349,27 @@ async function loadAllUsers() {
       deleteBtn.title = "Admin cannot delete itself.";
     }
 
+
+
     saveBtn.onclick = async () => {
-      await updateDoc(doc(db, "users", uid), {
+
+      const patch = {
         name: nameInput.value.trim(),
         employeeId: empInput.value.trim(),
         role: sel.value,
         active: activeCheckbox.checked,
-        updatedAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp()
+      };
+
+      // add supervisor permission
+      patch["permissions.canControlWashDay"] = supervisorCheckbox.checked;
+
+      await updateDoc(doc(db, "users", uid), patch);
+
     };
+
+
+
 
     deleteBtn.onclick = async () => {
       if (isSelf) return;
@@ -372,18 +389,20 @@ async function loadAllUsers() {
       <td></td>
       <td></td>
       <td></td>
+      <td></td>
     `;
 
+
+    // ✅ Actions: Columns + Save + Delete (FIXED)
     tr.children[1].appendChild(nameInput);
     tr.children[2].appendChild(empInput);
     tr.children[3].appendChild(sel);
     tr.children[4].appendChild(activeCheckbox);
+    tr.children[5].appendChild(supervisorCheckbox);
 
-    // ✅ Actions: Columns + Save + Delete (FIXED)
-    tr.children[5].appendChild(columnsBtn);
-    tr.children[5].appendChild(saveBtn);
-    tr.children[5].appendChild(deleteBtn);
-
+    tr.children[6].appendChild(columnsBtn);
+    tr.children[6].appendChild(saveBtn);
+    tr.children[6].appendChild(deleteBtn);;
     usersTable.appendChild(tr);
   });
 }

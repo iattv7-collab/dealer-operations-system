@@ -1,25 +1,50 @@
 <!doctype html>
 <html>
+
 <head>
   <meta charset="utf-8">
   <title>Admin – Dealer Wash System</title>
   <style>
-    body { font-family: "Times New Roman", Times, serif; margin: 16px; }
-    button, select, input { font-family: inherit; font-size: 16px; }
-    table { border-collapse: collapse; width: 100%; margin-top: 10px; }
-    th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
-    th { text-align: left; }
+    body {
+      font-family: "Times New Roman", Times, serif;
+      margin: 16px;
+    }
+
+    button,
+    select,
+    input {
+      font-family: inherit;
+      font-size: 16px;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      vertical-align: top;
+    }
+
+    th {
+      text-align: left;
+    }
 
     /* --- Columns modal --- */
     #columnsModalBackdrop {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,.45);
+      background: rgba(0, 0, 0, .45);
       align-items: center;
       justify-content: center;
       z-index: 9999;
     }
+
     #columnsModal {
       background: #fff;
       width: min(760px, 92vw);
@@ -28,6 +53,7 @@
       border: 1px solid #ccc;
       padding: 14px;
     }
+
     #columnsModalHeader {
       display: flex;
       align-items: center;
@@ -35,6 +61,7 @@
       gap: 12px;
       margin-bottom: 10px;
     }
+
     #columnsModalUserLine {
       font-size: 14px;
       opacity: 0.9;
@@ -43,12 +70,14 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
     #columnsModalTopRow {
       display: flex;
       align-items: center;
       gap: 10px;
       margin-bottom: 10px;
     }
+
     #columnsModalGrid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -58,13 +87,22 @@
       border-bottom: 1px solid #eee;
       margin-bottom: 12px;
     }
+
     #columnsModalActions {
       display: flex;
       gap: 10px;
       justify-content: flex-end;
     }
-    #columnsModalMsg.ok { color: #0a7a2a; margin-top: 10px; }
-    #columnsModalMsg.err { color: #b00020; margin-top: 10px; }
+
+    #columnsModalMsg.ok {
+      color: #0a7a2a;
+      margin-top: 10px;
+    }
+
+    #columnsModalMsg.err {
+      color: #b00020;
+      margin-top: 10px;
+    }
   </style>
 </head>
 
@@ -106,6 +144,7 @@
         <th>Employee ID</th>
         <th>Role</th>
         <th>Active</th>
+        <th>Supervisor</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -148,4 +187,5 @@
   </script>
 
 </body>
+
 </html>
