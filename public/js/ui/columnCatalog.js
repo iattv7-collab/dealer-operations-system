@@ -180,9 +180,9 @@ export const COLUMN_CATALOG = {
 // Role default columns per VIEW (your base “A B C” per role-view)
 export const DEFAULT_COLUMNS_BY_VIEW = {
   advisor: ["tag", "ro", "advisor", "needBy", "status", "eta", "notes"],
-  wash: ["tag", "status", "location", "priority", "eta"],
+  wash: ["tag","status","location","priority","eta","_actions"],
   manager: ["tag", "ro", "advisor", "priority", "needBy", "status", "location", "eta", "notes"],
-  booker: ["tag", "ro", "advisor", "status", "cpBooked", "wtyBooked", "eta", "notes"],
+  booker: ["tag", "ro", "advisor", "status", "cpBooked", "wtyBooked", "eta", "notes", "actions"],
   qc: ["tag", "status", "washed", "qcDone", "eta", "notes"],
   dropoff: ["tag", "ro", "advisor", "location", "priority", "needBy", "status", "notes", "created"],
   admin: ["tag", "ro", "advisor", "priority", "needBy", "status", "location", "eta", "notes"],
