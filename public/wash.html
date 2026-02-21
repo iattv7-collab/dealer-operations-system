@@ -5,7 +5,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Wash</title>
+
   <style>
+
     body {
       font-family: "Times New Roman", Times, serif;
       margin: 16px;
@@ -60,72 +62,246 @@
       flex-wrap: wrap;
     }
 
-    /* ADDED: horizontal scroll container */
     .table-scroll {
       overflow-x: auto;
     }
 
-    /* ADDED: allow table to grow wider than container */
     .table-scroll table {
       width: max-content;
       min-width: 100%;
     }
+
+    .section {
+      border:1px solid #ddd;
+      padding:12px;
+      border-radius:10px;
+      margin-bottom:16px;
+    }
+
+    .pill {
+      padding:4px 10px;
+      border-radius:20px;
+      border:1px solid #aaa;
+      background:#eee;
+      font-weight:bold;
+    }
+
   </style>
+
 </head>
 
 <body>
+
   <div id="nav"></div>
+
   <p id="status"></p>
 
+
+  <!-- ✅ GLOBAL WASH DAY CONTROL (same as Settings) -->
+
+  <div id="manualControls" class="section">
+
+    <div style="font-weight:bold;margin-bottom:8px;">
+      Wash Day Control
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+
+      <button id="openWashBtn">
+        Open Wash Day
+      </button>
+
+      <button id="closeWashBtn">
+        Close Wash Day
+      </button>
+
+      Current:
+      <span id="isOpenBadge" class="pill"></span>
+
+    </div>
+
+  </div>
+
+
+
   <h2>Wash Team</h2>
+
   <div class="muted">
     Work queue: <b>queued</b> and <b>washing</b>. (You can mark <b>washed</b>.)
   </div>
+
   <div style="height:12px"></div>
 
+
   <div class="card">
+
     <div id="msg" class="muted"></div>
+
     <div style="height:10px"></div>
 
-    <!-- CHANGED: wrapper now uses class -->
     <div class="table-scroll">
       <table id="ticketsTable"></table>
     </div>
 
   </div>
 
+
+
   <script type="module">
+
     import { auth } from "./js/firebase.js";
-    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
-    import { requireRole } from "./js/guard.js";
-    import { renderNav } from "./js/nav.js";
+    import { onAuthStateChanged }
+    from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
-    import { mountTicketsUI } from "./js/ticketsUI.js";
+    import { requireRole }
+    from "./js/guard.js";
 
-    document.getElementById("nav").innerHTML = renderNav("wash");
+    import { renderNav }
+    from "./js/nav.js";
+
+    import { mountTicketsUI }
+    from "./js/ticketsUI.js";
+
+    import {
+      listenSystemSettings,
+      setSystemSettings
+    } from "./js/settings.js";
+
+    import {
+      getUserProfile
+    } from "./js/guard.js";
+
+
+
+    document.getElementById("nav").innerHTML =
+      renderNav("wash");
+
+
     requireRole(["wash", "manager", "admin"]);
 
-    const msgEl = document.getElementById("msg");
-    const tableEl = document.getElementById("ticketsTable");
+
+
+    const msgEl =
+      document.getElementById("msg");
+
+
+    const tableEl =
+      document.getElementById("ticketsTable");
+
+
+
+    const openBtn =
+      document.getElementById("openWashBtn");
+
+
+    const closeBtn =
+      document.getElementById("closeWashBtn");
+
+
+    const badge =
+      document.getElementById("isOpenBadge");
+
+
+
+    onAuthStateChanged(auth, async (user) => {
+
+      if (!user) return;
+
+
+      const profile =
+        await getUserProfile(user);
+
+
+      const canControl =
+        profile?.permissions?.canControlWashDay === true
+        || profile?.role === "admin"
+        || profile?.role === "manager";
+
+
+      openBtn.disabled =
+        !canControl;
+
+
+      closeBtn.disabled =
+        !canControl;
+
+
+    });
+
+
+
+    openBtn.onclick =
+      async () => {
+
+        await setSystemSettings(
+          auth.currentUser,
+          { isOpen:true }
+        );
+
+      };
+
+
+    closeBtn.onclick =
+      async () => {
+
+        await setSystemSettings(
+          auth.currentUser,
+          { isOpen:false }
+        );
+
+      };
+
+
+
+    listenSystemSettings((s)=>{
+
+      badge.textContent =
+        s.isOpen ? "OPEN" : "CLOSED";
+
+    });
+
+
 
     onAuthStateChanged(auth, (u) => {
+
       if (!u) {
+
         msgEl.className = "err";
-        msgEl.textContent = "Not signed in.";
-      } else {
-        msgEl.className = "muted";
-        msgEl.textContent = "";
+
+        msgEl.textContent =
+          "Not signed in.";
+
       }
+
+      else {
+
+        msgEl.className = "muted";
+
+        msgEl.textContent = "";
+
+      }
+
     });
 
+
+
     mountTicketsUI({
-      role: "wash",
+
+      role:"wash",
+
       tableEl,
+
       msgEl,
-      showTabs: true
+
+      showTabs:true
+
     });
+
+
   </script>
+
+
 </body>
 
 </html>

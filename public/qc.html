@@ -74,7 +74,17 @@
 </head>
 
 <body>
+
   <div id="nav"></div>
+
+  <!-- ✅ GLOBAL WASH OPEN / CLOSE PANEL -->
+  <div id="manualControls" class="card" style="margin-bottom:16px; display:none;">
+    <b>Wash Day Control:</b>
+    <button id="openWashBtn">OPEN</button>
+    <button id="closeWashBtn">CLOSE</button>
+    <span id="settingsMsg" class="muted" style="margin-left:10px;"></span>
+  </div>
+
   <p id="status"></p>
 
   <h2>QC</h2>
@@ -99,20 +109,63 @@
   </div>
 
   <script type="module">
+
     import { requireRole, getUserProfile } from "./js/guard.js";
     import { renderNav } from "./js/nav.js";
     import { mountTicketsUI } from "./js/ticketsUI.js";
     import { auth } from "./js/firebase.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
+    /* ✅ ADD THESE */
+    import { listenSystemSettings, setSystemSettings } from "./js/settings.js";
+
+
     document.getElementById("nav").innerHTML = renderNav("qc");
+
     requireRole(["qc", "manager", "admin"]);
 
+
+    const openBtn = document.getElementById("openWashBtn");
+    const closeBtn = document.getElementById("closeWashBtn");
+    const msg = document.getElementById("settingsMsg");
+    const panel = document.getElementById("manualControls");
+
+
+    function setMsg(text, ok = true) {
+      msg.textContent = text;
+      msg.style.color = ok ? "green" : "crimson";
+    }
+
+
     onAuthStateChanged(auth, async (user) => {
+
       if (!user) return;
 
       const profile = await getUserProfile(user);
-      const realRole = String(profile?.role || "staff").toLowerCase();
+      const role = String(profile?.role || "").toLowerCase();
+
+      const canControl =
+        role === "admin" ||
+        role === "manager" ||
+        profile?.permissions?.canControlWashDay === true;
+
+      panel.style.display = canControl ? "block" : "none";
+
+      if (canControl) {
+
+        openBtn.onclick = async () => {
+          await setSystemSettings(user, { isOpen: true });
+          setMsg("Wash OPEN");
+        };
+
+        closeBtn.onclick = async () => {
+          await setSystemSettings(user, { isOpen: false });
+          setMsg("Wash CLOSED");
+        };
+
+      }
+
+      const realRole = role;
 
       mountTicketsUI({
         role: realRole,
@@ -122,8 +175,11 @@
         searchEl: document.getElementById("searchInput"),
         viewColumnKeys: profile?.viewColumns?.[realRole] || []
       });
+
     });
+
   </script>
+
 </body>
 
 </html>
