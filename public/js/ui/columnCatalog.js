@@ -181,13 +181,13 @@ export const COLUMN_CATALOG = {
 export const DEFAULT_COLUMNS_BY_VIEW = {
   advisor: ["tag", "ro", "advisor", "needBy", "status", "eta", "notes"],
   wash: ["tag","status","location","priority","eta","_actions"],
-  manager: ["tag", "ro", "advisor", "priority", "needBy", "status", "location", "eta", "notes"],
-  booker: ["tag", "ro", "advisor", "status", "cpBooked", "wtyBooked", "eta", "notes", "actions"],
-  qc: ["tag", "status", "washed", "qcDone", "eta", "notes"],
+  manager: ["tag", "ro", "advisor", "priority", "needBy", "status", "location", "eta", "notes", "_actions"],
+  booker: ["tag", "ro", "advisor", "status", "cpBooked", "wtyBooked", "eta", "notes", "_actions"],
+  qc: ["tag", "ro", "status", "washed", "qcDone", "eta", "notes", "_actions"],
   dropoff: ["tag", "ro", "advisor", "location", "priority", "needBy", "status", "notes", "created"],
   admin: ["tag", "ro", "advisor", "priority", "needBy", "status", "location", "eta", "notes"],
-  staff: ["tag", "status", "location", "priority", "eta"],
-  valet: ["tag", "status", "location", "priority", "eta"],
+  staff: ["tag", "status", "location", "priority", "eta", "_actions"],
+  valet: ["tag", "status", "location", "priority", "eta", "_actions"],
 };
 
 // Helpers
