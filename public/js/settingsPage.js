@@ -1,139 +1,155 @@
 // public/js/settingsPage.js
-import { db, auth } from "./firebase.js";
-import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-
-import { getSystemSettings, setSystemSettings, listenSystemSettings } from "./settings.js";
-
-const pickupToggle = document.getElementById("pickupEnabledToggle");
-const msg = document.getElementById("settingsMsg");
-
-const washDurationMinInput = document.getElementById("washDurationMin");
-const openBaysInput = document.getElementById("openBays");
-const bufferMinInput = document.getElementById("bufferMin");
-
-const effectiveBaysEl = document.getElementById("effectiveBays");
-const saveSystemSettingsBtn = document.getElementById("saveSystemSettingsBtn");
-const systemSettingsMsg = document.getElementById("systemSettingsMsg");
-
-const FEATURES_REF = doc(db, "settings", "features");
-
-function flash(text) {
-  msg.textContent = text;
-  setTimeout(() => (msg.textContent = ""), 1500);
+import { auth } from "./firebase.js";
+import { listenSystemSettings, setSystemSettings } from "./settings.js";
+let lastSaved = null;
+function setSaveState(text, ok = true) {
+  const el = document.getElementById("saveState");
+  if (!el) return;
+  el.textContent = text;
+  el.style.background = ok ? "#eee" : "#ffe6e6";
+  el.style.border = ok ? "none" : "1px solid crimson";
 }
 
-function flashSystem(text, ok = true) {
-  if (!systemSettingsMsg) return;
-  systemSettingsMsg.textContent = text;
-  systemSettingsMsg.style.color = ok ? "green" : "crimson";
-  setTimeout(() => {
-    systemSettingsMsg.textContent = "";
-  }, 1800);
+function renderCurrentSaved(s) {
+  const el = document.getElementById("currentSettingsText");
+  if (!el) return;
+
+  el.textContent =
+    `Wash: ${s.washDurationMin}m + buffer ${s.bufferMin}m
+Today override bays: ${s.openBays}
+Effective bays now: ${s.effectiveBays}
+
+Auto-start: ${s.autoStart ? "ON" : "OFF"}
+Mon–Fri bays: ${s.mfBays}   Sat: ${s.satBays}   Sun: ${s.sunBays}
+
+Hours:
+Mon–Fri ${s.mfOpen}–${s.mfClose}
+Sat     ${s.satOpen}–${s.satClose}
+Sun     ${s.sunOpen}–${s.sunClose}`;
 }
 
-function setDisabled(disabled) {
-  pickupToggle.disabled = disabled;
+// ---- helpers
+const $ = (id) => document.getElementById(id);
 
-  washDurationMinInput.disabled = disabled;
-  openBaysInput.disabled = disabled;
-  bufferMinInput.disabled = disabled;
-  saveSystemSettingsBtn.disabled = disabled;
+function intVal(id) {
+  const el = $(id);
+  if (!el) return null;
+  const s = String(el.value || "").trim();
+  if (s === "") return null;
+  return Number(s);
 }
 
-function readSystemInputs() {
-  return {
-    washDurationMin: Number(washDurationMinInput.value),
-    openBays: Number(openBaysInput.value),
-    bufferMin: Number(bufferMinInput.value)
-  };
+function strVal(id) {
+  const el = $(id);
+  if (!el) return null;
+  const s = String(el.value || "").trim();
+  return s === "" ? null : s;
 }
 
-function writeSystemInputs(s) {
-  washDurationMinInput.value = s.washDurationMin;
-  openBaysInput.value = s.openBays;
-  bufferMinInput.value = s.bufferMin;
-
-  if (effectiveBaysEl) {
-    effectiveBaysEl.textContent = String(s.effectiveBays);
-  }
+function checkedVal(id) {
+  const el = $(id);
+  if (!el) return null;
+  return !!el.checked;
 }
 
-// ----- Pickup toggle -----
-async function loadPickupToggle() {
-  const snap = await getDoc(FEATURES_REF);
-  const data = snap.exists() ? snap.data() : {};
-  pickupToggle.checked = !!data.pickupEnabled;
+function setMsg(text, ok = true) {
+  const el = $("settingsMsg");
+  if (!el) return;
+  el.textContent = text || "";
+  el.style.color = ok ? "green" : "crimson";
 }
 
-async function savePickupToggle() {
+// ---- bind UI
+function applyToUI(s) {
+  renderCurrentSaved(s);
+  setSaveState("Saved ✓", true);
+  if ($("pickupEnabled")) $("pickupEnabled").checked = !!s.pickupEnabled; // if you have it
+
+  if ($("washDurationMin")) $("washDurationMin").value = s.washDurationMin ?? 15;
+  if ($("bufferMin")) $("bufferMin").value = s.bufferMin ?? 0;
+  if ($("openBays")) $("openBays").value = s.openBays ?? 0;
+
+  if ($("autoStart")) $("autoStart").checked = !!s.autoStart;
+  if ($("mfBays")) $("mfBays").value = s.mfBays ?? 2;
+  if ($("satBays")) $("satBays").value = s.satBays ?? 1;
+  if ($("sunBays")) $("sunBays").value = s.sunBays ?? 0;
+
+  if ($("mfOpen")) $("mfOpen").value = s.mfOpen ?? "07:30";
+  if ($("mfClose")) $("mfClose").value = s.mfClose ?? "19:00";
+  if ($("satOpen")) $("satOpen").value = s.satOpen ?? "08:00";
+  if ($("satClose")) $("satClose").value = s.satClose ?? "15:00";
+  if ($("sunOpen")) $("sunOpen").value = s.sunOpen ?? "00:00";
+  if ($("sunClose")) $("sunClose").value = s.sunClose ?? "00:00";
+
+  if ($("effectiveBays")) $("effectiveBays").textContent = String(s.effectiveBays ?? "");
+  lastSaved = readForm();
+  renderCurrentSaved(s);
+  setSaveState("Saved ✓", true);
+}
+
+async function onSave() {
   try {
-    await setDoc(FEATURES_REF, { pickupEnabled: !!pickupToggle.checked }, { merge: true });
-    flash("Saved");
+    const user = auth.currentUser;
+    if (!user) {
+      setMsg("Not signed in.", false);
+      return;
+    }
+
+    const partial = {
+      washDurationMin: intVal("washDurationMin"),
+      bufferMin: intVal("bufferMin"),
+      openBays: intVal("openBays"),
+
+      autoStart: checkedVal("autoStart"),
+
+      mfBays: intVal("mfBays"),
+      satBays: intVal("satBays"),
+      sunBays: intVal("sunBays"),
+
+      mfOpen: strVal("mfOpen"),
+      mfClose: strVal("mfClose"),
+      satOpen: strVal("satOpen"),
+      satClose: strVal("satClose"),
+      sunOpen: strVal("sunOpen"),
+      sunClose: strVal("sunClose"),
+    };
+
+    await setSystemSettings(user, partial);
+    setMsg("Saved.");
   } catch (e) {
-    console.error("Save pickupEnabled failed:", e);
-    flash("Save failed: " + (e?.code || e?.message || "unknown"));
+    console.error(e);
+    setMsg(e?.message || "Save failed.", false);
   }
 }
 
-// ----- System settings -----
-async function loadSystemSettings() {
-  const s = await getSystemSettings();
-  writeSystemInputs(s);
-}
+function init() {
+  const btn = $("saveSystemSettingsBtn");
+  if (btn) btn.addEventListener("click", onSave);
 
-async function saveSystemSettings() {
-  const user = auth.currentUser;
-  const payload = readSystemInputs();
-
-  try {
-    const saved = await setSystemSettings(user, payload);
-    writeSystemInputs(saved);
-    flashSystem("Saved ✅");
-  } catch (e) {
-    console.error("Save system settings failed:", e);
-    flashSystem("Save failed: " + (e?.code || e?.message || "unknown"), false);
-  }
-}
-
-// Wire UI
-pickupToggle.addEventListener("change", () => savePickupToggle());
-saveSystemSettingsBtn.addEventListener("click", () => saveSystemSettings());
-
-// Enter key saves
-[washDurationMinInput, openBaysInput, bufferMinInput].forEach((inp) => {
-  inp.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") saveSystemSettingsBtn.click();
+  // live load
+  listenSystemSettings((s) => {
+    applyToUI(s);
   });
-});
 
-// ----- Auth gate -----
-setDisabled(true);
-flash("Checking sign-in...");
+  // detect unsaved changes
+  const ids = [
+    "washDurationMin", "bufferMin", "openBays", "autoStart",
+    "mfBays", "satBays", "sunBays",
+    "mfOpen", "mfClose", "satOpen", "satClose", "sunOpen", "sunClose"
+  ];
 
-let unsubSettings = null;
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
 
-onAuthStateChanged(auth, async (user) => {
-  if (!user) {
-    setDisabled(true);
-    flash("Please sign in");
-    setTimeout(() => (window.location.href = "/login.html"), 400);
-    return;
-  }
-
-  setDisabled(false);
-  flash("");
-
-  try {
-    await loadPickupToggle();
-    await loadSystemSettings();
-
-    if (typeof unsubSettings === "function") unsubSettings();
-    unsubSettings = listenSystemSettings((s) => {
-      if (effectiveBaysEl) effectiveBaysEl.textContent = String(s.effectiveBays);
+    el.addEventListener("input", () => {
+      setSaveState("Not saved", false);
     });
-  } catch (e) {
-    console.error("Load settings failed:", e);
-    flash("Load failed: " + (e?.code || e?.message || "unknown"));
-  }
-});
+
+    el.addEventListener("change", () => {
+      setSaveState("Not saved", false);
+    });
+  });
+}
+
+init();

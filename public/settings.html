@@ -15,6 +15,41 @@
       font-family: inherit;
       font-size: 16px;
     }
+
+    .grid {
+      display: grid;
+      gap: 12px;
+      max-width: 720px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .row label {
+      font-weight: bold;
+    }
+
+    .hint {
+      font-size: 13px;
+      opacity: 0.85;
+      margin-top: 4px;
+    }
+
+    .section {
+      margin-top: 18px;
+    }
+
+    .pill {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 999px;
+      background: #eee;
+      font-weight: bold;
+    }
   </style>
 </head>
 
@@ -24,6 +59,12 @@
   <div id="nav"></div>
 
   <h2>Dealer Operations System — Settings</h2>
+  <div id="saveState" class="pill" style="margin:10px 0;">Loaded</div>
+
+  <div id="currentSettings" style="border:1px solid #ddd; padding:12px; border-radius:10px; max-width:720px;">
+    <div style="font-weight:bold; margin-bottom:8px;">Current (saved)</div>
+    <div id="currentSettingsText" style="white-space:pre-wrap; font-size:14px;"></div>
+  </div>
 
   <hr style="margin: 20px 0;" />
 
@@ -39,31 +80,123 @@
 
   <hr style="margin: 24px 0;" />
 
-
-
   <!-- Wash Configuration -->
   <h3>Wash Configuration</h3>
 
-  <div style="display:grid; gap:12px; max-width:520px;">
+  <div class="grid">
 
-    <div>
-      <label style="display:block; margin-bottom:6px;">Wash Duration (minutes)</label>
-      <input type="number" id="washDurationMin" min="1" max="120" style="width:120px; padding:6px;" />
+    <div class="row">
+      <label for="washDurationMin">Wash Duration (minutes)</label>
+      <div>
+        <input type="number" id="washDurationMin" min="1" max="120" style="width:120px; padding:6px;" />
+        <div class="hint">This is the base wash time used by the scheduler.</div>
+      </div>
     </div>
 
-    <div>
-      <label style="display:block; margin-bottom:6px;">Open Bays (today)</label>
-      <input type="number" id="openBays" min="0" max="50" style="width:120px; padding:6px;" />
+    <div class="row">
+      <label for="bufferMin">Buffer (minutes)</label>
+      <div>
+        <input type="number" id="bufferMin" min="0" max="60" style="width:120px; padding:6px;" />
+        <div class="hint">Extra time added per car (handoff, move time, etc.).</div>
+      </div>
     </div>
 
-    <div>
-      <label style="display:block; margin-bottom:6px;">Buffer (minutes)</label>
-      <input type="number" id="bufferMin" min="0" max="60" style="width:120px; padding:6px;" />
+    <div class="row">
+      <label for="openBays">Bays Override (today only)</label>
+      <div>
+        <input type="number" id="openBays" min="0" max="50" style="width:120px; padding:6px;" />
+        <div class="hint">Optional. If set > 0, it overrides MF/Sat/Sun bays for today.</div>
+      </div>
     </div>
 
-    <div>
-      <label style="display:block; margin-bottom:6px;">Effective Bays (auto)</label>
-      <div id="effectiveBays" style="padding:6px 0; font-weight:bold;"></div>
+    <div class="row">
+      <label>Effective Bays (auto)</label>
+      <div>
+        <span id="effectiveBays" class="pill"></span>
+        <div class="hint">This is what the scheduler will use right now.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <hr style="margin: 24px 0;" />
+
+  <!-- Operating Schedule -->
+  <h3>Operating Schedule</h3>
+
+  <div class="grid">
+
+    <div class="row">
+      <label for="autoStart">Auto-start</label>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <input type="checkbox" id="autoStart" />
+        <span>Schedule runs automatically based on hours below</span>
+      </div>
+    </div>
+
+    <div id="manualControls" style="border:1px solid #ddd; padding:12px; border-radius:10px;">
+      <div style="font-weight:bold; margin-bottom:8px;">Manual Mode Controls</div>
+      <div class="hint" style="margin-bottom:10px;">
+        Only used when Auto-start is OFF. Supervisor can open/close the wash day.
+      </div>
+
+      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+        <button id="openWashBtn" style="padding:6px 12px;">Open Wash Day</button>
+        <button id="closeWashBtn" style="padding:6px 12px;">Close Wash Day</button>
+        <span>Current: <span id="isOpenBadge" class="pill"></span></span>
+      </div>
+    </div>
+
+    <div class="section" style="border:1px solid #ddd; padding:12px; border-radius:10px;">
+      <div style="font-weight:bold; margin-bottom:10px;">Bays by Day</div>
+
+      <div class="row">
+        <label for="mfBays">Mon–Fri Bays</label>
+        <input type="number" id="mfBays" min="0" max="50" style="width:120px; padding:6px;" />
+      </div>
+
+      <div class="row">
+        <label for="satBays">Saturday Bays</label>
+        <input type="number" id="satBays" min="0" max="50" style="width:120px; padding:6px;" />
+      </div>
+
+      <div class="row">
+        <label for="sunBays">Sunday Bays</label>
+        <input type="number" id="sunBays" min="0" max="50" style="width:120px; padding:6px;" />
+      </div>
+    </div>
+
+    <div class="section" style="border:1px solid #ddd; padding:12px; border-radius:10px;">
+      <div style="font-weight:bold; margin-bottom:10px;">Hours (HH:MM)</div>
+
+      <div class="row">
+        <label>Mon–Fri Open / Close</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input id="mfOpen" placeholder="07:30" style="width:120px; padding:6px;" />
+          <span>to</span>
+          <input id="mfClose" placeholder="19:00" style="width:120px; padding:6px;" />
+        </div>
+      </div>
+
+      <div class="row">
+        <label>Saturday Open / Close</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input id="satOpen" placeholder="08:00" style="width:120px; padding:6px;" />
+          <span>to</span>
+          <input id="satClose" placeholder="15:00" style="width:120px; padding:6px;" />
+        </div>
+      </div>
+
+      <div class="row">
+        <label>Sunday Open / Close</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input id="sunOpen" placeholder="00:00" style="width:120px; padding:6px;" />
+          <span>to</span>
+          <input id="sunClose" placeholder="00:00" style="width:120px; padding:6px;" />
+        </div>
+      </div>
+
+      <div class="hint">Tip: Set bays to 0 (or hours 00:00–00:00) to effectively close that day.</div>
     </div>
 
     <div>
@@ -73,9 +206,6 @@
 
   </div>
 
-
-
-
   <!-- FORCE RE-LOGIN ON SETTINGS -->
   <script type="module">
     import { auth } from "./js/firebase.js";
@@ -84,7 +214,6 @@
     const url = new URL(window.location.href);
     const reauth = url.searchParams.get("reauth");
 
-    // If we haven't reauthed yet, sign out and send to login with a return URL
     if (!reauth) {
       await signOut(auth);
       window.location.href = "/login.html?next=/settings.html?reauth=1";

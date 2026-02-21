@@ -56,7 +56,9 @@ export function computeRiskMap(activeSorted, etaMap) {
 
   (activeSorted || []).forEach((t) => {
     const needByMs =
-      typeof t?.needByAtMs === "number" && t.needByAtMs > 0 ? t.needByAtMs : null;
+      typeof t?.needByAtMs === "number" && t.needByAtMs > 0
+        ? t.needByAtMs
+        : null;
 
     if (!needByMs) return;
 
