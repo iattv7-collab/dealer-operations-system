@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!DOCTYPE html>Advisor Role
 <html lang="en">
 
 <head>
@@ -127,12 +127,17 @@
       const profile = await getUserProfile(user);
       const realRole = String(profile?.role || "staff").toLowerCase();
 
+      const viewColumnKeys = Array.isArray(profile?.viewColumns?.[realRole])
+        ? profile.viewColumns[realRole]
+        : [];
+
       mountTicketsUI({
         role: realRole,
         tableEl: document.getElementById("ticketsTable"),
         msgEl: document.getElementById("msg"),
         showTabs: true,
-        searchEl: document.getElementById("searchInput")
+        searchEl: document.getElementById("searchInput"),
+        viewColumnKeys: profile?.viewColumns?.[realRole] || []
       });
     });
   </script>

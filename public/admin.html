@@ -9,6 +9,62 @@
     table { border-collapse: collapse; width: 100%; margin-top: 10px; }
     th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
     th { text-align: left; }
+
+    /* --- Columns modal --- */
+    #columnsModalBackdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    #columnsModal {
+      background: #fff;
+      width: min(760px, 92vw);
+      max-height: 84vh;
+      overflow: auto;
+      border: 1px solid #ccc;
+      padding: 14px;
+    }
+    #columnsModalHeader {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    #columnsModalUserLine {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-bottom: 10px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    #columnsModalTopRow {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    #columnsModalGrid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px 18px;
+      padding: 8px 0;
+      border-top: 1px solid #eee;
+      border-bottom: 1px solid #eee;
+      margin-bottom: 12px;
+    }
+    #columnsModalActions {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+    #columnsModalMsg.ok { color: #0a7a2a; margin-top: 10px; }
+    #columnsModalMsg.err { color: #b00020; margin-top: 10px; }
   </style>
 </head>
 
@@ -55,6 +111,32 @@
     </thead>
     <tbody id="usersTable"></tbody>
   </table>
+
+  <!-- ✅ Columns Modal (required for the Columns button in admin.js) -->
+  <div id="columnsModalBackdrop" aria-hidden="true">
+    <div id="columnsModal" role="dialog" aria-modal="true" aria-label="Configure Columns">
+      <div id="columnsModalHeader">
+        <h3 style="margin:0;">Configure Columns</h3>
+        <button id="columnsModalCloseBtn" type="button">X</button>
+      </div>
+
+      <div id="columnsModalUserLine"></div>
+
+      <div id="columnsModalTopRow">
+        <label for="columnsModalViewSelect">View:</label>
+        <select id="columnsModalViewSelect"></select>
+      </div>
+
+      <div id="columnsModalGrid"></div>
+
+      <div id="columnsModalActions">
+        <button id="columnsModalCancelBtn" type="button">Cancel</button>
+        <button id="columnsModalSaveBtn" type="button">Save</button>
+      </div>
+
+      <div id="columnsModalMsg"></div>
+    </div>
+  </div>
 
   <script type="module">
     import { requireRole } from "./js/guard.js";

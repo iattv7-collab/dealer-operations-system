@@ -1,42 +1,57 @@
 // public/js/ui/columns.js
+import { DEFAULT_COLUMNS_BY_VIEW, getColumnDef } from "./columnCatalog.js";
 
-const MASTER_COLS = [
-  { key: "tag", label: "Tag" },
-  { key: "ro", label: "RO" },
-  { key: "priority", label: "Priority" },
-  { key: "cycleType", label: "Type" },
-  { key: "needBy", label: "need By" },
-  { key: "needByRisk", label: "Need By Risk" }, // ✅ NEW
-  { key: "eta", label: "ETA (Finish)" },
-  { key: "bay", label: "Bay" },
-  { key: "location", label: "Location" },
-  { key: "status", label: "Status" },
-  { key: "created", label: "Created" },
-  { key: "washed", label: "Last Washed" },
-  { key: "cpBooked", label: "CP Booked" },
-  { key: "wtyBooked", label: "WTY Booked" },
-  { key: "qcDone", label: "QC Done" },
-  { key: "notes", label: "Notes" },
-  { key: "_actions", label: "Actions" },
+/**
+ * Build column defs from keys
+ * Filters out unknown keys safely
+ */
+export function buildColumnsFromKeys(keys) {
+  const out = [];
 
-];
+  (keys || []).forEach((k) => {
+    const def = getColumnDef(k);
+    if (def) {
+      out.push({
+        key: def.key,
+        label: def.label
+      });
+    }
+  });
 
-const VISIBLE_COLS_BY_ROLE = {
-  dropoff: ["tag", "ro", "priority", "eta", "location", "status", "created", "notes", "_actions"],
-  staff: ["tag", "ro", "priority", "eta", "location", "status", "created", "notes", "_actions"],
+  return out;
+}
 
-  wash: ["tag", "ro", "priority", "cycleType", "needBy", "needByRisk", "eta", "bay", "location", "status", "created", "washed", "notes", "_actions"],
+/**
+ * Core function:
+ * Builds columns for a view using:
+ * - system defaults
+ * - manager/user assigned columns (extraKeys)
+ */
+export function colsForView(viewKey, extraKeys = []) {
 
-  advisor: ["tag", "ro", "priority", "needBy", "needByRisk", "eta", "bay", "location", "status", "created", "washed", "cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
+  const normalizedView = String(viewKey || "staff").toLowerCase();
 
-  booker: ["tag", "ro", "status", "cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
-  qc: ["tag", "ro", "location", "status", "qcDone", "notes", "_actions"],
+  // Default columns for that role/view
+  const base = DEFAULT_COLUMNS_BY_VIEW[normalizedView] || [];
 
-  manager: ["tag", "ro", "priority", "needBy", "needByRisk", "eta", "bay", "location", "status", "created", "washed", "cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
-  admin: ["tag", "ro", "priority", "needBy", "needByRisk", "eta", "bay", "location", "status", "created", "washed", "cpBooked", "wtyBooked", "qcDone", "notes", "_actions"],
-};
+  // Merge defaults + extra keys (no duplicates)
+  const merged = [
+    ...new Set([
+      ...(base || []),
+      ...(extraKeys || [])
+    ])
+  ];
 
-export function colsForRole(role) {
-  const keys = VISIBLE_COLS_BY_ROLE[role] || VISIBLE_COLS_BY_ROLE.staff;
-  return MASTER_COLS.filter(c => keys.includes(c.key));
+  return buildColumnsFromKeys(merged);
+}
+
+/**
+ * Compatibility wrapper used by ticketsUI.js
+ * This is now fully functional with dynamic columns
+ */
+export function colsForRole(role, extraKeys = []) {
+
+  const normalizedRole = String(role || "staff").toLowerCase();
+
+  return colsForView(normalizedRole, extraKeys);
 }

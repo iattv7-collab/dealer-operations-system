@@ -3,7 +3,7 @@ import { auth } from "./firebase.js";
 import { listenTickets } from "./washTickets.js";
 
 import { tabDefsForRole } from "./ui/roles.js";
-import { colsForRole } from "./ui/columns.js";
+import { colsForRole, colsForView } from "./ui/columns.js";
 import { sortActiveQueue } from "./ui/sort.js";
 import { computeEtaMap } from "./ui/scheduler.js";
 
@@ -14,11 +14,11 @@ import { buildActionsCell, handleTableClick } from "./ui/actions.js";
 /* -------------------------------------------
    Public mount
 --------------------------------------------*/
-export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl = null }) {
+export function mountTicketsUI({ role, tableEl, msgEl, showTabs = true, searchEl = null, viewColumnKeys = [] }) {
   if (!tableEl) throw new Error("mountTicketsUI: missing tableEl");
   ensureBaseStyles();
 
-  const cols = colsForRole(role);
+  const cols = colsForView(role, viewColumnKeys);
   const containerEl = tableEl.parentElement || document.body;
   const TAB_DEFS = tabDefsForRole(role);
 

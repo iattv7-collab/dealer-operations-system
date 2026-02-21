@@ -109,6 +109,12 @@ service cloud.firestore {
         ]
         && request.resource.data.role != "admin";
 
+      // ✅ admin/manager can set per-user column layout
+      allow update: if
+        (isAdmin() || isManager())
+        && uid != request.auth.uid
+        && request.resource.data.diff(resource.data).changedKeys().hasOnly(["viewColumns"]);
+
       allow update: if isAdmin();
 
       allow delete: if isAdmin()
