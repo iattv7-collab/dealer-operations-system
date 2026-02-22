@@ -4,16 +4,16 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 import { getUserProfile } from "./guard.js";
 
 const NAV_ITEMS = [
-  ["Home", "/index.html", "home", ["admin", "manager", "advisor", "wash", "staff"]],
+  ["Home", "/index.html", "home", ["admin", "manager", "advisor", "wash", "staff", "valet"]],
   ["Advisor", "/advisor.html", "advisor", ["admin", "manager", "advisor"]],
+  ["Valet", "/valet.html", "valet", ["admin", "manager", "valet"]],
   ["Wash", "/wash.html", "wash", ["admin", "manager", "wash"]],
   ["Manager", "/manager.html", "manager", ["admin", "manager"]],
   ["Admin", "/admin.html", "admin", ["admin"]],
-  ["Dropoff", "/dropoff.html", "dropoff", ["admin", "manager", "advisor", "wash", "staff"]],
+  ["Dropoff", "/dropoff.html", "dropoff", ["admin", "manager", "advisor", "wash", "staff", "valet"]],
   ["Settings", "/settings.html", "settings", ["admin", "manager"]],
   ["Booker", "/booker.html", "booker", ["admin", "manager", "booker"]],
   ["QC", "/qc.html", "qc", ["admin", "manager", "qc"]],
-
 ];
 
 function escapeHtml(s) {

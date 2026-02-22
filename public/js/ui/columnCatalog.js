@@ -5,10 +5,11 @@
 // NOTE: "visible" is controlled by manager/user prefs.
 // NOTE: "editable" is ultimately enforced by role safety rules below.
 
-export const VIEW_KEYS = ["wash", "staff", "advisor", "manager", "admin", "valet", "dropoff", "booker", "qc", "valet"];
 
 // Roles in your system (adjust if needed)
-export const ROLES = ["wash", "staff", "advisor", "manager", "admin", "valet", "dropoff", "booker", "qc", "valet"];
+export const VIEW_KEYS = ["wash", "staff", "advisor", "manager", "admin", "valet", "dropoff", "booker", "qc"];
+
+export const ROLES = ["wash", "staff", "advisor", "manager", "admin", "valet", "dropoff", "booker", "qc"];
 
 /**
  * Column definition format:
@@ -109,6 +110,15 @@ export const COLUMN_CATALOG = {
     editRoles: [], // system-only
   },
 
+  // ✅ ADDED (you referenced updatedAt in defaults but it did not exist)
+  updatedAt: {
+    key: "updatedAt",
+    label: "Last Update",
+    field: "updatedAt",
+    type: "time",
+    editRoles: [],
+  },
+
   washed: {
     key: "washed",
     label: "Washed",
@@ -165,6 +175,7 @@ export const COLUMN_CATALOG = {
     editRoles: ["qc", "manager", "admin"],
   },
 
+  // ✅ Your actual Actions key is _actions (not "actions")
   _actions: {
     key: "_actions",
     label: "Actions",
@@ -173,21 +184,129 @@ export const COLUMN_CATALOG = {
     editRoles: [], // buttons are handled elsewhere
   },
 
-
   // Add more columns later safely without touching views.
 };
 
 // Role default columns per VIEW (your base “A B C” per role-view)
 export const DEFAULT_COLUMNS_BY_VIEW = {
-  advisor: ["tag", "ro", "advisor", "needBy", "status", "eta", "notes"],
-  wash: ["tag","status","location","priority","eta","_actions"],
-  manager: ["tag", "ro", "advisor", "priority", "needBy", "status", "location", "eta", "notes", "_actions"],
-  booker: ["tag", "ro", "advisor", "status", "cpBooked", "wtyBooked", "eta", "notes", "_actions"],
-  qc: ["tag", "ro", "status", "washed", "qcDone", "eta", "notes", "_actions"],
-  dropoff: ["tag", "ro", "advisor", "location", "priority", "needBy", "status", "notes", "created"],
-  admin: ["tag", "ro", "advisor", "priority", "needBy", "status", "location", "eta", "notes"],
-  staff: ["tag", "status", "location", "priority", "eta", "_actions"],
-  valet: ["tag", "status", "location", "priority", "eta", "_actions"],
+  admin: [
+    "tag",
+    "ro",
+    "advisor",
+    "status",
+    "needBy",
+    "location",
+    "bay",
+    "priority", // ✅ moved near Bay/Notes
+    "notes",
+    "washed",   // ✅ moved early so it's not stuck far right
+    "updatedAt",
+    "_actions",
+  ],
+
+  manager: [
+    "tag",
+    "ro",
+    "advisor",
+    "status",
+    "needBy",
+    "location",
+    "bay",
+    "priority",
+    "notes",
+    "washed",
+    "updatedAt",
+    "_actions",
+  ],
+
+  advisor: [
+    "tag",
+    "ro",
+    "advisor",
+    "status",
+    "needBy",
+    "location",
+    "bay",
+    "priority",
+    "notes",
+    "washed",
+    "_actions",
+  ],
+
+  wash: [
+    "tag",
+    "ro",
+    "advisor",
+    "status",
+    "needBy",
+    "location",
+    "bay",
+    "priority",
+    "notes",
+    "washed",
+    "_actions",
+  ],
+
+  staff: [
+    "tag",
+    "ro",
+    "advisor",
+    "status",
+    "location",
+    "bay",
+    "priority",
+    "notes",
+    "washed",
+    "_actions",
+  ],
+
+  valet: [
+    "tag",
+    "ro",
+    "advisor",
+    "status",
+    "location",
+    "bay",
+    "priority",
+    "notes",
+    "washed",
+    "_actions",
+  ],
+
+    booker: [
+    "tag",
+    "ro",
+    "advisor",
+    "status",
+    "needBy",
+    "location",
+    "priority",
+
+    "cpBooked",
+    "wtyBooked",
+    "qcDone",
+
+    "notes",
+    "washed",
+    "updatedAt",
+    "_actions",
+  ],
+
+  qc: [
+    "tag",
+    "ro",
+    "advisor",
+    "status",
+    "needBy",
+    "location",
+    "priority",
+
+    "qcDone",
+
+    "notes",
+    "updatedAt",
+    "_actions",
+  ],
 };
 
 // Helpers

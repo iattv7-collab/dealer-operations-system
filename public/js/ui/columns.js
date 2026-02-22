@@ -1,4 +1,4 @@
-// public/js/ui/columns.js
+// public/js/ui/columns.js 
 import { DEFAULT_COLUMNS_BY_VIEW, getColumnDef } from "./columnCatalog.js";
 
 /**
@@ -42,7 +42,20 @@ export function colsForView(viewKey, extraKeys = []) {
     ])
   ];
 
-  return buildColumnsFromKeys(merged);
+  /**
+   * HARD BLOCK RULE
+   * Only manager and admin can see "Last Update" column
+   * Even if extraKeys tries to add it
+   */
+  const blocked = new Set();
+
+  if (normalizedView !== "manager" && normalizedView !== "admin") {
+    blocked.add("updatedAt");
+  }
+
+  const finalKeys = merged.filter(k => !blocked.has(k));
+
+  return buildColumnsFromKeys(finalKeys);
 }
 
 /**

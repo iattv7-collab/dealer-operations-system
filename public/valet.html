@@ -1,0 +1,228 @@
+<!DOCTYPE html>Valet Role
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Valet</title>
+    <style>
+        body {
+            font-family: "Times New Roman", Times, serif;
+            margin: 16px;
+        }
+
+        button {
+            font-family: inherit;
+            font-size: 16px;
+        }
+
+        .card {
+            border: 1px solid #ccc;
+            padding: 12px;
+            border-radius: 8px;
+        }
+
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            vertical-align: top;
+        }
+
+        th {
+            text-align: left;
+        }
+
+        .muted {
+            color: #666;
+        }
+
+        .ok {
+            color: #0a6;
+        }
+
+        .err {
+            color: #b00;
+        }
+
+        .advisor-grid {
+            display: flex;
+            gap: 16px;
+            align-items: flex-start;
+        }
+
+        .left-col {
+            flex: 1 1 auto;
+            min-width: 0;
+        }
+
+        .right-col {
+            flex: 0 0 260px;
+        }
+
+        .table-scroll {
+            overflow-x: auto;
+        }
+
+        .table-scroll table {
+            width: max-content;
+            min-width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="nav"></div>
+
+    <!-- ✅ GLOBAL WASH OPEN / CLOSE PANEL -->
+    <div id="manualControls" class="card" style="margin-bottom:16px; display:none;">
+        <b>Wash Day Control:</b>
+        <button id="openWashBtn">OPEN</button>
+        <button id="closeWashBtn">CLOSE</button>
+        <span id="settingsMsg" class="muted" style="margin-left:10px;"></span>
+    </div>
+
+    <p id="status"></p>
+
+    <h2>Valet</h2>
+
+    <div class="card">
+
+        <div class="advisor-grid">
+
+            <div class="left-col">
+
+                <div class="muted">
+                    Universal tabs + columns. Advisor actions are enabled by role.
+                </div>
+
+                <div id="msg" class="muted" style="margin-top:10px;"></div>
+
+                <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <label for="searchInput" class="muted">Search:</label>
+                    <input id="searchInput" type="text" placeholder="Tag or RO..."
+                        style="padding:6px 8px; width:240px;" />
+                </div>
+
+                <div class="table-scroll" style="margin-top:10px;">
+                    <table id="ticketsTable"></table>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <script type="module">
+
+        import { requireRole, getUserProfile } from "./js/guard.js";
+        import { renderNav } from "./js/nav.js";
+        import { mountTicketsUI } from "./js/ticketsUI.js";
+        import { auth } from "./js/firebase.js";
+        import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+        /* ✅ ADD THESE */
+        import { listenSystemSettings, setSystemSettings } from "./js/settings.js";
+
+
+        document.getElementById("nav").innerHTML = renderNav("valet");
+
+        requireRole(["valet", "manager", "admin"]);
+
+
+        const openBtn = document.getElementById("openWashBtn");
+        const closeBtn = document.getElementById("closeWashBtn");
+        const msg = document.getElementById("settingsMsg");
+        const panel = document.getElementById("manualControls");
+
+
+        function setMsg(text, ok = true) {
+
+            msg.textContent = text;
+
+            msg.style.color = ok ? "green" : "crimson";
+
+        }
+
+
+        onAuthStateChanged(auth, async (user) => {
+
+            if (!user) return;
+
+
+            const profile = await getUserProfile(user);
+
+            const role = String(profile?.role || "").toLowerCase();
+
+
+            /* ✅ SAME PERMISSION LOGIC */
+
+            const canControl =
+
+                role === "admin" ||
+
+                role === "manager" ||
+
+                profile?.permissions?.canControlWashDay === true;
+
+
+            panel.style.display = canControl ? "block" : "none";
+
+
+            if (canControl) {
+
+                openBtn.onclick = async () => {
+
+                    await setSystemSettings(user, { isOpen: true });
+
+                    setMsg("Wash OPEN");
+
+                };
+
+
+                closeBtn.onclick = async () => {
+
+                    await setSystemSettings(user, { isOpen: false });
+
+                    setMsg("Wash CLOSED");
+
+                };
+
+            }
+
+
+            const realRole = role;
+
+
+            mountTicketsUI({
+
+                role: realRole,
+
+                tableEl: document.getElementById("ticketsTable"),
+
+                msgEl: document.getElementById("msg"),
+
+                showTabs: true,
+
+                searchEl: document.getElementById("searchInput"),
+
+                viewColumnKeys: profile?.viewColumns?.[realRole] || []
+
+            });
+
+        });
+
+
+    </script>
+
+</body>
+
+</html>

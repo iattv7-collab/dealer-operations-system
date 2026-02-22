@@ -20,7 +20,7 @@ const pendingTable = document.getElementById("pendingTable");
 const usersTable = document.getElementById("usersTable");
 
 // Roles now (no tech)
-const ROLES = ["admin", "manager", "advisor", "wash", "staff", "dropoff", "booker", "qc", "pending"];
+const ROLES = ["admin", "manager", "advisor", "wash", "valet", "staff", "valet", "dropoff", "booker", "qc", "pending"];
 
 /* -----------------------------
    Modal elements (from admin.html)

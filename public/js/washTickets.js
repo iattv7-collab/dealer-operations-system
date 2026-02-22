@@ -36,6 +36,20 @@ function makeEvent({ type, atMs, by, role, cycle }) {
   };
 }
 
+// String name for display purposes
+function displayNameForUser(user) {
+  return String(user?.displayName || "").trim();
+}
+
+// Audit fields saved on every update
+function auditUser(user) {
+  return {
+    updatedByUid: user?.uid || "",
+    updatedByName: String(user?.displayName || "").trim(),
+    updatedByEmail: String(user?.email || "").trim()
+  };
+}
+
 /* -------------------------------------------
    Create
 --------------------------------------------*/
@@ -66,6 +80,9 @@ export async function createWashTicket(data, user, role = "staff") {
     createdAtMs: nowMs,
     updatedAt: serverTimestamp(),
 
+    // ✅ Who last updated (on create, creator is the last updater)
+    ...auditUser(user),
+
     // Who created it
     createdBy: user.uid,
 
@@ -89,8 +106,8 @@ export async function createWashTicket(data, user, role = "staff") {
     rewashRequestedBy: null,
 
     // ✅ NEW: reporting + drilldown foundations
-    washCount: 0,       // total completed washes (includes first wash)
-    rewashCount: 0,     // completed rewashes only
+    washCount: 0,         // total completed washes (includes first wash)
+    rewashCount: 0,       // completed rewashes only
     isRewashCycle: false, // when true, next completion counts as rewash
     events: [],
 
@@ -129,7 +146,9 @@ export async function requestRewash(ticketId, user, role = "advisor") {
     rewashRequestedAtMs: nowMs,
     rewashRequestedBy: user.uid,
     status: "queued",
+
     updatedAt: serverTimestamp(),
+    ...auditUser(user),
 
     events: arrayUnion(
       makeEvent({ type: "rewash_requested", atMs: nowMs, by: user.uid, role, cycle: "rewash" })
@@ -140,7 +159,11 @@ export async function requestRewash(ticketId, user, role = "advisor") {
       "isRewashCycle",
       "rewashRequestedAtMs",
       "rewashRequestedBy",
-      "status"
+      "status",
+      "updatedAt",
+      "updatedByUid",
+      "updatedByName",
+      "updatedByEmail"
     ])
   });
 }
@@ -176,11 +199,18 @@ export async function setTicketStatus(ticketId, nextStatus, user, role = "unknow
 
   const cycle = isRewash ? "rewash" : "wash";
 
-  const fieldsChanged = ["status", "updatedAt"];
+  const fieldsChanged = [
+    "status",
+    "updatedAt",
+    "updatedByUid",
+    "updatedByName",
+    "updatedByEmail"
+  ];
 
   const patch = {
     status,
-    updatedAt: serverTimestamp()
+    updatedAt: serverTimestamp(),
+    ...auditUser(user)
   };
 
   // ✅ record wash START only when wash team actually clicks "Start Wash"

@@ -39,9 +39,12 @@ service cloud.firestore {
       return signedIn() && isActive() && role() == "wash";
     }
 
-    // NOTE: you had both isstaff() and isStaff(). Keeping both to avoid breaking anything.
+    // Keep BOTH to avoid breaking older calls
     function isstaff() {
       return signedIn() && isActive() && role() == "staff";
+    }
+    function isStaff() {
+      return isstaff();
     }
 
     function isBooker() {
@@ -52,12 +55,18 @@ service cloud.firestore {
       return signedIn() && isActive() && role() == "qc";
     }
 
-    function isStaff() {
+    function isValet() {
+      return signedIn() && isActive() && role() == "valet";
+    }
+
+    // Any approved internal user
+    function isEmployee() {
       return isAdmin()
         || isManager()
         || isAdvisor()
         || isWash()
-        || isstaff()
+        || isStaff()
+        || isValet()
         || isBooker()
         || isQc();
     }
@@ -69,7 +78,7 @@ service cloud.firestore {
         .hasOnly(allowedKeys);
     }
 
-    // ✅ NEW: supervisors can control wash day/settings
+    // supervisors can control wash day/settings
     function canControlWashDay() {
       return isAdmin()
         || isManager()
@@ -95,13 +104,14 @@ service cloud.firestore {
         && request.resource.data.role == "pending"
         && request.resource.data.active == true;
 
+      // user can update own non-role/non-active fields only (strict)
       allow update: if
         signedIn()
         && request.auth.uid == uid
         && request.resource.data.role == resource.data.role
         && request.resource.data.active == resource.data.active;
 
-      // manager can assign roles (including booker and qc)
+      // manager can assign roles (NOT admin)
       allow update: if
         isManager()
         && uid != request.auth.uid
@@ -110,13 +120,14 @@ service cloud.firestore {
           "advisor",
           "wash",
           "staff",
+          "valet",
           "booker",
           "qc",
           "pending"
         ]
         && request.resource.data.role != "admin";
 
-      // ✅ admin/manager can set wash-day supervisor permission (single boolean)
+      // admin/manager can set wash-day supervisor permission
       allow update: if
         (isAdmin() || isManager())
         && uid != request.auth.uid
@@ -126,8 +137,7 @@ service cloud.firestore {
 
       allow update: if isAdmin();
 
-      allow delete: if isAdmin()
-        && uid != request.auth.uid;
+      allow delete: if isAdmin() && uid != request.auth.uid;
     }
 
     /* ---------------------------------------
@@ -137,10 +147,10 @@ service cloud.firestore {
     match /washTickets/{ticketId} {
 
       /* READ */
-      allow read: if isStaff();
+      allow read: if isEmployee();
 
       /* CREATE */
-      allow create: if isStaff();
+      allow create: if isEmployee();
 
       /* UPDATE */
 
@@ -148,13 +158,16 @@ service cloud.firestore {
       allow update: if isAdmin() || isManager();
 
       // ---------------------------------------------------------
-      // WASH ROLE: washing workflow (expanded to match your model)
+      // WASH ROLE: washing workflow
       // ---------------------------------------------------------
       allow update: if isWash()
         && onlyChanges([
           // status workflow
           "status",
           "updatedAt",
+          "updatedByUid",
+          "updatedByName",
+          "updatedByEmail",
 
           // wash start fields
           "washingStartedAt",
@@ -183,6 +196,7 @@ service cloud.firestore {
           // event log
           "events",
 
+          // scheduler fields
           "scheduledAtMs",
           "scheduledEndAtMs",
           "scheduledBay",
@@ -191,7 +205,7 @@ service cloud.firestore {
         ]);
 
       // ---------------------------------------------------------
-      // ADVISOR: Need By + RO edit (as before)
+      // ADVISOR: Need By + RO edit
       // ---------------------------------------------------------
       allow update: if isAdvisor()
         && onlyChanges([
@@ -199,7 +213,12 @@ service cloud.firestore {
           "needByAtMs",
           "needBySetBy",
           "ro",
+
           "updatedAt",
+          "updatedByUid",
+          "updatedByName",
+          "updatedByEmail",
+
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
@@ -207,7 +226,7 @@ service cloud.firestore {
         ]);
 
       // ---------------------------------------------------------
-      // ADVISOR: REWASH REQUEST (FIXED)
+      // ADVISOR: REWASH REQUEST
       // ---------------------------------------------------------
       allow update: if isAdvisor()
         && resource.data.status == "washed"
@@ -234,6 +253,10 @@ service cloud.firestore {
 
           // audit + events
           "updatedAt",
+          "updatedByUid",
+          "updatedByName",
+          "updatedByEmail",
+
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
@@ -242,7 +265,7 @@ service cloud.firestore {
         ]);
 
       // ---------------------------------------------------------
-      // Advisor can also request/assign QC (+ audit fields)
+      // ADVISOR: request/assign QC + CP booked stamps
       // ---------------------------------------------------------
       allow update: if isAdvisor()
         && onlyChanges([
@@ -251,7 +274,12 @@ service cloud.firestore {
           "qcRequestedAt",
           "qcRequestedBy",
           "qcAssignedTo",
+
           "updatedAt",
+          "updatedByUid",
+          "updatedByName",
+          "updatedByEmail",
+
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
@@ -270,7 +298,12 @@ service cloud.firestore {
           "qcRequestedAt",
           "qcRequestedBy",
           "qcAssignedTo",
+
           "updatedAt",
+          "updatedByUid",
+          "updatedByName",
+          "updatedByEmail",
+
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
@@ -285,7 +318,12 @@ service cloud.firestore {
         && onlyChanges([
           "qcDoneAt",
           "qcDoneBy",
+
           "updatedAt",
+          "updatedByUid",
+          "updatedByName",
+          "updatedByEmail",
+
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
@@ -301,8 +339,7 @@ service cloud.firestore {
     --------------------------------------- */
 
     match /settings/{docId} {
-      allow read: if isStaff();
-      // ✅ CHANGED: allow supervisor permission to write settings too
+      allow read: if isEmployee();
       allow write: if canControlWashDay();
     }
 
