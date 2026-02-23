@@ -33,7 +33,7 @@ export const COLUMN_CATALOG = {
     label: "RO",
     field: "ro",
     type: "text",
-    editRoles: ["advisor", "manager", "admin"],
+    editRoles: [],
   },
 
   stock: {
@@ -61,12 +61,12 @@ export const COLUMN_CATALOG = {
   },
 
   advisor: {
-    key: "advisor",
+    key: "advisorNumber",
     label: "Advisor",
-    // We will store both advisorId + advisorName later; display uses advisorName
-    field: "advisorName",
+    // We will store both advisorId + advisorName later; display uses advisorNumber for now.
+    field: "advisorNumber",
     type: "text",
-    editRoles: ["manager", "admin"],
+    editRoles: ["manager", "admin", "valet"], // valet can assign advisor on dropoff
   },
 
   needBy: {

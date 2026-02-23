@@ -157,6 +157,27 @@ service cloud.firestore {
       // Admin / Manager: full control
       allow update: if isAdmin() || isManager();
 
+      // Valet: corrections only
+      allow update: if isValet()
+        && onlyChanges([
+          "tag",
+          "ro",
+          "location",
+          "advisorNumber",
+
+      // audit fields your UI writes
+          "updatedAt",
+          "lastEditedAtMs",
+          "lastEditedBy",
+          "lastEditedRole",
+          "lastEditedFields",
+
+      // include these because parts of your UI/rules already use them elsewhere
+          "updatedByUid",
+          "updatedByName",
+          "updatedByEmail"
+        ]);
+
       // ---------------------------------------------------------
       // WASH ROLE: washing workflow
       // ---------------------------------------------------------

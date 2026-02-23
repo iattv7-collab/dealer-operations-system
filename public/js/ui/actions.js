@@ -62,7 +62,22 @@ export function setRowButtonsDisabled(tr, disabled) {
   });
 }
 
-export function buildActionsCell({ t, role }) {
+/* -------------------------------------------
+   ✅ Corrections helpers (TEST MODE: valet only)
+--------------------------------------------*/
+function canUseCorrections(role, tab) {
+  return tab === "corrections" && role === "valet"; // ✅ valet can edit all 4 for now
+}
+
+async function promptNonEmpty(label, currentVal = "") {
+  const v = window.prompt(label, String(currentVal || ""));
+  if (v === null) return null; // cancelled
+  const out = String(v).trim();
+  if (!out) return null;
+  return out;
+}
+
+export function buildActionsCell({ t, role, tab = "" }) {
   const caps = capsFor(role);
 
   const td = el("td");
@@ -82,6 +97,12 @@ export function buildActionsCell({ t, role }) {
   const bNoQc = el("button", { type: "button", className: "btn-noqc", text: "No QC Required" });
 
   const bQcDone = el("button", { type: "button", className: "btn-qcdone", text: "Mark QC Complete" });
+
+  // ✅ Corrections buttons (tab-only)
+  const bFixTag = el("button", { type: "button", className: "btn-fix-tag", text: "Fix Tag" });
+  const bFixRo = el("button", { type: "button", className: "btn-fix-ro", text: "Fix RO" });
+  const bFixLoc = el("button", { type: "button", className: "btn-fix-loc", text: "Fix Location" });
+  const bFixAdv = el("button", { type: "button", className: "btn-fix-adv", text: "Fix Advisor #" });
 
   const status = String(t.status || "").toLowerCase();
   const isClosed = status === "closed";
@@ -109,6 +130,7 @@ export function buildActionsCell({ t, role }) {
   const isQc = role === "qc";
   bQcDone.disabled = !isQc || isClosed || !!t.qcDoneAt;
 
+  // Default workflow buttons
   wrap.appendChild(bRewash);
   wrap.appendChild(bNeedBy);
   wrap.appendChild(bWashing);
@@ -126,11 +148,20 @@ export function buildActionsCell({ t, role }) {
 
   wrap.appendChild(bArchive);
 
+  // ✅ Corrections buttons ONLY in Corrections tab (valet test mode)
+  if (canUseCorrections(role, tab)) {
+    wrap.appendChild(el("span", { className: "muted", text: " | " }));
+    wrap.appendChild(bFixTag);
+    wrap.appendChild(bFixRo);
+    wrap.appendChild(bFixLoc);
+    wrap.appendChild(bFixAdv);
+  }
+
   td.appendChild(wrap);
   return td;
 }
 
-export async function handleTableClick({ e, role, lastRows, msgEl }) {
+export async function handleTableClick({ e, role, tab = "", lastRows, msgEl }) {
   const btn = e.target.closest("button");
   if (!btn) return;
 
@@ -153,6 +184,63 @@ export async function handleTableClick({ e, role, lastRows, msgEl }) {
 
   try {
     setRowButtonsDisabled(tr, true);
+
+    // ✅ Corrections actions (valet test mode)
+    if (canUseCorrections(role, tab)) {
+      const ref = doc(db, "washTickets", id);
+
+      if (btn.classList.contains("btn-fix-tag")) {
+        const next = await promptNonEmpty("Correct Tag:", tRow.tag || "");
+        if (next === null) return;
+
+        await updateDoc(ref, {
+          tag: next,
+          ...buildLastEditedPatch(role, user.uid, ["tag"])
+        });
+
+        if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "Tag corrected."; }
+        return;
+      }
+
+      if (btn.classList.contains("btn-fix-ro")) {
+        const next = await promptNonEmpty("Correct RO:", tRow.ro || "");
+        if (next === null) return;
+
+        await updateDoc(ref, {
+          ro: next,
+          ...buildLastEditedPatch(role, user.uid, ["ro"])
+        });
+
+        if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "RO corrected."; }
+        return;
+      }
+
+      if (btn.classList.contains("btn-fix-loc")) {
+        const next = await promptNonEmpty("Correct Location:", tRow.location || "");
+        if (next === null) return;
+
+        await updateDoc(ref, {
+          location: next,
+          ...buildLastEditedPatch(role, user.uid, ["location"])
+        });
+
+        if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "Location corrected."; }
+        return;
+      }
+
+      if (btn.classList.contains("btn-fix-adv")) {
+        const next = await promptNonEmpty("Correct Advisor #:", tRow.advisorNumber || "");
+        if (next === null) return;
+
+        await updateDoc(ref, {
+          advisorNumber: next,
+          ...buildLastEditedPatch(role, user.uid, ["advisorNumber"])
+        });
+
+        if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "Advisor # corrected."; }
+        return;
+      }
+    }
 
     const canCpBook = (role === "booker" || role === "advisor" || role === "manager" || role === "admin");
     const canWtyBook = (role === "booker" || role === "manager" || role === "admin");

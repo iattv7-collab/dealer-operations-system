@@ -22,14 +22,26 @@ export function mountTicketsUI({
   msgEl,
   showTabs = true,
   searchEl = null,
-  viewColumnKeys = []
+  viewColumnKeys = [],
+  canEditTickets = false, // ✅ NEW (default false so nothing breaks)
 }) {
   if (!tableEl) throw new Error("mountTicketsUI: missing tableEl");
   ensureBaseStyles();
 
   const cols = colsForView(role, viewColumnKeys);
   const containerEl = tableEl.parentElement || document.body;
-  const TAB_DEFS = tabDefsForRole(role);
+
+  // ✅ Base tabs for role
+  const TAB_DEFS = tabDefsForRole(role).slice();
+
+  // ✅ Add Corrections tab ONLY if permission enabled
+  if (canEditTickets === true) {
+    TAB_DEFS.push({
+      id: "corrections",
+      label: "Corrections",
+      statuses: ["queued", "washing", "washed", "closed"],
+    });
+  }
 
   let currentTab = "active";
   let tabsEl = null;
@@ -146,7 +158,7 @@ export function mountTicketsUI({
         const actionsTd = tr.querySelector('td[data-actions-cell="1"]');
         if (actionsTd) {
           actionsTd.innerHTML = "";
-          actionsTd.appendChild(buildActionsCell({ t, role }));
+          actionsTd.appendChild(buildActionsCell({ t, role, tab: currentTab }));
         }
       }
 
@@ -162,7 +174,7 @@ export function mountTicketsUI({
   }
 
   tableEl.addEventListener("click", async (e) => {
-    await handleTableClick({ e, role, lastRows, msgEl });
+    await handleTableClick({ e, role, tab: currentTab, lastRows, msgEl });
   });
 
   rerender?.();

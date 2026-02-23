@@ -122,105 +122,65 @@
     </div>
 
     <script type="module">
-
         import { requireRole, getUserProfile } from "./js/guard.js";
         import { renderNav } from "./js/nav.js";
         import { mountTicketsUI } from "./js/ticketsUI.js";
         import { auth } from "./js/firebase.js";
         import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-
-        /* ✅ ADD THESE */
         import { listenSystemSettings, setSystemSettings } from "./js/settings.js";
 
-
         document.getElementById("nav").innerHTML = renderNav("valet");
-
         requireRole(["valet", "manager", "admin"]);
-
 
         const openBtn = document.getElementById("openWashBtn");
         const closeBtn = document.getElementById("closeWashBtn");
         const msg = document.getElementById("settingsMsg");
         const panel = document.getElementById("manualControls");
 
-
         function setMsg(text, ok = true) {
-
             msg.textContent = text;
-
             msg.style.color = ok ? "green" : "crimson";
-
         }
 
-
         onAuthStateChanged(auth, async (user) => {
-
             if (!user) return;
 
-
             const profile = await getUserProfile(user);
-
             const role = String(profile?.role || "").toLowerCase();
 
-
-            /* ✅ SAME PERMISSION LOGIC */
-
             const canControl =
-
                 role === "admin" ||
-
                 role === "manager" ||
-
                 profile?.permissions?.canControlWashDay === true;
-
 
             panel.style.display = canControl ? "block" : "none";
 
-
             if (canControl) {
-
                 openBtn.onclick = async () => {
-
                     await setSystemSettings(user, { isOpen: true });
-
                     setMsg("Wash OPEN");
-
                 };
-
 
                 closeBtn.onclick = async () => {
-
                     await setSystemSettings(user, { isOpen: false });
-
                     setMsg("Wash CLOSED");
-
                 };
-
             }
-
 
             const realRole = role;
 
-
             mountTicketsUI({
-
                 role: realRole,
-
                 tableEl: document.getElementById("ticketsTable"),
-
                 msgEl: document.getElementById("msg"),
-
                 showTabs: true,
-
                 searchEl: document.getElementById("searchInput"),
+                viewColumnKeys: profile?.viewColumns?.[realRole] || [],
 
-                viewColumnKeys: profile?.viewColumns?.[realRole] || []
-
+                // ✅ NEW: permission-gated Corrections tab
+                canEditTickets: profile?.permissions?.canEditTickets === true
             });
-
         });
-
-
     </script>
 
 </body>
