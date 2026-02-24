@@ -173,7 +173,11 @@
         msgEl: document.getElementById("msg"),
         showTabs: true,
         searchEl: document.getElementById("searchInput"),
-        viewColumnKeys: profile?.viewColumns?.[realRole] || []
+        viewColumnKeys: profile?.viewColumns?.[realRole] || [],
+
+        // ✅ NEW: permission-gated Corrections tab
+       canEditTickets: profile?.permissions?.canEditTickets === true,
+       correctionsPerms: profile?.permissions?.corrections || {}
       });
 
     });

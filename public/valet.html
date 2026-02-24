@@ -178,7 +178,8 @@
                 viewColumnKeys: profile?.viewColumns?.[realRole] || [],
 
                 // ✅ NEW: permission-gated Corrections tab
-                canEditTickets: profile?.permissions?.canEditTickets === true
+                canEditTickets: profile?.permissions?.canEditTickets === true,
+                correctionsPerms: profile?.permissions?.corrections || {}
             });
         });
     </script>

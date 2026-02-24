@@ -71,6 +71,17 @@ service cloud.firestore {
         || isQc();
     }
 
+    // ✅ Corrections gate (tab access)
+    function canCorrectTicket() {
+      return (isValet()
+        || isAdvisor()
+        || isWash()
+        || isStaff()
+        || isBooker()
+        || isQc())
+        && userDoc().data.permissions.canEditTickets == true;
+    }
+
     function onlyChanges(allowedKeys) {
       return request.resource.data
         .diff(resource.data)
@@ -157,26 +168,42 @@ service cloud.firestore {
       // Admin / Manager: full control
       allow update: if isAdmin() || isManager();
 
-      // Valet: corrections only
-      allow update: if isValet()
+      // ✅ Corrections ONLY (and per-field permission enforced)
+      allow update: if canCorrectTicket()
         && onlyChanges([
           "tag",
           "ro",
           "location",
           "advisorNumber",
 
-      // audit fields your UI writes
+          // audit fields your UI writes
           "updatedAt",
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
           "lastEditedFields",
 
-      // include these because parts of your UI/rules already use them elsewhere
+          // include these because parts of your UI/rules already use them elsewhere
           "updatedByUid",
           "updatedByName",
           "updatedByEmail"
-        ]);
+        ])
+        && (
+          !request.resource.data.diff(resource.data).changedKeys().hasAny(["tag"])
+          || userDoc().data.permissions.corrections.tag == true
+        )
+        && (
+          !request.resource.data.diff(resource.data).changedKeys().hasAny(["ro"])
+          || userDoc().data.permissions.corrections.ro == true
+        )
+        && (
+          !request.resource.data.diff(resource.data).changedKeys().hasAny(["location"])
+          || userDoc().data.permissions.corrections.location == true
+        )
+        && (
+          !request.resource.data.diff(resource.data).changedKeys().hasAny(["advisorNumber"])
+          || userDoc().data.permissions.corrections.advisorNumber == true
+        );
 
       // ---------------------------------------------------------
       // WASH ROLE: washing workflow

@@ -180,7 +180,12 @@
         msgEl: document.getElementById("msg"),
         showTabs: true,
         searchEl: document.getElementById("searchInput"),
-        viewColumnKeys: profile?.viewColumns?.[role] || []
+        viewColumnKeys: profile?.viewColumns?.[role] || [],
+
+        // ✅ NEW: permission-gated Corrections tab
+        canEditTickets: profile?.permissions?.canEditTickets === true,
+        correctionsPerms: profile?.permissions?.corrections || {}
+
       });
 
     });

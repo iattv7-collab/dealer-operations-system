@@ -319,6 +319,28 @@ async function loadAllUsers() {
     supervisorCheckbox.type = "checkbox";
     supervisorCheckbox.checked = data.permissions?.canControlWashDay === true;
 
+    // ✅ Can Edit Tickets (Corrections tab) checkbox
+    const canEditTicketsCheckbox = document.createElement("input");
+    canEditTicketsCheckbox.type = "checkbox";
+    canEditTicketsCheckbox.checked = data.permissions?.canEditTickets === true;
+
+    // ✅ Corrections per-field checkboxes
+    const corrTagCb = document.createElement("input");
+    corrTagCb.type = "checkbox";
+    corrTagCb.checked = data.permissions?.corrections?.tag === true;
+
+    const corrRoCb = document.createElement("input");
+    corrRoCb.type = "checkbox";
+    corrRoCb.checked = data.permissions?.corrections?.ro === true;
+
+    const corrLocCb = document.createElement("input");
+    corrLocCb.type = "checkbox";
+    corrLocCb.checked = data.permissions?.corrections?.location === true;
+
+    const corrAdvCb = document.createElement("input");
+    corrAdvCb.type = "checkbox";
+    corrAdvCb.checked = data.permissions?.corrections?.advisorNumber === true;
+
     // ✅ REAL Columns button (opens modal)
     const columnsBtn = document.createElement("button");
     columnsBtn.textContent = "Columns";
@@ -349,8 +371,6 @@ async function loadAllUsers() {
       deleteBtn.title = "Admin cannot delete itself.";
     }
 
-
-
     saveBtn.onclick = async () => {
 
       const patch = {
@@ -361,15 +381,21 @@ async function loadAllUsers() {
         updatedAt: serverTimestamp()
       };
 
-      // add supervisor permission
+      // supervisor permission
       patch["permissions.canControlWashDay"] = supervisorCheckbox.checked;
+
+      // ✅ Corrections tab gate
+      patch["permissions.canEditTickets"] = canEditTicketsCheckbox.checked;
+
+      // ✅ Corrections per-field toggles
+      patch["permissions.corrections.tag"] = corrTagCb.checked;
+      patch["permissions.corrections.ro"] = corrRoCb.checked;
+      patch["permissions.corrections.location"] = corrLocCb.checked;
+      patch["permissions.corrections.advisorNumber"] = corrAdvCb.checked;
 
       await updateDoc(doc(db, "users", uid), patch);
 
     };
-
-
-
 
     deleteBtn.onclick = async () => {
       if (isSelf) return;
@@ -382,27 +408,38 @@ async function loadAllUsers() {
       await loadAllUsers();
     };
 
+    // ✅ Added columns for permissions
     tr.innerHTML = `
       <td>${data.email || ""}</td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
-      <td></td>
+      <td></td>  <!-- name -->
+      <td></td>  <!-- employeeId -->
+      <td></td>  <!-- role -->
+      <td></td>  <!-- active -->
+      <td></td>  <!-- supervisor -->
+      <td></td>  <!-- canEditTickets -->
+      <td></td>  <!-- fixTag -->
+      <td></td>  <!-- fixRo -->
+      <td></td>  <!-- fixLocation -->
+      <td></td>  <!-- fixAdvisor -->
+      <td></td>  <!-- actions -->
     `;
 
-
-    // ✅ Actions: Columns + Save + Delete (FIXED)
     tr.children[1].appendChild(nameInput);
     tr.children[2].appendChild(empInput);
     tr.children[3].appendChild(sel);
     tr.children[4].appendChild(activeCheckbox);
     tr.children[5].appendChild(supervisorCheckbox);
 
-    tr.children[6].appendChild(columnsBtn);
-    tr.children[6].appendChild(saveBtn);
-    tr.children[6].appendChild(deleteBtn);;
+    tr.children[6].appendChild(canEditTicketsCheckbox);
+    tr.children[7].appendChild(corrTagCb);
+    tr.children[8].appendChild(corrRoCb);
+    tr.children[9].appendChild(corrLocCb);
+    tr.children[10].appendChild(corrAdvCb);
+
+    tr.children[11].appendChild(columnsBtn);
+    tr.children[11].appendChild(saveBtn);
+    tr.children[11].appendChild(deleteBtn);
+
     usersTable.appendChild(tr);
   });
 }

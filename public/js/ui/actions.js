@@ -63,10 +63,17 @@ export function setRowButtonsDisabled(tr, disabled) {
 }
 
 /* -------------------------------------------
-   ✅ Corrections helpers (TEST MODE: valet only)
+   ✅ Corrections helpers (permission based)
 --------------------------------------------*/
+function truthy(v) { return v === true; }
+
 function canUseCorrections(role, tab) {
-  return tab === "corrections" && role === "valet"; // ✅ valet can edit all 4 for now
+  return tab === "corrections";
+}
+
+function canFixField(correctionsPerms, fieldKey) {
+  // expected: { tag:true, ro:true, location:true, advisorNumber:true }
+  return truthy(correctionsPerms?.[fieldKey]);
 }
 
 async function promptNonEmpty(label, currentVal = "") {
@@ -77,7 +84,7 @@ async function promptNonEmpty(label, currentVal = "") {
   return out;
 }
 
-export function buildActionsCell({ t, role, tab = "" }) {
+export function buildActionsCell({ t, role, tab = "", correctionsPerms = {} }) {
   const caps = capsFor(role);
 
   const td = el("td");
@@ -100,18 +107,18 @@ export function buildActionsCell({ t, role, tab = "" }) {
 
   // ✅ Corrections buttons (tab-only)
   const bFixTag = el("button", { type: "button", className: "btn-fix-tag", text: "Fix Tag" });
-  const bFixRo = el("button", { type: "button", className: "btn-fix-ro", text: "Fix RO" });
+  const bFixRo  = el("button", { type: "button", className: "btn-fix-ro",  text: "Fix RO" });
   const bFixLoc = el("button", { type: "button", className: "btn-fix-loc", text: "Fix Location" });
   const bFixAdv = el("button", { type: "button", className: "btn-fix-adv", text: "Fix Advisor #" });
 
   const status = String(t.status || "").toLowerCase();
   const isClosed = status === "closed";
 
-  bRewash.disabled = isClosed || !(caps.canRewash && canRequestRewash(t));
-  bNeedBy.disabled = isClosed || !(caps.canNeedBy && (status === "queued" || status === "washing"));
-  bWashing.disabled = isClosed || !(caps.canWashOps && status === "queued");
-  bWashed.disabled = isClosed || !(caps.canWashOps && status === "washing");
-  bArchive.disabled = !(caps.canArchive && !isClosed);
+  bRewash.disabled   = isClosed || !(caps.canRewash && canRequestRewash(t));
+  bNeedBy.disabled   = isClosed || !(caps.canNeedBy && (status === "queued" || status === "washing"));
+  bWashing.disabled  = isClosed || !(caps.canWashOps && status === "queued");
+  bWashed.disabled   = isClosed || !(caps.canWashOps && status === "washing");
+  bArchive.disabled  = !(caps.canArchive && !isClosed);
 
   const canCpBook = (role === "booker" || role === "advisor" || role === "manager" || role === "admin");
   const canWtyBook = (role === "booker" || role === "manager" || role === "admin");
@@ -148,20 +155,29 @@ export function buildActionsCell({ t, role, tab = "" }) {
 
   wrap.appendChild(bArchive);
 
-  // ✅ Corrections buttons ONLY in Corrections tab (valet test mode)
+  // ✅ Corrections buttons ONLY in Corrections tab AND ONLY if allowed by per-field perms
   if (canUseCorrections(role, tab)) {
-    wrap.appendChild(el("span", { className: "muted", text: " | " }));
-    wrap.appendChild(bFixTag);
-    wrap.appendChild(bFixRo);
-    wrap.appendChild(bFixLoc);
-    wrap.appendChild(bFixAdv);
+    const showAny =
+      canFixField(correctionsPerms, "tag") ||
+      canFixField(correctionsPerms, "ro") ||
+      canFixField(correctionsPerms, "location") ||
+      canFixField(correctionsPerms, "advisorNumber");
+
+    if (showAny) {
+      wrap.appendChild(el("span", { className: "muted", text: " | " }));
+
+      if (canFixField(correctionsPerms, "tag")) wrap.appendChild(bFixTag);
+      if (canFixField(correctionsPerms, "ro")) wrap.appendChild(bFixRo);
+      if (canFixField(correctionsPerms, "location")) wrap.appendChild(bFixLoc);
+      if (canFixField(correctionsPerms, "advisorNumber")) wrap.appendChild(bFixAdv);
+    }
   }
 
   td.appendChild(wrap);
   return td;
 }
 
-export async function handleTableClick({ e, role, tab = "", lastRows, msgEl }) {
+export async function handleTableClick({ e, role, tab = "", correctionsPerms = {}, lastRows, msgEl }) {
   const btn = e.target.closest("button");
   if (!btn) return;
 
@@ -185,11 +201,13 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl }) {
   try {
     setRowButtonsDisabled(tr, true);
 
-    // ✅ Corrections actions (valet test mode)
+    // ✅ Corrections actions (permission-based)
     if (canUseCorrections(role, tab)) {
       const ref = doc(db, "washTickets", id);
 
       if (btn.classList.contains("btn-fix-tag")) {
+        if (!canFixField(correctionsPerms, "tag")) return;
+
         const next = await promptNonEmpty("Correct Tag:", tRow.tag || "");
         if (next === null) return;
 
@@ -203,6 +221,8 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl }) {
       }
 
       if (btn.classList.contains("btn-fix-ro")) {
+        if (!canFixField(correctionsPerms, "ro")) return;
+
         const next = await promptNonEmpty("Correct RO:", tRow.ro || "");
         if (next === null) return;
 
@@ -216,6 +236,8 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl }) {
       }
 
       if (btn.classList.contains("btn-fix-loc")) {
+        if (!canFixField(correctionsPerms, "location")) return;
+
         const next = await promptNonEmpty("Correct Location:", tRow.location || "");
         if (next === null) return;
 
@@ -229,6 +251,8 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl }) {
       }
 
       if (btn.classList.contains("btn-fix-adv")) {
+        if (!canFixField(correctionsPerms, "advisorNumber")) return;
+
         const next = await promptNonEmpty("Correct Advisor #:", tRow.advisorNumber || "");
         if (next === null) return;
 

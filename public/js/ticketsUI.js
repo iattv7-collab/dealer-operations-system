@@ -24,6 +24,7 @@ export function mountTicketsUI({
   searchEl = null,
   viewColumnKeys = [],
   canEditTickets = false, // ✅ NEW (default false so nothing breaks)
+  correctionsPerms = {},  // ✅ NEW (per-field perms for Corrections buttons)
 }) {
   if (!tableEl) throw new Error("mountTicketsUI: missing tableEl");
   ensureBaseStyles();
@@ -158,7 +159,14 @@ export function mountTicketsUI({
         const actionsTd = tr.querySelector('td[data-actions-cell="1"]');
         if (actionsTd) {
           actionsTd.innerHTML = "";
-          actionsTd.appendChild(buildActionsCell({ t, role, tab: currentTab }));
+          actionsTd.appendChild(
+            buildActionsCell({
+              t,
+              role,
+              tab: currentTab,
+              correctionsPerms
+            })
+          );
         }
       }
 
@@ -174,7 +182,14 @@ export function mountTicketsUI({
   }
 
   tableEl.addEventListener("click", async (e) => {
-    await handleTableClick({ e, role, tab: currentTab, lastRows, msgEl });
+    await handleTableClick({
+      e,
+      role,
+      tab: currentTab,
+      correctionsPerms,
+      lastRows,
+      msgEl
+    });
   });
 
   rerender?.();
