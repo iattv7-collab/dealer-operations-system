@@ -23,8 +23,8 @@ export function mountTicketsUI({
   showTabs = true,
   searchEl = null,
   viewColumnKeys = [],
-  canEditTickets = false, // ✅ NEW (default false so nothing breaks)
-  correctionsPerms = {},  // ✅ NEW (per-field perms for Corrections buttons)
+  canEditTickets = false,
+  correctionsPerms = {}, // ✅ per-field corrections perms (tag/ro/location/advisorNumber)
 }) {
   if (!tableEl) throw new Error("mountTicketsUI: missing tableEl");
   ensureBaseStyles();
@@ -135,7 +135,7 @@ export function mountTicketsUI({
 
       etaMap = computeEtaMap(rows, {
         minutesPerCar: minutesPerCar + bufferMin,
-        baysOpen
+        baysOpen,
       });
     }
 
@@ -164,7 +164,11 @@ export function mountTicketsUI({
               t,
               role,
               tab: currentTab,
-              correctionsPerms
+              // ✅ IMPORTANT: pass full perms through, not just canEditTickets
+              correctionsPerms: {
+                ...(correctionsPerms || {}),
+                canEditTickets: canEditTickets,
+              },
             })
           );
         }
@@ -186,9 +190,13 @@ export function mountTicketsUI({
       e,
       role,
       tab: currentTab,
-      correctionsPerms,
       lastRows,
-      msgEl
+      msgEl,
+      // ✅ keep passing perms for click handling
+      correctionsPerms: {
+        ...(correctionsPerms || {}),
+        canEditTickets: canEditTickets,
+      },
     });
   });
 
@@ -196,7 +204,11 @@ export function mountTicketsUI({
 
   // return combined unsubscribe (optional)
   return () => {
-    try { unsub?.(); } catch {}
-    try { unsubSys?.(); } catch {}
+    try {
+      unsub?.();
+    } catch {}
+    try {
+      unsubSys?.();
+    } catch {}
   };
 }

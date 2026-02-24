@@ -71,17 +71,6 @@ service cloud.firestore {
         || isQc();
     }
 
-    // ✅ Corrections gate (tab access)
-    function canCorrectTicket() {
-      return (isValet()
-        || isAdvisor()
-        || isWash()
-        || isStaff()
-        || isBooker()
-        || isQc())
-        && userDoc().data.permissions.canEditTickets == true;
-    }
-
     function onlyChanges(allowedKeys) {
       return request.resource.data
         .diff(resource.data)
@@ -94,6 +83,38 @@ service cloud.firestore {
       return isAdmin()
         || isManager()
         || (signedIn() && isActive() && userDoc().data.permissions.canControlWashDay == true);
+    }
+
+    // --- Corrections permission helpers (per-user, admin-managed) ---
+    function canEditTickets() {
+      return signedIn()
+        && isActive()
+        && userDoc().data.permissions.canEditTickets == true;
+    }
+
+    function canFixTag() {
+      return canEditTickets()
+        && userDoc().data.permissions.corrections.tag == true;
+    }
+
+    function canFixRo() {
+      return canEditTickets()
+        && userDoc().data.permissions.corrections.ro == true;
+    }
+
+    function canFixLocation() {
+      return canEditTickets()
+        && userDoc().data.permissions.corrections.location == true;
+    }
+
+    function canFixAdvisorNumber() {
+      return canEditTickets()
+        && userDoc().data.permissions.corrections.advisorNumber == true;
+    }
+
+    function auditKeys() {
+      // note: Firestore rules can't return arrays, so we inline audit sets per rule
+      return true;
     }
 
     /* ---------------------------------------
@@ -138,13 +159,30 @@ service cloud.firestore {
         ]
         && request.resource.data.role != "admin";
 
-      // admin/manager can set wash-day supervisor permission
+      // admin/manager can set permissions (expanded)
       allow update: if
         (isAdmin() || isManager())
         && uid != request.auth.uid
         && request.resource.data.diff(resource.data).changedKeys().hasOnly(["permissions", "updatedAt"])
-        && request.resource.data.permissions.keys().hasOnly(["canControlWashDay"])
-        && request.resource.data.permissions.canControlWashDay is bool;
+        && request.resource.data.permissions is map
+        && request.resource.data.permissions.keys().hasOnly([
+          "canControlWashDay",
+          "canEditTickets",
+          "corrections"
+        ])
+        && request.resource.data.permissions.canControlWashDay is bool
+        && request.resource.data.permissions.canEditTickets is bool
+        && request.resource.data.permissions.corrections is map
+        && request.resource.data.permissions.corrections.keys().hasOnly([
+          "tag",
+          "ro",
+          "location",
+          "advisorNumber"
+        ])
+        && request.resource.data.permissions.corrections.tag is bool
+        && request.resource.data.permissions.corrections.ro is bool
+        && request.resource.data.permissions.corrections.location is bool
+        && request.resource.data.permissions.corrections.advisorNumber is bool;
 
       allow update: if isAdmin();
 
@@ -168,42 +206,66 @@ service cloud.firestore {
       // Admin / Manager: full control
       allow update: if isAdmin() || isManager();
 
-      // ✅ Corrections ONLY (and per-field permission enforced)
-      allow update: if canCorrectTicket()
+      // ---------------------------------------------------------
+      // CORRECTIONS (per-user + per-field)
+      // One-field-at-a-time edits ONLY (matches your button flow)
+      // ---------------------------------------------------------
+
+      // Fix Tag
+      allow update: if canFixTag()
         && onlyChanges([
           "tag",
-          "ro",
-          "location",
-          "advisorNumber",
-
-          // audit fields your UI writes
           "updatedAt",
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
           "lastEditedFields",
-
-          // include these because parts of your UI/rules already use them elsewhere
           "updatedByUid",
           "updatedByName",
           "updatedByEmail"
-        ])
-        && (
-          !request.resource.data.diff(resource.data).changedKeys().hasAny(["tag"])
-          || userDoc().data.permissions.corrections.tag == true
-        )
-        && (
-          !request.resource.data.diff(resource.data).changedKeys().hasAny(["ro"])
-          || userDoc().data.permissions.corrections.ro == true
-        )
-        && (
-          !request.resource.data.diff(resource.data).changedKeys().hasAny(["location"])
-          || userDoc().data.permissions.corrections.location == true
-        )
-        && (
-          !request.resource.data.diff(resource.data).changedKeys().hasAny(["advisorNumber"])
-          || userDoc().data.permissions.corrections.advisorNumber == true
-        );
+        ]);
+
+      // Fix RO
+      allow update: if canFixRo()
+        && onlyChanges([
+          "ro",
+          "updatedAt",
+          "lastEditedAtMs",
+          "lastEditedBy",
+          "lastEditedRole",
+          "lastEditedFields",
+          "updatedByUid",
+          "updatedByName",
+          "updatedByEmail"
+        ]);
+
+      // Fix Location
+      allow update: if canFixLocation()
+        && onlyChanges([
+          "location",
+          "updatedAt",
+          "lastEditedAtMs",
+          "lastEditedBy",
+          "lastEditedRole",
+          "lastEditedFields",
+          "updatedByUid",
+          "updatedByName",
+          "updatedByEmail"
+        ]);
+
+      // Fix Advisor #
+      allow update: if canFixAdvisorNumber()
+        && onlyChanges([
+          "advisorNumber",
+          "updatedAt",
+          "lastEditedAtMs",
+          "lastEditedBy",
+          "lastEditedRole",
+          "lastEditedFields",
+          "updatedByUid",
+          "updatedByName",
+          "updatedByEmail"
+        ]);
 
       // ---------------------------------------------------------
       // WASH ROLE: washing workflow

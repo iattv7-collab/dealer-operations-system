@@ -25,6 +25,28 @@ function canRequestRewash(t) {
   return String(t.status || "").toLowerCase() === "washed";
 }
 
+/* -------------------------------------------
+   Corrections helpers
+--------------------------------------------*/
+function canUseCorrectionsTab(tab) {
+  return tab === "corrections";
+}
+
+function canFixField(correctionsPerms, key) {
+  // correctionsPerms expected shape:
+  // { tag: true/false, ro: true/false, location: true/false, advisorNumber: true/false }
+  if (!correctionsPerms || typeof correctionsPerms !== "object") return false;
+  return correctionsPerms[key] === true;
+}
+
+async function promptNonEmpty(label, currentVal = "") {
+  const v = window.prompt(label, String(currentVal || ""));
+  if (v === null) return null; // cancelled
+  const out = String(v).trim();
+  if (!out) return null;
+  return out;
+}
+
 export async function requestRewashWithNeedBy(ticketId, user, role, needByMs) {
   await requestRewash(ticketId, user, role);
 
@@ -62,28 +84,6 @@ export function setRowButtonsDisabled(tr, disabled) {
   });
 }
 
-/* -------------------------------------------
-   ✅ Corrections helpers (permission based)
---------------------------------------------*/
-function truthy(v) { return v === true; }
-
-function canUseCorrections(role, tab) {
-  return tab === "corrections";
-}
-
-function canFixField(correctionsPerms, fieldKey) {
-  // expected: { tag:true, ro:true, location:true, advisorNumber:true }
-  return truthy(correctionsPerms?.[fieldKey]);
-}
-
-async function promptNonEmpty(label, currentVal = "") {
-  const v = window.prompt(label, String(currentVal || ""));
-  if (v === null) return null; // cancelled
-  const out = String(v).trim();
-  if (!out) return null;
-  return out;
-}
-
 export function buildActionsCell({ t, role, tab = "", correctionsPerms = {} }) {
   const caps = capsFor(role);
 
@@ -105,20 +105,20 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {} }) {
 
   const bQcDone = el("button", { type: "button", className: "btn-qcdone", text: "Mark QC Complete" });
 
-  // ✅ Corrections buttons (tab-only)
+  // Corrections buttons (tab-only)
   const bFixTag = el("button", { type: "button", className: "btn-fix-tag", text: "Fix Tag" });
-  const bFixRo  = el("button", { type: "button", className: "btn-fix-ro",  text: "Fix RO" });
+  const bFixRo = el("button", { type: "button", className: "btn-fix-ro", text: "Fix RO" });
   const bFixLoc = el("button", { type: "button", className: "btn-fix-loc", text: "Fix Location" });
   const bFixAdv = el("button", { type: "button", className: "btn-fix-adv", text: "Fix Advisor #" });
 
   const status = String(t.status || "").toLowerCase();
   const isClosed = status === "closed";
 
-  bRewash.disabled   = isClosed || !(caps.canRewash && canRequestRewash(t));
-  bNeedBy.disabled   = isClosed || !(caps.canNeedBy && (status === "queued" || status === "washing"));
-  bWashing.disabled  = isClosed || !(caps.canWashOps && status === "queued");
-  bWashed.disabled   = isClosed || !(caps.canWashOps && status === "washing");
-  bArchive.disabled  = !(caps.canArchive && !isClosed);
+  bRewash.disabled = isClosed || !(caps.canRewash && canRequestRewash(t));
+  bNeedBy.disabled = isClosed || !(caps.canNeedBy && (status === "queued" || status === "washing"));
+  bWashing.disabled = isClosed || !(caps.canWashOps && status === "queued");
+  bWashed.disabled = isClosed || !(caps.canWashOps && status === "washing");
+  bArchive.disabled = !(caps.canArchive && !isClosed);
 
   const canCpBook = (role === "booker" || role === "advisor" || role === "manager" || role === "admin");
   const canWtyBook = (role === "booker" || role === "manager" || role === "admin");
@@ -155,21 +155,19 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {} }) {
 
   wrap.appendChild(bArchive);
 
-  // ✅ Corrections buttons ONLY in Corrections tab AND ONLY if allowed by per-field perms
-  if (canUseCorrections(role, tab)) {
-    const showAny =
-      canFixField(correctionsPerms, "tag") ||
-      canFixField(correctionsPerms, "ro") ||
-      canFixField(correctionsPerms, "location") ||
-      canFixField(correctionsPerms, "advisorNumber");
+  // Corrections buttons ONLY in Corrections tab, and only for allowed fields
+  if (canUseCorrectionsTab(tab)) {
+    const showTag = canFixField(correctionsPerms, "tag");
+    const showRo = canFixField(correctionsPerms, "ro");
+    const showLoc = canFixField(correctionsPerms, "location");
+    const showAdv = canFixField(correctionsPerms, "advisorNumber");
 
-    if (showAny) {
+    if (showTag || showRo || showLoc || showAdv) {
       wrap.appendChild(el("span", { className: "muted", text: " | " }));
-
-      if (canFixField(correctionsPerms, "tag")) wrap.appendChild(bFixTag);
-      if (canFixField(correctionsPerms, "ro")) wrap.appendChild(bFixRo);
-      if (canFixField(correctionsPerms, "location")) wrap.appendChild(bFixLoc);
-      if (canFixField(correctionsPerms, "advisorNumber")) wrap.appendChild(bFixAdv);
+      if (showTag) wrap.appendChild(bFixTag);
+      if (showRo) wrap.appendChild(bFixRo);
+      if (showLoc) wrap.appendChild(bFixLoc);
+      if (showAdv) wrap.appendChild(bFixAdv);
     }
   }
 
@@ -177,7 +175,7 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {} }) {
   return td;
 }
 
-export async function handleTableClick({ e, role, tab = "", correctionsPerms = {}, lastRows, msgEl }) {
+export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, correctionsPerms = {} }) {
   const btn = e.target.closest("button");
   if (!btn) return;
 
@@ -201,8 +199,8 @@ export async function handleTableClick({ e, role, tab = "", correctionsPerms = {
   try {
     setRowButtonsDisabled(tr, true);
 
-    // ✅ Corrections actions (permission-based)
-    if (canUseCorrections(role, tab)) {
+    // Corrections actions (tab-only + per-field perms)
+    if (canUseCorrectionsTab(tab)) {
       const ref = doc(db, "washTickets", id);
 
       if (btn.classList.contains("btn-fix-tag")) {

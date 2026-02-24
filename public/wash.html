@@ -7,7 +7,6 @@
   <title>Wash</title>
 
   <style>
-
     body {
       font-family: "Times New Roman", Times, serif;
       margin: 16px;
@@ -72,22 +71,20 @@
     }
 
     .section {
-      border:1px solid #ddd;
-      padding:12px;
-      border-radius:10px;
-      margin-bottom:16px;
+      border: 1px solid #ddd;
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 16px;
     }
 
     .pill {
-      padding:4px 10px;
-      border-radius:20px;
-      border:1px solid #aaa;
-      background:#eee;
-      font-weight:bold;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid #aaa;
+      background: #eee;
+      font-weight: bold;
     }
-
   </style>
-
 </head>
 
 <body>
@@ -96,33 +93,20 @@
 
   <p id="status"></p>
 
-
-  <!-- ✅ GLOBAL WASH DAY CONTROL (same as Settings) -->
-
+  <!-- ✅ GLOBAL WASH DAY CONTROL -->
   <div id="manualControls" class="section">
-
     <div style="font-weight:bold;margin-bottom:8px;">
       Wash Day Control
     </div>
 
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-
-      <button id="openWashBtn">
-        Open Wash Day
-      </button>
-
-      <button id="closeWashBtn">
-        Close Wash Day
-      </button>
+      <button id="openWashBtn">Open Wash Day</button>
+      <button id="closeWashBtn">Close Wash Day</button>
 
       Current:
       <span id="isOpenBadge" class="pill"></span>
-
     </div>
-
   </div>
-
-
 
   <h2>Wash Team</h2>
 
@@ -132,175 +116,107 @@
 
   <div style="height:12px"></div>
 
-
   <div class="card">
-
     <div id="msg" class="muted"></div>
-
     <div style="height:10px"></div>
 
     <div class="table-scroll">
       <table id="ticketsTable"></table>
     </div>
-
   </div>
 
-
-
   <script type="module">
-
     import { auth } from "./js/firebase.js";
 
     import { onAuthStateChanged }
-    from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+      from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 
-    import { requireRole }
-    from "./js/guard.js";
+    import { requireRole, getUserProfile }
+      from "./js/guard.js";
 
     import { renderNav }
-    from "./js/nav.js";
+      from "./js/nav.js";
 
     import { mountTicketsUI }
-    from "./js/ticketsUI.js";
+      from "./js/ticketsUI.js";
 
-    import {
-      listenSystemSettings,
-      setSystemSettings
-    } from "./js/settings.js";
+    import { listenSystemSettings, setSystemSettings }
+      from "./js/settings.js";
 
-    import {
-      getUserProfile
-    } from "./js/guard.js";
+    document.getElementById("nav").innerHTML = renderNav("wash");
 
-
-
-    document.getElementById("nav").innerHTML =
-      renderNav("wash");
-
-
+    // allow wash + manager + admin
     requireRole(["wash", "manager", "admin"]);
 
+    const msgEl = document.getElementById("msg");
+    const tableEl = document.getElementById("ticketsTable");
 
+    const openBtn = document.getElementById("openWashBtn");
+    const closeBtn = document.getElementById("closeWashBtn");
+    const badge = document.getElementById("isOpenBadge");
 
-    const msgEl =
-      document.getElementById("msg");
+    // badge always updates
+    listenSystemSettings((s) => {
+      badge.textContent = s?.isOpen ? "OPEN" : "CLOSED";
+    });
 
+    // auth status msg
+    onAuthStateChanged(auth, (u) => {
+      if (!u) {
+        msgEl.className = "err";
+        msgEl.textContent = "Not signed in.";
+      } else {
+        msgEl.className = "muted";
+        msgEl.textContent = "";
+      }
+    });
 
-    const tableEl =
-      document.getElementById("ticketsTable");
-
-
-
-    const openBtn =
-      document.getElementById("openWashBtn");
-
-
-    const closeBtn =
-      document.getElementById("closeWashBtn");
-
-
-    const badge =
-      document.getElementById("isOpenBadge");
-
-
-
+    // enable/disable open/close buttons by permission
     onAuthStateChanged(auth, async (user) => {
-
       if (!user) return;
 
-
-      const profile =
-        await getUserProfile(user);
-
+      const profile = await getUserProfile(user);
 
       const canControl =
-        profile?.permissions?.canControlWashDay === true
-        || profile?.role === "admin"
-        || profile?.role === "manager";
+        profile?.permissions?.canControlWashDay === true ||
+        profile?.role === "admin" ||
+        profile?.role === "manager";
 
-
-      openBtn.disabled =
-        !canControl;
-
-
-      closeBtn.disabled =
-        !canControl;
-
-
+      openBtn.disabled = !canControl;
+      closeBtn.disabled = !canControl;
     });
 
+    openBtn.onclick = async () => {
+      await setSystemSettings(auth.currentUser, { isOpen: true });
+    };
 
+    closeBtn.onclick = async () => {
+      await setSystemSettings(auth.currentUser, { isOpen: false });
+    };
 
-    openBtn.onclick =
-      async () => {
+    // ✅ mount UI AFTER we load profile, so we can pass perms + view columns
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
 
-        await setSystemSettings(
-          auth.currentUser,
-          { isOpen:true }
-        );
+      const profile = await getUserProfile(user);
 
-      };
+      const canEditTickets = profile?.permissions?.canEditTickets === true;
+      const correctionsPerms = profile?.permissions?.corrections || {};
 
+      // optional: respect per-role viewColumns if present
+      const viewColumnKeys = profile?.viewColumns?.wash || [];
 
-    closeBtn.onclick =
-      async () => {
-
-        await setSystemSettings(
-          auth.currentUser,
-          { isOpen:false }
-        );
-
-      };
-
-
-
-    listenSystemSettings((s)=>{
-
-      badge.textContent =
-        s.isOpen ? "OPEN" : "CLOSED";
-
+      mountTicketsUI({
+        role: "wash",
+        tableEl,
+        msgEl,
+        showTabs: true,
+        viewColumnKeys,
+        canEditTickets,
+        correctionsPerms
+      });
     });
-
-
-
-    onAuthStateChanged(auth, (u) => {
-
-      if (!u) {
-
-        msgEl.className = "err";
-
-        msgEl.textContent =
-          "Not signed in.";
-
-      }
-
-      else {
-
-        msgEl.className = "muted";
-
-        msgEl.textContent = "";
-
-      }
-
-    });
-
-
-
-    mountTicketsUI({
-
-      role:"wash",
-
-      tableEl,
-
-      msgEl,
-
-      showTabs:true
-
-    });
-
-
   </script>
-
 
 </body>
 

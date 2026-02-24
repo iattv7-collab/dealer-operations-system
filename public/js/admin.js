@@ -20,7 +20,7 @@ const pendingTable = document.getElementById("pendingTable");
 const usersTable = document.getElementById("usersTable");
 
 // Roles now (no tech)
-const ROLES = ["admin", "manager", "advisor", "wash", "valet", "staff", "valet", "dropoff", "booker", "qc", "pending"];
+const ROLES = ["admin", "manager", "advisor", "wash", "valet", "staff", "dropoff", "booker", "qc", "pending"];
 
 /* -----------------------------
    Modal elements (from admin.html)
@@ -254,6 +254,17 @@ async function loadPending() {
         employeeId: empInput.value.trim(),
         role: sel.value,
         active: true,
+        // default permissions for new users (safe)
+        permissions: {
+          canControlWashDay: false,
+          canEditTickets: false,
+          corrections: {
+            tag: false,
+            ro: false,
+            location: false,
+            advisorNumber: false,
+          },
+        },
         updatedAt: serverTimestamp(),
       });
 
@@ -291,6 +302,18 @@ async function loadPending() {
 async function loadAllUsers() {
   usersTable.innerHTML = "";
 
+  // Try to fix the header labels if your admin.html has a header row
+  const headerRow = usersTable.closest("table")?.querySelector("thead tr");
+  if (headerRow) {
+    const ths = headerRow.querySelectorAll("th");
+    // If your table already has ths, we only rename the known ones safely
+    ths.forEach((th) => {
+      const t = String(th.textContent || "").trim().toLowerCase();
+      if (t === "active") th.textContent = "Active (Account)";
+      if (t === "actions") th.textContent = "Actions (Admin)";
+    });
+  }
+
   const me = await waitForAuthUser();
   const myUid = me?.uid || null;
 
@@ -319,27 +342,37 @@ async function loadAllUsers() {
     supervisorCheckbox.type = "checkbox";
     supervisorCheckbox.checked = data.permissions?.canControlWashDay === true;
 
-    // ✅ Can Edit Tickets (Corrections tab) checkbox
-    const canEditTicketsCheckbox = document.createElement("input");
-    canEditTicketsCheckbox.type = "checkbox";
-    canEditTicketsCheckbox.checked = data.permissions?.canEditTickets === true;
+    // ✅ Corrections permissions
+    const canEditTicketsCb = document.createElement("input");
+    canEditTicketsCb.type = "checkbox";
+    canEditTicketsCb.checked = data.permissions?.canEditTickets === true;
 
-    // ✅ Corrections per-field checkboxes
-    const corrTagCb = document.createElement("input");
-    corrTagCb.type = "checkbox";
-    corrTagCb.checked = data.permissions?.corrections?.tag === true;
+    const fixTagCb = document.createElement("input");
+    fixTagCb.type = "checkbox";
+    fixTagCb.checked = data.permissions?.corrections?.tag === true;
 
-    const corrRoCb = document.createElement("input");
-    corrRoCb.type = "checkbox";
-    corrRoCb.checked = data.permissions?.corrections?.ro === true;
+    const fixRoCb = document.createElement("input");
+    fixRoCb.type = "checkbox";
+    fixRoCb.checked = data.permissions?.corrections?.ro === true;
 
-    const corrLocCb = document.createElement("input");
-    corrLocCb.type = "checkbox";
-    corrLocCb.checked = data.permissions?.corrections?.location === true;
+    const fixLocCb = document.createElement("input");
+    fixLocCb.type = "checkbox";
+    fixLocCb.checked = data.permissions?.corrections?.location === true;
 
-    const corrAdvCb = document.createElement("input");
-    corrAdvCb.type = "checkbox";
-    corrAdvCb.checked = data.permissions?.corrections?.advisorNumber === true;
+    const fixAdvCb = document.createElement("input");
+    fixAdvCb.type = "checkbox";
+    fixAdvCb.checked = data.permissions?.corrections?.advisorNumber === true;
+
+    // Disable per-field boxes when master is off (UI clarity)
+    function syncCorrectionsDisabled() {
+      const on = canEditTicketsCb.checked;
+      fixTagCb.disabled = !on;
+      fixRoCb.disabled = !on;
+      fixLocCb.disabled = !on;
+      fixAdvCb.disabled = !on;
+    }
+    canEditTicketsCb.addEventListener("change", syncCorrectionsDisabled);
+    syncCorrectionsDisabled();
 
     // ✅ REAL Columns button (opens modal)
     const columnsBtn = document.createElement("button");
@@ -372,29 +405,26 @@ async function loadAllUsers() {
     }
 
     saveBtn.onclick = async () => {
-
       const patch = {
         name: nameInput.value.trim(),
         employeeId: empInput.value.trim(),
         role: sel.value,
         active: activeCheckbox.checked,
-        updatedAt: serverTimestamp()
+        updatedAt: serverTimestamp(),
       };
 
-      // supervisor permission
+      // wash-day supervisor
       patch["permissions.canControlWashDay"] = supervisorCheckbox.checked;
 
-      // ✅ Corrections tab gate
-      patch["permissions.canEditTickets"] = canEditTicketsCheckbox.checked;
+      // corrections permissions
+      patch["permissions.canEditTickets"] = canEditTicketsCb.checked;
 
-      // ✅ Corrections per-field toggles
-      patch["permissions.corrections.tag"] = corrTagCb.checked;
-      patch["permissions.corrections.ro"] = corrRoCb.checked;
-      patch["permissions.corrections.location"] = corrLocCb.checked;
-      patch["permissions.corrections.advisorNumber"] = corrAdvCb.checked;
+      patch["permissions.corrections.tag"] = canEditTicketsCb.checked ? fixTagCb.checked : false;
+      patch["permissions.corrections.ro"] = canEditTicketsCb.checked ? fixRoCb.checked : false;
+      patch["permissions.corrections.location"] = canEditTicketsCb.checked ? fixLocCb.checked : false;
+      patch["permissions.corrections.advisorNumber"] = canEditTicketsCb.checked ? fixAdvCb.checked : false;
 
       await updateDoc(doc(db, "users", uid), patch);
-
     };
 
     deleteBtn.onclick = async () => {
@@ -408,20 +438,23 @@ async function loadAllUsers() {
       await loadAllUsers();
     };
 
-    // ✅ Added columns for permissions
+    // NOTE:
+    // Your admin.html currently has extra columns on the right (based on your screenshot).
+    // We will output 12 columns total to match:
+    // Email | Name | Employee ID | Role | Active | Supervisor | Can Edit Tickets | Fix Tag | Fix RO | Fix Loc | Fix Adv | Actions
     tr.innerHTML = `
       <td>${data.email || ""}</td>
-      <td></td>  <!-- name -->
-      <td></td>  <!-- employeeId -->
-      <td></td>  <!-- role -->
-      <td></td>  <!-- active -->
-      <td></td>  <!-- supervisor -->
-      <td></td>  <!-- canEditTickets -->
-      <td></td>  <!-- fixTag -->
-      <td></td>  <!-- fixRo -->
-      <td></td>  <!-- fixLocation -->
-      <td></td>  <!-- fixAdvisor -->
-      <td></td>  <!-- actions -->
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
+      <td></td>
     `;
 
     tr.children[1].appendChild(nameInput);
@@ -430,11 +463,11 @@ async function loadAllUsers() {
     tr.children[4].appendChild(activeCheckbox);
     tr.children[5].appendChild(supervisorCheckbox);
 
-    tr.children[6].appendChild(canEditTicketsCheckbox);
-    tr.children[7].appendChild(corrTagCb);
-    tr.children[8].appendChild(corrRoCb);
-    tr.children[9].appendChild(corrLocCb);
-    tr.children[10].appendChild(corrAdvCb);
+    tr.children[6].appendChild(canEditTicketsCb);
+    tr.children[7].appendChild(fixTagCb);
+    tr.children[8].appendChild(fixRoCb);
+    tr.children[9].appendChild(fixLocCb);
+    tr.children[10].appendChild(fixAdvCb);
 
     tr.children[11].appendChild(columnsBtn);
     tr.children[11].appendChild(saveBtn);
