@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RO Tracker</title>
+
+  <!-- reduce phone caching -->
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <!-- CACHE-BUST VERSION -->
+  <link rel="stylesheet" href="./styles.css?v=20260228-1" />
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#0b3d91">
+</head>
+
+<body>
+  <header>RO Tracker</header>
+
+  <div class="toolbar">
+    <button class="btn" id="btnAdd">+ New RO</button>
+    <button class="btn" id="btnScan">Scan RO</button>
+
+    <!-- NEW -->
+    <button class="btn" id="btnFollowUp">Follow Up</button>
+    <button class="btn" id="btnSettings">Settings</button>
+
+    <button class="btn" id="btnArchiveView">Archive / Follow Up</button>
+    <button class="btn" id="btnNotify">Enable Notifications</button>
+  </div>
+
+  <input id="scanInput" type="file" accept="image/*" capture="environment"
+    style="position:fixed; left:-9999px; top:0; width:1px; height:1px; opacity:0;" />
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Customer name</th>
+          <th>Phone</th>
+          <th>RO #</th>
+          <th>Tag #</th>
+          <th>RO Date</th>
+          <th>Promise Date</th>
+          <th>Model</th>
+          <th>Concern</th>
+          <th>Ready Called</th>
+          <th>Notes</th>
+          <th>Tech Video</th>
+          <th>Called</th>
+          <th>Next Update</th>
+          <th>Waiter</th>
+          <th>Loaner</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+
+  <!-- Barcode reader (ZXing) -->
+  <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>
+
+  <!-- CACHE-BUST VERSION -->
+  <script type="module" src="./app.js?v=20260228-2"></script>
+</body>
+
+</html>

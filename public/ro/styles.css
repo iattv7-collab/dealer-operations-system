@@ -1,0 +1,207 @@
+:root{
+  --blue:#0b3d91;
+  --teal:#00a8c6;
+  --grid:#d6dde5;
+  --bg:#f4f6f8;
+}
+
+body{
+  font-family:"Times New Roman", Times, serif;
+  margin:0;
+  background:var(--bg);
+}
+
+header{
+  background:var(--blue);
+  color:white;
+  padding:14px 16px;
+  font-size:22px;
+  font-weight:bold;
+}
+
+.toolbar{
+  display:flex;
+  gap:10px;
+  padding:10px 12px;
+  align-items:center;
+}
+
+.btn{
+  font-family:"Times New Roman", Times, serif;
+  border:1px solid #aaa;
+  background:#fff;
+  padding:6px 10px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+.btn:hover{background:#f7f7f7;}
+
+.tablewrap{
+  background:#fff;
+  margin:0 12px 14px 12px;
+  border:1px solid var(--grid);
+  border-radius:10px;
+  overflow:auto;
+}
+
+table{
+  width:100%;
+  border-collapse:collapse;
+  min-width:1550px;
+}
+
+th{
+  position:sticky;
+  top:0;
+  z-index:2;
+  background:var(--teal);
+  color:#fff;
+  font-weight:bold;
+  padding:8px 6px;
+  border-right:1px solid rgba(255,255,255,.35);
+  white-space:nowrap;
+}
+
+td{
+  padding:6px 6px;
+  border-right:1px solid var(--grid);
+  border-bottom:1px solid var(--grid);
+  white-space:nowrap;
+  font-size:14px;
+}
+
+tr:last-child td{border-bottom:0;}
+td:last-child,th:last-child{border-right:0;}
+
+.cell-edit{
+  width:100%;
+  box-sizing:border-box;
+  font-family:"Times New Roman", Times, serif;
+  font-size:14px;
+  padding:4px 6px;
+  border:1px solid #c8d0d9;
+  border-radius:6px;
+  background:#fff;
+}
+
+.cell-edit:focus{
+  outline:none;
+  border-color:#0b3d91;
+}
+
+.smallbtn{
+  padding:4px 8px;
+  border-radius:8px;
+  border:1px solid #888;
+  background:#fff;
+  cursor:pointer;
+}
+
+.smallbtn:hover{background:#f2f2f2;}
+
+.center{text-align:center;}
+
+
+/* ===========================
+   REYNOLDS COLOR SYSTEM
+   PRIORITY ORDER:
+   Ready > Waiting > Today > Past
+=========================== */
+
+
+/* READY CALLED = REYNOLDS GREEN */
+tr.row-ready td{
+  background:#4ff64f;
+}
+
+
+/* CUSTOMER WAITING = REYNOLDS YELLOW */
+tr.row-waiter td{
+  background:#fff36a;
+}
+
+
+/* TODAY FOLLOW UP = LIGHT AMBER */
+tr.row-today td{
+  background:#ffff9a;
+}
+
+
+/* PAST DUE = REYNOLDS RED */
+tr.row-past td{
+  background:#cf3d3d;
+  color:#000;
+}
+
+
+/* TECH VIDEO CELL ONLY */
+td.cell-video-sent{
+  background:#7CFFB2;
+}
+
+
+/* keep video green inside colored rows */
+tr.row-ready td.cell-video-sent,
+tr.row-waiter td.cell-video-sent,
+tr.row-today td.cell-video-sent,
+tr.row-past td.cell-video-sent{
+  background:#7CFFB2;
+}
+
+
+/* hover expand */
+.hovertext{
+  max-width:330px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.hovertext:hover{
+  white-space:normal;
+  overflow:visible;
+  background:#fffff2;
+  position:relative;
+  z-index:5;
+  box-shadow:0 6px 18px rgba(0,0,0,.15);
+  border:1px solid #cfcfcf;
+  padding:6px;
+  border-radius:8px;
+}
+
+
+/* widths */
+
+.col-phone{width:120px;}
+.col-ro{width:90px;}
+.col-tag{width:70px;}
+.col-date{width:115px;}
+.col-model{width:95px;}
+.col-status{width:140px;}
+.col-video{width:90px;}
+.col-called{width:160px;}
+.col-next{width:160px;}
+.col-wait{width:120px;}
+.col-loaner{width:120px;}
+.col-archive{width:90px;}
+
+/* keep toolbar clickable above sticky table header on mobile/scroll */
+.toolbar{
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+}
+
+/* ensure sticky table header stays below toolbar */
+th{
+  z-index: 2; /* keep as-is, just confirming */
+}
+
+/* keep toolbar tappable above sticky header on mobile */
+.toolbar{
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--bg);
+}

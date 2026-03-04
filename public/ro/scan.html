@@ -1,0 +1,137 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RO Scanner</title>
+  <style>
+    body { font-family: "Times New Roman", Times, serif; padding: 14px; }
+    h2 { margin: 0 0 12px; }
+    .row { margin: 10px 0; }
+    button { padding: 10px 14px; font-size: 16px; }
+    input[type="file"] { font-size: 16px; }
+    #status { font-weight: bold; margin-top: 8px; }
+    pre { white-space: pre-wrap; word-wrap: break-word; background:#f6f6f6; padding:10px; border:1px solid #ddd; border-radius:8px; }
+    .ok { color: #0a7a0a; }
+    .bad { color: #b00020; }
+  </style>
+</head>
+<body>
+  <h2>RO Scanner</h2>
+
+  <div class="row">
+    <input id="file" type="file" accept="image/*" capture="environment" />
+  </div>
+
+  <div class="row">
+    <button id="btnScan" type="button">Scan</button>
+  </div>
+
+  <div id="status">Idle</div>
+
+  <h3>HTTP</h3>
+  <pre id="httpOut">(nothing yet)</pre>
+
+  <h3>Raw Response</h3>
+  <pre id="rawOut">(nothing yet)</pre>
+
+  <h3>Parsed JSON (if any)</h3>
+  <pre id="jsonOut">(nothing yet)</pre>
+
+  <h3>Errors</h3>
+  <pre id="errOut">(none)</pre>
+
+<script>
+  // ✅ PUT YOUR REAL DEPLOYED FUNCTION URL HERE:
+  // Example:
+  // const FUNCTION_URL = "https://us-central1-ro-tracker-app.cloudfunctions.net/scanRO";
+  const FUNCTION_URL = "PASTE_YOUR_FUNCTION_URL_HERE";
+
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $("status");
+  const httpOut = $("httpOut");
+  const rawOut = $("rawOut");
+  const jsonOut = $("jsonOut");
+  const errOut = $("errOut");
+  const btn = $("btnScan");
+  const fileEl = $("file");
+
+  function setStatus(msg, good) {
+    statusEl.textContent = msg;
+    statusEl.className = good === true ? "ok" : good === false ? "bad" : "";
+  }
+
+  function logErr(msg) {
+    errOut.textContent = (errOut.textContent === "(none)" ? "" : errOut.textContent + "\n") + msg;
+    setStatus("Error", false);
+  }
+
+  window.addEventListener("error", (e) => {
+    logErr("JS error: " + (e.message || e.error || "unknown"));
+  });
+  window.addEventListener("unhandledrejection", (e) => {
+    logErr("Promise rejection: " + (e.reason?.message || String(e.reason)));
+  });
+
+  btn.addEventListener("click", async () => {
+    // Make it obvious the click happened
+    setStatus("Clicked Scan…", null);
+    httpOut.textContent = "(waiting)";
+    rawOut.textContent = "(waiting)";
+    jsonOut.textContent = "(waiting)";
+    errOut.textContent = "(none)";
+
+    try {
+      if (!FUNCTION_URL || FUNCTION_URL.includes("PASTE_")) {
+        throw new Error("FUNCTION_URL is not set. Paste the deployed scanRO URL in scan.html.");
+      }
+
+      const f = fileEl.files && fileEl.files[0];
+      if (!f) {
+        throw new Error("No image selected. Take/pick a photo first.");
+      }
+
+      setStatus("Uploading…", null);
+
+      const fd = new FormData();
+      // server should read "file" (common). If yours expects another key, change here.
+      fd.append("file", f, f.name || "ro.jpg");
+
+      const r = await fetch(FUNCTION_URL, {
+        method: "POST",
+        body: fd
+      });
+
+      const ct = r.headers.get("content-type") || "";
+      const raw = await r.text(); // ✅ ALWAYS read as text first (prevents r.json() crash)
+
+      httpOut.textContent =
+        "URL: " + FUNCTION_URL + "\n" +
+        "Status: " + r.status + " " + (r.ok ? "(OK)" : "(NOT OK)") + "\n" +
+        "Content-Type: " + ct;
+
+      rawOut.textContent = raw || "(empty body)";
+
+      // Try JSON parse if possible
+      let parsed = null;
+      try {
+        parsed = JSON.parse(raw);
+        jsonOut.textContent = JSON.stringify(parsed, null, 2);
+      } catch (_) {
+        jsonOut.textContent = "(not JSON)";
+      }
+
+      if (!r.ok) {
+        setStatus("HTTP error " + r.status, false);
+        return;
+      }
+
+      setStatus(parsed ? "Scan complete (JSON received)" : "Scan complete (non-JSON response)", true);
+
+    } catch (e) {
+      logErr(e.message || String(e));
+    }
+  });
+</script>
+</body>
+</html>
