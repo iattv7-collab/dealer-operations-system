@@ -1,4 +1,4 @@
-// public/modules/notifications.js
+// public/ro/modules/notifications.js
 import { db } from "../firebase.js";
 import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -15,15 +15,23 @@ const PRIVATE_DOC = doc(db, "privateSettings", "me");
 // IMPORTANT:
 // Put your existing VAPID key here (the one you already use for getToken).
 // If you already had it in the old notifications.js, copy it exactly.
-const VAPID_KEY = "BOXVBmTiuAkn8NJJ5n9lXURIllGbl_kq5sQLzWVvEffKhvtUOlrw0fPFJEpwQp869QS8nraOCfRhgHP2FGZhL10"; // fallback if you set it globally
+const VAPID_KEY =
+  "BOXVBmTiuAkn8NJJ5n9lXURIllGbl_kq5sQLzWVvEffKhvtUOlrw0fPFJEpwQp869QS8nraOCfRhgHP2FGZhL10"; // fallback if you set it globally
 
-function $(id) { return document.getElementById(id); }
+function $(id) {
+  return document.getElementById(id);
+}
 
+/**
+ * NOTE:
+ * This file lives at /ro/modules/...
+ * So the service worker file at /ro/firebase-messaging-sw.js must be registered with "../"
+ */
 async function ensureServiceWorker() {
   if (!("serviceWorker" in navigator)) return null;
 
-  // Use your existing SW filename if different
-  const reg = await navigator.serviceWorker.register("./firebase-messaging-sw.js");
+  // ✅ correct path from /ro/modules/ -> /ro/
+  const reg = await navigator.serviceWorker.register("../firebase-messaging-sw.js");
   await navigator.serviceWorker.ready;
   return reg;
 }
@@ -40,10 +48,14 @@ async function loadRemoteToken() {
 }
 
 async function saveRemoteToken(token) {
-  await setDoc(PRIVATE_DOC, {
-    fcmToken: token || "",
-    fcmTokenUpdatedAtMs: Date.now()
-  }, { merge: true });
+  await setDoc(
+    PRIVATE_DOC,
+    {
+      fcmToken: token || "",
+      fcmTokenUpdatedAtMs: Date.now(),
+    },
+    { merge: true }
+  );
 }
 
 function labelForState(state) {
@@ -78,7 +90,11 @@ async function disableThisDevice() {
   const messaging = getMessaging();
   const reg = await ensureServiceWorker();
 
-  try { await deleteToken(messaging); } catch { /* ignore */ }
+  try {
+    await deleteToken(messaging);
+  } catch {
+    /* ignore */
+  }
   await unsubscribePushManager(reg);
   await saveRemoteToken("");
 }
@@ -106,7 +122,7 @@ async function enableThisDevice() {
 
   const token = await getToken(messaging, {
     vapidKey: VAPID_KEY,
-    serviceWorkerRegistration: reg
+    serviceWorkerRegistration: reg,
   });
 
   if (!token) {
@@ -166,83 +182,102 @@ function applyButtonStyle(btn, state) {
 }
 
 export function initNotifications() {
-  let cachedToken = "";
-
-  async function refreshTokenCache() {
-    cachedToken = await loadRemoteToken();
-    return cachedToken;
-  }
-
-  async function refreshButton(btn) {
-    const perm = ("Notification" in window) ? Notification.permission : "unsupported";
-    const hasToken = !!(cachedToken && cachedToken.length > 10);
-    const state = computeState(perm, hasToken);
-
-    btn.textContent = labelForState(state);
-
-    // Make it obvious it’s clickable / usable
-    btn.disabled = (state === "unsupported");
-    btn.dataset.notifState = state;
-
-    // NEW: color indicator on the tab/button
-    applyButtonStyle(btn, state);
-  }
-
-  async function bindStatusToButton(buttonId) {
-    const btn = $(buttonId);
-    if (!btn) return;
-
-    if (btn.__rtBound) return;
-    btn.__rtBound = true;
-
-    await refreshTokenCache();
-    await refreshButton(btn);
-
-    btn.addEventListener("click", async () => {
-      await refreshTokenCache();
-      await refreshButton(btn);
-
-      const state = btn.dataset.notifState || "off";
-
-      if (state === "blocked") {
-        alert("Notifications are blocked for this site. Enable them in your browser settings.");
-        return;
-      }
-
-      if (state === "prompt" || state === "off") {
-        try {
-          const ok = await enableThisDevice();
-          await refreshTokenCache();
-          await refreshButton(btn);
-          if (ok) alert("Notifications enabled ✅");
-        } catch (e) {
-          alert(String(e?.message || e));
-        }
-        return;
-      }
-
-      if (state === "on") {
-        const sure = confirm(
-          "Turn OFF notifications for this device?\n\n" +
-          "This stops pushes from this app (browser permission stays ON)."
-        );
-        if (!sure) return;
-
-        try {
-          await disableThisDevice();
-          await refreshTokenCache();
-          await refreshButton(btn);
-          alert("Notifications disabled for this device ✅");
-        } catch (e) {
-          alert(String(e?.message || e));
-        }
-        return;
-      }
-    });
-  }
-
-  // return API
+  /**
+   * ✅ TEMP SAFETY:
+   * Embedded RO module is now running under Dealer Wash Firebase project.
+   * Until we configure FCM (VAPID key + sender) for that project, disable notifications
+   * to avoid the OAuth/messaging subscribe error popup.
+   *
+   * Later: remove this block once Dealer Wash FCM is configured.
+   */
   return {
-    bindStatusToButton
+    bindStatusToButton(buttonId) {
+      const btn = document.getElementById(buttonId);
+      if (!btn) return;
+      btn.textContent = "Notifications: OFF";
+      btn.disabled = true;
+      btn.style.opacity = "0.7";
+    },
   };
+
+  // ---- (kept below for later re-enable) ----
+  // let cachedToken = "";
+
+  // async function refreshTokenCache() {
+  //   cachedToken = await loadRemoteToken();
+  //   return cachedToken;
+  // }
+
+  // async function refreshButton(btn) {
+  //   const perm = ("Notification" in window) ? Notification.permission : "unsupported";
+  //   const hasToken = !!(cachedToken && cachedToken.length > 10);
+  //   const state = computeState(perm, hasToken);
+
+  //   btn.textContent = labelForState(state);
+
+  //   // Make it obvious it’s clickable / usable
+  //   btn.disabled = (state === "unsupported");
+  //   btn.dataset.notifState = state;
+
+  //   // NEW: color indicator on the tab/button
+  //   applyButtonStyle(btn, state);
+  // }
+
+  // async function bindStatusToButton(buttonId) {
+  //   const btn = $(buttonId);
+  //   if (!btn) return;
+
+  //   if (btn.__rtBound) return;
+  //   btn.__rtBound = true;
+
+  //   await refreshTokenCache();
+  //   await refreshButton(btn);
+
+  //   btn.addEventListener("click", async () => {
+  //     await refreshTokenCache();
+  //     await refreshButton(btn);
+
+  //     const state = btn.dataset.notifState || "off";
+
+  //     if (state === "blocked") {
+  //       alert("Notifications are blocked for this site. Enable them in your browser settings.");
+  //       return;
+  //     }
+
+  //     if (state === "prompt" || state === "off") {
+  //       try {
+  //         const ok = await enableThisDevice();
+  //         await refreshTokenCache();
+  //         await refreshButton(btn);
+  //         if (ok) alert("Notifications enabled ✅");
+  //       } catch (e) {
+  //         alert(String(e?.message || e));
+  //       }
+  //       return;
+  //     }
+
+  //     if (state === "on") {
+  //       const sure = confirm(
+  //         "Turn OFF notifications for this device?\n\n" +
+  //         "This stops pushes from this app (browser permission stays ON)."
+  //       );
+  //       if (!sure) return;
+
+  //       try {
+  //         await disableThisDevice();
+  //         await refreshTokenCache();
+  //         await refreshButton(btn);
+  //         alert("Notifications disabled for this device ✅");
+  //       } catch (e) {
+  //         alert(String(e?.message || e));
+  //       }
+  //       return;
+  //     }
+  //   });
+  // }
+
+  // // return API
+  // return {
+  //   bindStatusToButton
+  // };
 }
