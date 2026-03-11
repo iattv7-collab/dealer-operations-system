@@ -451,6 +451,14 @@ service cloud.firestore {
     match /settings/{docId} {
       allow read: if isEmployee();
       allow write: if canControlWashDay();
+    } 
+    
+    /* ---------------------------------------
+       ACTIVE ROS (temporary test access)
+    --------------------------------------- */
+
+    match /activeROs/{roId} {
+      allow read, write: if true;
     }
 
     /* ---------------------------------------

@@ -15,8 +15,12 @@
 
 const functions = require("firebase-functions/v1");
 const admin = require("firebase-admin");
+const cors = require("cors")({ origin: true });
+const Busboy = require("busboy");
+const vision = require("@google-cloud/vision");
 
 admin.initializeApp();
+const visionClient = new vision.ImageAnnotatorClient();
 
 const ALLOWED_ROLES = ["admin", "manager", "advisor", "wash", "staff", "booker", "qc", "pending"];
 
@@ -306,7 +310,7 @@ function nyPartsFromMs(ms) {
     year: Number(get("year")),
     month: Number(get("month")),
     day: Number(get("day")),
-    weekday: String(get("weekday")), // Sun/Mon/...
+    weekday: String(get("weekday")),
     hour: Number(get("hour")),
     minute: Number(get("minute")),
     second: Number(get("second")),
@@ -315,15 +319,8 @@ function nyPartsFromMs(ms) {
 
 // Convert NY local Y-M-D HH:MM into epoch ms
 function nyLocalToMs({ year, month, day, hh, mm }) {
-  // Build a string that represents the NY time, then interpret using timeZone conversion trick:
-  // We do a best-effort by using Date.UTC then adjusting via Intl is messy; easiest stable approach:
-  // create a Date from NY parts by formatting in that zone isn't directly possible in JS without libs.
-  // So we approximate by: create a Date in UTC for same Y-M-D HH:MM, then compute delta between UTC and NY at that moment.
   const utcGuess = Date.UTC(year, month - 1, day, hh, mm, 0);
-  // Find the offset between NY and UTC at that instant:
   const nyAtUtcGuess = nyPartsFromMs(utcGuess);
-  // If nyAtUtcGuess matches the requested local time, we’re done; if not, adjust by the hour diff.
-  // Compute "local minutes since midnight" difference:
   const want = hh * 60 + mm;
   const got = nyAtUtcGuess.hour * 60 + nyAtUtcGuess.minute;
   const diffMin = got - want;
@@ -331,7 +328,6 @@ function nyLocalToMs({ year, month, day, hh, mm }) {
 }
 
 function dayTypeFromWeekdayShort(wd) {
-  // wd: Sun Mon Tue Wed Thu Fri Sat
   if (wd === "Sat") return "sat";
   if (wd === "Sun") return "sun";
   return "mf";
@@ -353,8 +349,7 @@ function isWithinWindow(nowMinutes, openHHMM, closeHHMM) {
   if (!o || !c) return false;
   const oMin = o.hh * 60 + o.mm;
   const cMin = c.hh * 60 + c.mm;
-  if (oMin === cMin) return false; // closed
-  // assume same-day window (no overnight windows)
+  if (oMin === cMin) return false;
   return nowMinutes >= oMin && nowMinutes < cMin;
 }
 
@@ -363,21 +358,17 @@ async function recomputeScheduleV1(reason = "unknown") {
   const settingsSnap = await db.doc("settings/system").get();
   const raw = settingsSnap.exists ? settingsSnap.data() : {};
 
-  // wash timing
   const washDurationMin = clampIntLocal(raw.washDurationMin, 1, 120, 15);
   const bufferMin = clampIntLocal(raw.bufferMin, 0, 60, 0);
   const slotMs = minsToMs(washDurationMin + bufferMin);
 
-  // mode
   const autoStart = typeof raw.autoStart === "boolean" ? raw.autoStart : true;
   const isOpen = typeof raw.isOpen === "boolean" ? raw.isOpen : true;
 
-  // bays by day
   const mfBays = clampIntLocal(raw.mfBays, 0, 50, 2);
   const satBays = clampIntLocal(raw.satBays, 0, 50, 1);
   const sunBays = clampIntLocal(raw.sunBays, 0, 50, 0);
 
-  // hours (HH:MM strings)
   const mfOpen = String(raw.mfOpen || "07:30");
   const mfClose = String(raw.mfClose || "19:00");
   const satOpen = String(raw.satOpen || "08:00");
@@ -385,7 +376,6 @@ async function recomputeScheduleV1(reason = "unknown") {
   const sunOpen = String(raw.sunOpen || "00:00");
   const sunClose = String(raw.sunClose || "00:00");
 
-  // legacy/override: openBays today only
   const openBaysOverride = clampIntLocal(raw.openBays, 0, 50, 0);
 
   const now = Date.now();
@@ -393,15 +383,16 @@ async function recomputeScheduleV1(reason = "unknown") {
   const nowMinutes = nyNow.hour * 60 + nyNow.minute;
   const todayType = dayTypeFromWeekdayShort(nyNow.weekday);
 
-  const cfgToday = getDayConfig({ mfBays, satBays, sunBays, mfOpen, mfClose, satOpen, satClose, sunOpen, sunClose }, todayType);
+  const cfgToday = getDayConfig(
+    { mfBays, satBays, sunBays, mfOpen, mfClose, satOpen, satClose, sunOpen, sunClose },
+    todayType
+  );
   const dayBays = clampIntLocal(cfgToday.bays, 0, 50, 0);
   const effectiveBays = openBaysOverride > 0 ? openBaysOverride : dayBays;
 
-  // Determine scheduling anchor
   let anchorMs = null;
 
   if (!autoStart) {
-    // Manual mode: only schedule queued cars when supervisor opened the day
     if (!isOpen) {
       functions.logger.info("Scheduler manual mode: CLOSED (queued schedule cleared)", { reason });
       anchorMs = null;
@@ -409,40 +400,37 @@ async function recomputeScheduleV1(reason = "unknown") {
       anchorMs = now;
     }
   } else {
-    // Auto mode: schedule only during open window; otherwise start at next open time
     const openNow = isWithinWindow(nowMinutes, cfgToday.open, cfgToday.close) && effectiveBays > 0;
 
     if (openNow) {
       anchorMs = now;
     } else {
-      // find next open day within next 7 days
       let found = null;
       let cursorMs = now;
       for (let i = 0; i < 8; i++) {
         const p = nyPartsFromMs(cursorMs);
         const type = dayTypeFromWeekdayShort(p.weekday);
 
-        const cfg = getDayConfig({ mfBays, satBays, sunBays, mfOpen, mfClose, satOpen, satClose, sunOpen, sunClose }, type);
+        const cfg = getDayConfig(
+          { mfBays, satBays, sunBays, mfOpen, mfClose, satOpen, satClose, sunOpen, sunClose },
+          type
+        );
         const bays = clampIntLocal(cfg.bays, 0, 50, 0);
         const o = parseHHMM(cfg.open);
         const c = parseHHMM(cfg.close);
 
         if (bays > 0 && o && c && (o.hh * 60 + o.mm) !== (c.hh * 60 + c.mm)) {
-          // candidate open time for that local day
           const openMs = nyLocalToMs({ year: p.year, month: p.month, day: p.day, hh: o.hh, mm: o.mm });
           if (openMs > now) { found = openMs; break; }
         }
 
-        // advance cursor by 24h
         cursorMs += 24 * 60 * 60 * 1000;
       }
 
-      anchorMs = found; // could be null if closed all week
+      anchorMs = found;
     }
   }
 
-  // If no bays or no anchor (manual closed / fully closed), we still keep washing tickets stable,
-  // but we clear queued schedule so ETAs don't look fake overnight.
   const snap = await db.collection("washTickets")
     .where("status", "in", ["queued", "washing"])
     .get();
@@ -457,7 +445,6 @@ async function recomputeScheduleV1(reason = "unknown") {
       waiter: !!t.waiter,
       priorityType: (pt === "waiter" ? "normal" : pt),
       needByAtMs: typeof t.needByAtMs === "number" ? t.needByAtMs : null,
-
       washingStartedAtMs: typeof t.washingStartedAtMs === "number" ? t.washingStartedAtMs : null,
       scheduledBay: typeof t.scheduledBay === "number" ? t.scheduledBay : null,
       createdAtMs: typeof t.createdAtMs === "number" ? t.createdAtMs : now,
@@ -465,9 +452,6 @@ async function recomputeScheduleV1(reason = "unknown") {
   });
 
   const washing = tickets.filter(t => t.status === "washing");
-
-  // Always lock bays for currently washing tickets (even if closed)
-  // If effectiveBays is 0, we still assign bay=1 for washing tickets to avoid nulls.
   const baysForWashing = Math.max(1, effectiveBays || 1);
   const bayNext = Array.from({ length: baysForWashing }, () => Math.max(now, anchorMs || now));
 
@@ -493,7 +477,6 @@ async function recomputeScheduleV1(reason = "unknown") {
   const batch = db.batch();
   const updatedAtMs = Date.now();
 
-  // Write washing schedules always
   for (const t of washing) {
     const ref = db.collection("washTickets").doc(t.id);
     batch.set(ref, {
@@ -505,7 +488,6 @@ async function recomputeScheduleV1(reason = "unknown") {
     }, { merge: true });
   }
 
-  // If manual closed OR no anchor OR no effective bays: clear queued schedule fields
   const queued = tickets.filter(t => t.status === "queued");
 
   if (!anchorMs || effectiveBays <= 0) {
@@ -533,7 +515,6 @@ async function recomputeScheduleV1(reason = "unknown") {
     return;
   }
 
-  // Normal scheduling for queued tickets
   const waiters = queued.filter(t => t.waiter === true).sort((a, b) => a.createdAtMs - b.createdAtMs);
   const needbys = queued
     .filter(t => t.priorityType === "needby" && typeof t.needByAtMs === "number")
@@ -621,7 +602,6 @@ exports.onWashTicketWrite = functions.firestore
     const after = change.after.exists ? change.after.data() : null;
     if (!after) return null;
 
-    // loop guard: if ONLY scheduler fields changed, ignore
     if (before) {
       const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
       const changed = [];
@@ -646,3 +626,991 @@ exports.onSettingsSystemWrite = functions.firestore
     await recomputeScheduleV1("settings/system write");
     return null;
   });
+
+  // =====================================================
+// SCAN RO
+// =====================================================
+
+exports.scanRO = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    if (req.method !== "POST") {
+      return res.status(405).json({ ok: false, error: "Use POST" });
+    }
+
+    try {
+      const fileBuffer = await readUpload(req);
+
+      if (!fileBuffer || !fileBuffer.length) {
+        return res.status(400).json({ ok: false, error: "Missing file" });
+      }
+
+      const [ocrResult] = await visionClient.documentTextDetection({
+        image: { content: fileBuffer }
+      });
+
+      const rawText =
+        ocrResult.fullTextAnnotation?.text ||
+        (ocrResult.textAnnotations && ocrResult.textAnnotations[0]?.description) ||
+        "";
+
+      const parsed = parseReynoldsRO(rawText);
+
+      return res.json({
+        ok: true,
+        pass: parsed.missingRequired.length === 0,
+        rawText,
+        data: parsed.data,
+        missingRequired: parsed.missingRequired
+      });
+    } catch (err) {
+      console.error("scanRO error:", err);
+      return res.status(500).json({
+        ok: false,
+        error: err.message || "Server error"
+      });
+    }
+  });
+});
+
+function readUpload(req) {
+  return new Promise((resolve, reject) => {
+    try {
+      const busboy = Busboy({ headers: req.headers });
+      const chunks = [];
+      let fileFound = false;
+
+      busboy.on("file", (_fieldname, file) => {
+        fileFound = true;
+        file.on("data", chunk => chunks.push(chunk));
+        file.on("end", () => {});
+      });
+
+      busboy.on("finish", () => {
+        if (!fileFound) return resolve(null);
+        resolve(Buffer.concat(chunks));
+      });
+
+      busboy.on("error", reject);
+
+      if (req.rawBody) {
+        busboy.end(req.rawBody);
+      } else {
+        req.pipe(busboy);
+      }
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+function parseReynoldsRO(rawText) {
+  const text = normalizeText(rawText);
+  const lines = text
+    .split("\n")
+    .map(line => cleanupSpacing(line))
+    .filter(Boolean);
+
+  const data = {
+    roNumber: extractRoNumber(lines, text),
+    tagNumber: extractTagNumber(lines),
+    customerName: extractCustomerName(lines),
+    cellPhone: extractCellPhone(lines),
+    yearModel: extractYearModel(lines),
+    concern: extractConcern(lines),
+    roDate: extractRoDate(lines),
+    promiseDate: extractPromiseDateOnly(lines),
+    advisor: extractAdvisor(lines),
+    vin: extractVin(lines),
+    confidenceHint: ""
+  };
+
+  function extractPromiseDateOnly(linesArg) {
+    const full = extractPromiseDate(linesArg);
+    const d = normalizeDateToken(full);
+    return d || "";
+  }
+
+  const missingRequired = [];
+  if (!data.roNumber) missingRequired.push("roNumber");
+  if (!data.tagNumber) missingRequired.push("tagNumber");
+  if (!data.customerName) missingRequired.push("customerName");
+
+  return { data, missingRequired };
+}
+
+function normalizeText(text) {
+  return String(text || "")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/[|]/g, "I")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .trim();
+}
+
+function cleanupSpacing(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function digitsOnly(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function findPhone(text) {
+  const m = String(text || "").match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+  if (!m) return "";
+  return digitsOnly(m[0]);
+}
+
+function looksLikePhoneLine(line) {
+  return /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(String(line || ""));
+}
+
+function looksLikeAddress(line) {
+  const text = String(line || "");
+  return /\b(ST|AVE|AVENUE|ROAD|RD|DR|DRIVE|BLVD|COURT|CT|LANE|LN|WAY|FL|DAVIE|MIAMI|APT|UNIT)\b/i.test(text) ||
+    /\b\d{3,6}\b/.test(text);
+}
+
+function cleanupName(name) {
+  return cleanupSpacing(String(name || "").replace(/[^A-Za-z0-9.' -]/g, "").trim());
+}
+
+function looksLikePersonName(line) {
+  const text = cleanupSpacing(String(line || ""));
+  if (!text) return false;
+  if (text.length < 4 || text.length > 40) return false;
+  if (/\d{2,}/.test(text)) return false;
+  if (looksLikeAddress(text)) return false;
+
+  const words = text.split(" ").filter(Boolean);
+  if (words.length < 2 || words.length > 5) return false;
+
+  const goodWords = words.filter(w => /^[A-Za-z][A-Za-z.'-]*$/.test(w));
+  return goodWords.length >= 2;
+}
+
+function looksLikeVIN(line) {
+  return /\b[A-HJ-NPR-Z0-9]{17}\b/.test(String(line || ""));
+}
+
+function normalizeDateToken(value) {
+  const m = String(value || "").match(/\b(\d{2})\/(\d{2})\/(\d{2,4})\b/);
+  return m ? m[0] : "";
+}
+
+function normalizeTimeToken(value) {
+  const m = String(value || "").match(/\b\d{1,2}:\d{2}\s*[ap]m\b/i);
+  return m ? cleanupSpacing(m[0]).replace(/\s+/g, "") : "";
+}
+
+function getVinBlock(lines) {
+  const vinIdx = lines.findIndex(line => looksLikeVIN(line));
+  if (vinIdx < 0) return [];
+  return lines.slice(vinIdx, Math.min(lines.length, vinIdx + 18));
+}
+
+function extractRoNumber(lines, text) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    let m = line.match(/R\.?O\.?\s*(?:NO|#|NUMBER)\s*[:.]?\s*(\d{5,8})/i);
+    if (m) return m[1];
+
+    if (/R\.?O\.?\s*(?:NO|#|NUMBER)/i.test(line)) {
+      const joined = [line, lines[i + 1] || ""].join(" ");
+      m = joined.match(/R\.?O\.?\s*(?:NO|#|NUMBER)\s*[:.]?\s*(\d{5,8})/i);
+      if (m) return m[1];
+    }
+  }
+
+  const vinBlock = getVinBlock(lines);
+  if (vinBlock.length) {
+    const joined = vinBlock.join(" ");
+    const m = joined.match(/R\.?O\.?\s*(?:NO|#)?\s*[:.]?\s*(\d{5,8})/i);
+    if (m) return m[1];
+  }
+
+  const topChunk = lines.slice(0, 25).join(" ");
+  const nums = topChunk.match(/\b\d{5,8}\b/g) || [];
+  if (nums.length) {
+    const counts = {};
+    nums.forEach(n => { counts[n] = (counts[n] || 0) + 1; });
+    const repeated = Object.keys(counts)
+      .sort((a, b) => counts[b] - counts[a] || b.length - a.length);
+    if (repeated.length) return repeated[0];
+  }
+
+  const any = text.match(/\b\d{5,8}\b/g) || [];
+  return any.length ? any[0] : "";
+}
+
+function extractTagNumber(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    let m = line.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
+    if (m) return m[1];
+
+    if (/TAG\s*(?:NO|#)/i.test(line)) {
+      const joined = [line, lines[i + 1] || "", lines[i + 2] || ""].join(" ");
+      m = joined.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
+      if (m) return m[1];
+    }
+  }
+
+  const vinBlock = getVinBlock(lines);
+  if (vinBlock.length) {
+    const joined = vinBlock.join(" ");
+    const m = joined.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
+    if (m) return m[1];
+  }
+
+  return "";
+}
+
+function extractCustomerName(lines) {
+  const vinIdx = lines.findIndex(line => looksLikeVIN(line));
+  if (vinIdx >= 0) {
+    for (let i = vinIdx + 1; i <= Math.min(vinIdx + 5, lines.length - 1); i++) {
+      const line = lines[i];
+      if (!line) continue;
+      if (looksLikeAddress(line)) continue;
+      if (looksLikePhoneLine(line)) continue;
+      if (/^(YEAR|MAKE|MODEL|CUSTOMER|COLOR|TURBO|MILEAGE|ADVISOR|RO DATE|TAG|CELL)/i.test(line)) continue;
+      if (looksLikePersonName(line)) return cleanupName(line);
+    }
+  }
+
+  const candidates = lines.filter(line => looksLikePersonName(line) && !looksLikeAddress(line));
+  return candidates.length ? cleanupName(candidates[0]) : "";
+}
+
+function extractCellPhone(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/CELL\s*:/i.test(line) || /^CELL\b/i.test(line)) {
+      const sameLine = findPhone(line);
+      if (sameLine) return sameLine;
+
+      const next1 = findPhone(lines[i + 1] || "");
+      if (next1) return next1;
+
+      const next2 = findPhone(lines[i + 2] || "");
+      if (next2) return next2;
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/RESIDENCE\s+PHONE/i.test(line)) {
+      const sameLine = findPhone(line);
+      if (sameLine) return sameLine;
+
+      const next1 = findPhone(lines[i + 1] || "");
+      if (next1) return next1;
+    }
+  }
+
+  return "";
+}
+
+function extractYearModel(lines) {
+  const vinBlock = getVinBlock(lines);
+
+  for (const line of vinBlock) {
+    if (/\bPORSCHE\b/i.test(line) && /\b\d{2}\/PORSCHE\//i.test(line)) {
+      return line.replace(/^[A-HJ-NPR-Z0-9]{17}\s+/, "").trim();
+    }
+  }
+
+  for (const line of lines) {
+    if (/PORSCHE/i.test(line)) {
+      if (/PORSCHE WEST BROWARD/i.test(line)) continue;
+      if (/YEAR|MAKE|MODEL/i.test(line)) continue;
+      if (!/\b\d{2}\/PORSCHE\//i.test(line)) continue;
+      return line.replace(/^[A-HJ-NPR-Z0-9]{17}\s+/, "").trim();
+    }
+  }
+
+  return "";
+}
+
+function extractConcern(lines) {
+  const BAD_LINES = [
+    /^PORSCHE WEST BROWARD$/i,
+    /^RECOMMENDED SERVICES$/i,
+    /^SERVICE HISTORY$/i,
+    /^ORIGINAL CUSTOMER ESTIMATE:?$/i,
+    /^NOTE TO CONSUMER/i,
+    /^ON EITHER BACK SIDE OR LAST PAGE HEREOF$/i,
+    /^Marlon Vargas$/i,
+    /^QUICK SERVICE$/i,
+    /^MULTIPOINT INSPECT$/i,
+    /^WashCarService$/i,
+    /^QUALITY CONTROL$/i,
+    /^TOTAL$/i,
+    /^PRIORITY$/i,
+    /^LABOR RATE$/i,
+    /^JOB$/i,
+    /^SERVICE$/i,
+    /^NONE$/i,
+    /^OPERATION$/i,
+    /^OPERATION DESCRIPTION$/i,
+    /^MO\/MI$/i,
+    /^DATE$/i,
+    /^REPAIR ORDER$/i,
+    /^MILEAGE$/i,
+    /^ADVISOR$/i,
+    /^TECHNICIAN$/i,
+    /^TYPE$/i,
+    /^CUSTOMER NO\.?$/i,
+    /^COLOR$/i,
+    /^SERVICE CONTRACT$/i,
+    /^PRODUCTION DATE$/i,
+    /^STOCK NO\.?$/i,
+    /^LICENSE NO\.?$/i,
+    /^R\.?O\.? NO\.?$/i,
+    /^R\.?O\.? DATE$/i,
+    /^TAG NO\.?$/i,
+    /^TURBO$/i,
+    /^M\/MC$/i,
+    /^AIR COND\.?$/i,
+    /^P\.? ?S\.?$/i,
+    /^TRANS$/i,
+    /^ADVISOR NO\.?$/i,
+    /^APPOINTMENT$/i,
+    /^TIME RECEIVED$/i,
+    /^DATE\/TIME PROMISED$/i
+  ];
+
+  function isBadConcernLine(s) {
+    const text = cleanupSpacing(s || "");
+    if (!text) return true;
+    if (BAD_LINES.some(rx => rx.test(text))) return true;
+    if (looksLikePhoneLine(text)) return true;
+    if (looksLikeAddress(text)) return true;
+    if (looksLikeVIN(text)) return true;
+
+    if (/^(CELL|RESIDENCE PHONE|BUSINESS PHONE|ADVISOR|ADVISOR NO\.?|DATE|SIGNED|PAGE \d)/i.test(text)) return true;
+    if (/\b(Customer agrees|NOTE TO CONSUMER|ON EITHER BACK SIDE|I hereby authorize|created\s+\d{4}-\d{2}-\d{2})\b/i.test(text)) return true;
+
+    if (/^\d{2}\/\d{2}\/\d{2,4}$/.test(text)) return true;
+    if (/^\d{1,2}:\d{2}\s*[ap]m$/i.test(text)) return true;
+
+    if (/^\*?\s*[A-Z0-9]{4,10}$/.test(text)) return true;
+    if (/^[A-Z][A-Z ]+$/.test(text) && text.split(/\s+/).length <= 4) return true;
+
+    return false;
+  }
+
+  function looksLikeRealConcern(text) {
+    const t = cleanupSpacing(text || "");
+    if (!t || isBadConcernLine(t)) return false;
+
+    if (/\b(CUSTOMER STATES|C\/S|REQUEST|CONCERN|CORRECTION|LEAK|NOISE|VIBRATION|CHECK|WARNING|LIGHT|ISSUE|PROBLEM)\b/i.test(t)) {
+      return true;
+    }
+
+    if (/^(M&B|ALIGNMENT|TRIM CONCERN|SHUTTLE TRANSPORT|MULTIPOINT INSPECT|QUALITY CONTROL|WASHCARSERVICE)/i.test(t)) {
+      return false;
+    }
+
+    const words = t.split(/\s+/).filter(Boolean);
+    if (words.length < 2 || words.length > 8) return false;
+    if (!/^[A-Za-z0-9/&().,' -]+$/.test(t)) return false;
+
+    return true;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = cleanupSpacing(lines[i]);
+    if (/CUSTOMER\s+STATES/i.test(line)) {
+      const sameLine = cleanupSpacing(line.replace(/.*CUSTOMER\s+STATES[:\-]?\s*/i, ""));
+      if (looksLikeRealConcern(sameLine)) return sameLine;
+
+      for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) {
+        const next = cleanupSpacing(lines[j]);
+        if (looksLikeRealConcern(next)) return next;
+      }
+      return "";
+    }
+  }
+
+  const estIdx = lines.findIndex(line => /^ORIGINAL CUSTOMER ESTIMATE:?$/i.test(cleanupSpacing(line)));
+  if (estIdx >= 0) {
+    for (let i = estIdx + 1; i < Math.min(lines.length, estIdx + 8); i++) {
+      const line = cleanupSpacing(lines[i]);
+      if (looksLikeRealConcern(line)) return line;
+    }
+  }
+
+  const commentsIdx = lines.findIndex(line => /^COMMENTS\s*:?/i.test(cleanupSpacing(line)));
+  if (commentsIdx >= 0) {
+    for (let i = commentsIdx + 1; i < Math.min(lines.length, commentsIdx + 5); i++) {
+      const line = cleanupSpacing(lines[i]);
+      if (looksLikeRealConcern(line)) return line;
+    }
+  }
+
+  return "";
+}
+
+function extractRoDate(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = cleanupSpacing(lines[i]);
+
+    if (/R\.?\s*O\.?\s*DATE/i.test(line)) {
+      const joined = [line, lines[i + 1] || "", lines[i + 2] || ""].join(" ");
+      const m = joined.match(/R\.?\s*O\.?\s*DATE\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})/i);
+      if (m) return m[1];
+
+      const d = joined.match(/\b\d{2}\/\d{2}\/\d{2,4}\b/);
+      if (d) return d[0];
+    }
+  }
+
+  const vinBlock = getVinBlock(lines);
+  if (vinBlock.length) {
+    const joined = vinBlock.join(" ");
+    const m = joined.match(/R\.?\s*O\.?\s*DATE\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})/i);
+    if (m) return m[1];
+  }
+
+  return "";
+}
+
+function extractPromiseDate(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    if (/DATE\/?TIME\s+PROMISED/i.test(lines[i])) {
+      const joined = [lines[i], lines[i + 1] || "", lines[i + 2] || ""].join(" ");
+
+      let m = joined.match(/DATE\/?TIME\s+PROMISED\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})\s+(\d{1,2}:\d{2}\s*[ap]m)/i);
+      if (m) return `${m[1]} ${cleanupSpacing(m[2]).replace(/\s+/g, "")}`;
+
+      const d = normalizeDateToken(joined);
+      const t = normalizeTimeToken(joined);
+      if (d && t) return `${d} ${t}`;
+    }
+  }
+
+  return "";
+}
+
+function extractAdvisor(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = cleanupSpacing(lines[i]);
+
+    let m = line.match(/ADVISOR\s*[:.]?\s*([A-Za-z][A-Za-z.' -]{2,40})/i);
+    if (m) return cleanupSpacing(m[1]);
+
+    if (/^ADVISOR$/i.test(line) || /^ADVISOR NO\.?$/i.test(line)) {
+      const next = cleanupSpacing(lines[i + 1] || "");
+      if (looksLikePersonName(next)) return cleanupName(next);
+    }
+  }
+
+  return "";
+}
+
+function extractVin(lines) {
+  for (const line of lines) {
+    const m = String(line || "").match(/\b([A-HJ-NPR-Z0-9]{17})\b/);
+    if (m) return m[1];
+  }
+  return "";
+}
+
+// =====================================================
+// SCAN RO
+// =====================================================
+
+exports.scanRO = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    if (req.method !== "POST") {
+      return res.status(405).json({ ok: false, error: "Use POST" });
+    }
+
+    try {
+      const fileBuffer = await readUpload(req);
+
+      if (!fileBuffer || !fileBuffer.length) {
+        return res.status(400).json({ ok: false, error: "Missing file" });
+      }
+
+      const [ocrResult] = await visionClient.documentTextDetection({
+        image: { content: fileBuffer }
+      });
+
+      const rawText =
+        ocrResult.fullTextAnnotation?.text ||
+        (ocrResult.textAnnotations && ocrResult.textAnnotations[0]?.description) ||
+        "";
+
+      const parsed = parseReynoldsRO(rawText);
+
+      return res.json({
+        ok: true,
+        pass: parsed.missingRequired.length === 0,
+        rawText,
+        data: parsed.data,
+        missingRequired: parsed.missingRequired
+      });
+    } catch (err) {
+      console.error("scanRO error:", err);
+      return res.status(500).json({
+        ok: false,
+        error: err.message || "Server error"
+      });
+    }
+  });
+});
+
+function readUpload(req) {
+  return new Promise((resolve, reject) => {
+    try {
+      const busboy = Busboy({ headers: req.headers });
+      const chunks = [];
+      let fileFound = false;
+
+      busboy.on("file", (_fieldname, file) => {
+        fileFound = true;
+        file.on("data", chunk => chunks.push(chunk));
+        file.on("end", () => {});
+      });
+
+      busboy.on("finish", () => {
+        if (!fileFound) return resolve(null);
+        resolve(Buffer.concat(chunks));
+      });
+
+      busboy.on("error", reject);
+
+      if (req.rawBody) {
+        busboy.end(req.rawBody);
+      } else {
+        req.pipe(busboy);
+      }
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+function parseReynoldsRO(rawText) {
+  const text = normalizeText(rawText);
+  const lines = text
+    .split("\n")
+    .map(line => cleanupSpacing(line))
+    .filter(Boolean);
+
+  const data = {
+    roNumber: extractRoNumber(lines, text),
+    tagNumber: extractTagNumber(lines),
+    customerName: extractCustomerName(lines),
+    cellPhone: extractCellPhone(lines),
+    yearModel: extractYearModel(lines),
+    concern: extractConcern(lines),
+    roDate: extractRoDate(lines),
+    promiseDate: extractPromiseDateOnly(lines),
+    advisor: extractAdvisor(lines),
+    vin: extractVin(lines),
+    confidenceHint: ""
+  };
+
+  function extractPromiseDateOnly(linesArg) {
+    const full = extractPromiseDate(linesArg);
+    const d = normalizeDateToken(full);
+    return d || "";
+  }
+
+  const missingRequired = [];
+  if (!data.roNumber) missingRequired.push("roNumber");
+  if (!data.tagNumber) missingRequired.push("tagNumber");
+  if (!data.customerName) missingRequired.push("customerName");
+
+  return { data, missingRequired };
+}
+
+function normalizeText(text) {
+  return String(text || "")
+    .replace(/\r/g, "")
+    .replace(/[ \t]+/g, " ")
+    .replace(/[|]/g, "I")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
+    .trim();
+}
+
+function cleanupSpacing(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function digitsOnly(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function findPhone(text) {
+  const m = String(text || "").match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
+  if (!m) return "";
+  return digitsOnly(m[0]);
+}
+
+function looksLikePhoneLine(line) {
+  return /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(String(line || ""));
+}
+
+function looksLikeAddress(line) {
+  const text = String(line || "");
+  return /\b(ST|AVE|AVENUE|ROAD|RD|DR|DRIVE|BLVD|COURT|CT|LANE|LN|WAY|FL|DAVIE|MIAMI|APT|UNIT)\b/i.test(text) ||
+    /\b\d{3,6}\b/.test(text);
+}
+
+function cleanupName(name) {
+  return cleanupSpacing(String(name || "").replace(/[^A-Za-z0-9.' -]/g, "").trim());
+}
+
+function looksLikePersonName(line) {
+  const text = cleanupSpacing(String(line || ""));
+  if (!text) return false;
+  if (text.length < 4 || text.length > 40) return false;
+  if (/\d{2,}/.test(text)) return false;
+  if (looksLikeAddress(text)) return false;
+
+  const words = text.split(" ").filter(Boolean);
+  if (words.length < 2 || words.length > 5) return false;
+
+  const goodWords = words.filter(w => /^[A-Za-z][A-Za-z.'-]*$/.test(w));
+  return goodWords.length >= 2;
+}
+
+function looksLikeVIN(line) {
+  return /\b[A-HJ-NPR-Z0-9]{17}\b/.test(String(line || ""));
+}
+
+function normalizeDateToken(value) {
+  const m = String(value || "").match(/\b(\d{2})\/(\d{2})\/(\d{2,4})\b/);
+  return m ? m[0] : "";
+}
+
+function normalizeTimeToken(value) {
+  const m = String(value || "").match(/\b\d{1,2}:\d{2}\s*[ap]m\b/i);
+  return m ? cleanupSpacing(m[0]).replace(/\s+/g, "") : "";
+}
+
+function getVinBlock(lines) {
+  const vinIdx = lines.findIndex(line => looksLikeVIN(line));
+  if (vinIdx < 0) return [];
+  return lines.slice(vinIdx, Math.min(lines.length, vinIdx + 18));
+}
+
+function extractRoNumber(lines, text) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    let m = line.match(/R\.?O\.?\s*(?:NO|#|NUMBER)\s*[:.]?\s*(\d{5,8})/i);
+    if (m) return m[1];
+
+    if (/R\.?O\.?\s*(?:NO|#|NUMBER)/i.test(line)) {
+      const joined = [line, lines[i + 1] || ""].join(" ");
+      m = joined.match(/R\.?O\.?\s*(?:NO|#|NUMBER)\s*[:.]?\s*(\d{5,8})/i);
+      if (m) return m[1];
+    }
+  }
+
+  const vinBlock = getVinBlock(lines);
+  if (vinBlock.length) {
+    const joined = vinBlock.join(" ");
+    const m = joined.match(/R\.?O\.?\s*(?:NO|#)?\s*[:.]?\s*(\d{5,8})/i);
+    if (m) return m[1];
+  }
+
+  const topChunk = lines.slice(0, 25).join(" ");
+  const nums = topChunk.match(/\b\d{5,8}\b/g) || [];
+  if (nums.length) {
+    const counts = {};
+    nums.forEach(n => { counts[n] = (counts[n] || 0) + 1; });
+    const repeated = Object.keys(counts)
+      .sort((a, b) => counts[b] - counts[a] || b.length - a.length);
+    if (repeated.length) return repeated[0];
+  }
+
+  const any = text.match(/\b\d{5,8}\b/g) || [];
+  return any.length ? any[0] : "";
+}
+
+function extractTagNumber(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    let m = line.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
+    if (m) return m[1];
+
+    if (/TAG\s*(?:NO|#)/i.test(line)) {
+      const joined = [line, lines[i + 1] || "", lines[i + 2] || ""].join(" ");
+      m = joined.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
+      if (m) return m[1];
+    }
+  }
+
+  const vinBlock = getVinBlock(lines);
+  if (vinBlock.length) {
+    const joined = vinBlock.join(" ");
+    const m = joined.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
+    if (m) return m[1];
+  }
+
+  return "";
+}
+
+function extractCustomerName(lines) {
+  const vinIdx = lines.findIndex(line => looksLikeVIN(line));
+  if (vinIdx >= 0) {
+    for (let i = vinIdx + 1; i <= Math.min(vinIdx + 5, lines.length - 1); i++) {
+      const line = lines[i];
+      if (!line) continue;
+      if (looksLikeAddress(line)) continue;
+      if (looksLikePhoneLine(line)) continue;
+      if (/^(YEAR|MAKE|MODEL|CUSTOMER|COLOR|TURBO|MILEAGE|ADVISOR|RO DATE|TAG|CELL)/i.test(line)) continue;
+      if (looksLikePersonName(line)) return cleanupName(line);
+    }
+  }
+
+  const candidates = lines.filter(line => looksLikePersonName(line) && !looksLikeAddress(line));
+  return candidates.length ? cleanupName(candidates[0]) : "";
+}
+
+function extractCellPhone(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/CELL\s*:/i.test(line) || /^CELL\b/i.test(line)) {
+      const sameLine = findPhone(line);
+      if (sameLine) return sameLine;
+
+      const next1 = findPhone(lines[i + 1] || "");
+      if (next1) return next1;
+
+      const next2 = findPhone(lines[i + 2] || "");
+      if (next2) return next2;
+    }
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/RESIDENCE\s+PHONE/i.test(line)) {
+      const sameLine = findPhone(line);
+      if (sameLine) return sameLine;
+
+      const next1 = findPhone(lines[i + 1] || "");
+      if (next1) return next1;
+    }
+  }
+
+  return "";
+}
+
+function extractYearModel(lines) {
+  const vinBlock = getVinBlock(lines);
+
+  for (const line of vinBlock) {
+    if (/\bPORSCHE\b/i.test(line) && /\b\d{2}\/PORSCHE\//i.test(line)) {
+      return line.replace(/^[A-HJ-NPR-Z0-9]{17}\s+/, "").trim();
+    }
+  }
+
+  for (const line of lines) {
+    if (/PORSCHE/i.test(line)) {
+      if (/PORSCHE WEST BROWARD/i.test(line)) continue;
+      if (/YEAR|MAKE|MODEL/i.test(line)) continue;
+      if (!/\b\d{2}\/PORSCHE\//i.test(line)) continue;
+      return line.replace(/^[A-HJ-NPR-Z0-9]{17}\s+/, "").trim();
+    }
+  }
+
+  return "";
+}
+
+function extractConcern(lines) {
+  const BAD_LINES = [
+    /^PORSCHE WEST BROWARD$/i,
+    /^RECOMMENDED SERVICES$/i,
+    /^SERVICE HISTORY$/i,
+    /^ORIGINAL CUSTOMER ESTIMATE:?$/i,
+    /^NOTE TO CONSUMER/i,
+    /^ON EITHER BACK SIDE OR LAST PAGE HEREOF$/i,
+    /^Marlon Vargas$/i,
+    /^QUICK SERVICE$/i,
+    /^MULTIPOINT INSPECT$/i,
+    /^WashCarService$/i,
+    /^QUALITY CONTROL$/i,
+    /^TOTAL$/i,
+    /^PRIORITY$/i,
+    /^LABOR RATE$/i,
+    /^JOB$/i,
+    /^SERVICE$/i,
+    /^NONE$/i,
+    /^OPERATION$/i,
+    /^OPERATION DESCRIPTION$/i,
+    /^MO\/MI$/i,
+    /^DATE$/i,
+    /^REPAIR ORDER$/i,
+    /^MILEAGE$/i,
+    /^ADVISOR$/i,
+    /^TECHNICIAN$/i,
+    /^TYPE$/i,
+    /^CUSTOMER NO\.?$/i,
+    /^COLOR$/i,
+    /^SERVICE CONTRACT$/i,
+    /^PRODUCTION DATE$/i,
+    /^STOCK NO\.?$/i,
+    /^LICENSE NO\.?$/i,
+    /^R\.?O\.? NO\.?$/i,
+    /^R\.?O\.? DATE$/i,
+    /^TAG NO\.?$/i,
+    /^TURBO$/i,
+    /^M\/MC$/i,
+    /^AIR COND\.?$/i,
+    /^P\.? ?S\.?$/i,
+    /^TRANS$/i,
+    /^ADVISOR NO\.?$/i,
+    /^APPOINTMENT$/i,
+    /^TIME RECEIVED$/i,
+    /^DATE\/TIME PROMISED$/i
+  ];
+
+  function isBadConcernLine(s) {
+    const text = cleanupSpacing(s || "");
+    if (!text) return true;
+    if (BAD_LINES.some(rx => rx.test(text))) return true;
+    if (looksLikePhoneLine(text)) return true;
+    if (looksLikeAddress(text)) return true;
+    if (looksLikeVIN(text)) return true;
+
+    if (/^(CELL|RESIDENCE PHONE|BUSINESS PHONE|ADVISOR|ADVISOR NO\.?|DATE|SIGNED|PAGE \d)/i.test(text)) return true;
+    if (/\b(Customer agrees|NOTE TO CONSUMER|ON EITHER BACK SIDE|I hereby authorize|created\s+\d{4}-\d{2}-\d{2})\b/i.test(text)) return true;
+
+    if (/^\d{2}\/\d{2}\/\d{2,4}$/.test(text)) return true;
+    if (/^\d{1,2}:\d{2}\s*[ap]m$/i.test(text)) return true;
+
+    if (/^\*?\s*[A-Z0-9]{4,10}$/.test(text)) return true;
+    if (/^[A-Z][A-Z ]+$/.test(text) && text.split(/\s+/).length <= 4) return true;
+
+    return false;
+  }
+
+  function looksLikeRealConcern(text) {
+    const t = cleanupSpacing(text || "");
+    if (!t || isBadConcernLine(t)) return false;
+
+    if (/\b(CUSTOMER STATES|C\/S|REQUEST|CONCERN|CORRECTION|LEAK|NOISE|VIBRATION|CHECK|WARNING|LIGHT|ISSUE|PROBLEM)\b/i.test(t)) {
+      return true;
+    }
+
+    if (/^(M&B|ALIGNMENT|TRIM CONCERN|SHUTTLE TRANSPORT|MULTIPOINT INSPECT|QUALITY CONTROL|WASHCARSERVICE)/i.test(t)) {
+      return false;
+    }
+
+    const words = t.split(/\s+/).filter(Boolean);
+    if (words.length < 2 || words.length > 8) return false;
+    if (!/^[A-Za-z0-9/&().,' -]+$/.test(t)) return false;
+
+    return true;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = cleanupSpacing(lines[i]);
+    if (/CUSTOMER\s+STATES/i.test(line)) {
+      const sameLine = cleanupSpacing(line.replace(/.*CUSTOMER\s+STATES[:\-]?\s*/i, ""));
+      if (looksLikeRealConcern(sameLine)) return sameLine;
+
+      for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) {
+        const next = cleanupSpacing(lines[j]);
+        if (looksLikeRealConcern(next)) return next;
+      }
+      return "";
+    }
+  }
+
+  const estIdx = lines.findIndex(line => /^ORIGINAL CUSTOMER ESTIMATE:?$/i.test(cleanupSpacing(line)));
+  if (estIdx >= 0) {
+    for (let i = estIdx + 1; i < Math.min(lines.length, estIdx + 8); i++) {
+      const line = cleanupSpacing(lines[i]);
+      if (looksLikeRealConcern(line)) return line;
+    }
+  }
+
+  const commentsIdx = lines.findIndex(line => /^COMMENTS\s*:?/i.test(cleanupSpacing(line)));
+  if (commentsIdx >= 0) {
+    for (let i = commentsIdx + 1; i < Math.min(lines.length, commentsIdx + 5); i++) {
+      const line = cleanupSpacing(lines[i]);
+      if (looksLikeRealConcern(line)) return line;
+    }
+  }
+
+  return "";
+}
+
+function extractRoDate(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = cleanupSpacing(lines[i]);
+
+    if (/R\.?\s*O\.?\s*DATE/i.test(line)) {
+      const joined = [line, lines[i + 1] || "", lines[i + 2] || ""].join(" ");
+      const m = joined.match(/R\.?\s*O\.?\s*DATE\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})/i);
+      if (m) return m[1];
+
+      const d = joined.match(/\b\d{2}\/\d{2}\/\d{2,4}\b/);
+      if (d) return d[0];
+    }
+  }
+
+  const vinBlock = getVinBlock(lines);
+  if (vinBlock.length) {
+    const joined = vinBlock.join(" ");
+    const m = joined.match(/R\.?\s*O\.?\s*DATE\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})/i);
+    if (m) return m[1];
+  }
+
+  return "";
+}
+
+function extractPromiseDate(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    if (/DATE\/?TIME\s+PROMISED/i.test(lines[i])) {
+      const joined = [lines[i], lines[i + 1] || "", lines[i + 2] || ""].join(" ");
+
+      let m = joined.match(/DATE\/?TIME\s+PROMISED\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})\s+(\d{1,2}:\d{2}\s*[ap]m)/i);
+      if (m) return `${m[1]} ${cleanupSpacing(m[2]).replace(/\s+/g, "")}`;
+
+      const d = normalizeDateToken(joined);
+      const t = normalizeTimeToken(joined);
+      if (d && t) return `${d} ${t}`;
+    }
+  }
+
+  return "";
+}
+
+function extractAdvisor(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = cleanupSpacing(lines[i]);
+
+    let m = line.match(/ADVISOR\s*[:.]?\s*([A-Za-z][A-Za-z.' -]{2,40})/i);
+    if (m) return cleanupSpacing(m[1]);
+
+    if (/^ADVISOR$/i.test(line) || /^ADVISOR NO\.?$/i.test(line)) {
+      const next = cleanupSpacing(lines[i + 1] || "");
+      if (looksLikePersonName(next)) return cleanupName(next);
+    }
+  }
+
+  return "";
+}
+
+function extractVin(lines) {
+  for (const line of lines) {
+    const m = String(line || "").match(/\b([A-HJ-NPR-Z0-9]{17})\b/);
+    if (m) return m[1];
+  }
+  return "";
+}

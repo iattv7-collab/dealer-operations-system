@@ -1,4 +1,4 @@
-// public/modules/scanner.js
+// public/ro/modules/scanner.js
 
 import { db } from "../firebase.js";
 import {
@@ -10,8 +10,8 @@ import {
 
 import { fmtDateMMDDYYYY } from "./utils.js";
 
-const COL_ACTIVE = "ros";
-const SCAN_ENDPOINT = "/scan";
+const COL_ACTIVE = "activeROs";
+const SCAN_ENDPOINT = "https://us-central1-dealer-wash-system.cloudfunctions.net/scanRO";
 
 function $(id) {
   return document.getElementById(id);
@@ -97,27 +97,15 @@ async function tryDecodeReynoldsBarcode(fullFile) {
   }
 }
 
-function buildPreview(data) {
-  // New server response: data.zonePreview.{headerRight,headerBarcode,serviceBox,promiseBox}
-  const zp = data?.zonePreview || {};
-  const parts = [];
-
-  if (zp.headerRight) parts.push("headerRight:\n" + zp.headerRight);
-  if (zp.headerBarcode) parts.push("headerBarcode:\n" + zp.headerBarcode);
-  if (zp.serviceBox) parts.push("serviceBox:\n" + zp.serviceBox);
-  if (zp.promiseBox) parts.push("promiseBox:\n" + zp.promiseBox);
-
-  // fallback
-  if (!parts.length) {
-    parts.push(
-      data?.rawTextPreview ||
-      data?.ocrPreview ||
-      data?.ocrRawPreview ||
-      "NO PREVIEW"
-    );
-  }
-
-  return parts.join("\n\n---\n\n").slice(0, 1800);
+function buildPreview(out) {
+  const data = out?.data || out || {};
+  return String(
+    out?.rawText ||
+    data?.rawText ||
+    data?.ocrPreview ||
+    data?.ocrRawPreview ||
+    ""
+  ).slice(0, 1800);
 }
 
 function initScanner() {
@@ -137,10 +125,13 @@ function initScanner() {
       const roFromBarcode = await tryDecodeReynoldsBarcode(file);
 
       const fd = new FormData();
-      fd.append("file", file);
-      if (roFromBarcode) fd.append("ro", roFromBarcode);
+      fd.append("file", file, file.name || "ro.jpg");
 
-      const res = await fetch(SCAN_ENDPOINT, { method: "POST", body: fd });
+      const res = await fetch(SCAN_ENDPOINT, {
+        method: "POST",
+        body: fd
+      });
+
       const raw = await res.text().catch(() => "");
 
       if (!res.ok) {
@@ -154,11 +145,11 @@ function initScanner() {
         throw new Error(`Scan succeeded but response was not JSON: ${raw.slice(0, 300)}`);
       }
 
-      const data = out && out.data ? out.data : out;
-      const roId = String(roFromBarcode || data?.ro || "").trim();
+      const data = out?.data || {};
+      const roId = String(roFromBarcode || data.roNumber || "").trim();
 
       if (!roId) {
-        alert("Scan could not find RO #.\n\nOCR preview:\n" + buildPreview(data));
+        alert("Scan could not find RO #.\n\nOCR preview:\n" + buildPreview(out));
         return;
       }
 
@@ -177,11 +168,11 @@ function initScanner() {
       await setDoc(ref, {
         ro: roId,
         customerName: data.customerName || "",
-        phone: data.phone || "",
-        tag: data.tag || "",
+        phone: data.cellPhone || "",
+        tag: data.tagNumber || "",
         roDate,
         promiseDate,
-        model: data.model || "",
+        model: data.yearModel || "",
         concern: data.concern || "",
         status: "",
         notes: "",

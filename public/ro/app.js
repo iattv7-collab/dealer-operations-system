@@ -1,4 +1,4 @@
-// public/app.js
+// public/ro/app.js
 import { db } from "./firebase.js";
 import {
   collection, doc, setDoc, updateDoc, deleteDoc,
@@ -443,17 +443,19 @@ function renderRows(rows) {
 }
 
 function listenActive() {
-  onSnapshot(collection(db, COL_ACTIVE), (qs) => {
-    const rows = [];
-    qs.forEach((d) => rows.push({ id: d.id, ...d.data() }));
-    rows.forEach((r) => { if (!r.ro) r.ro = r.id; });
-
-    rows.sort((a, b) =>
-      String(a.ro || a.id).localeCompare(String(b.ro || b.id), undefined, { numeric: true })
-    );
-
-    renderRows(rows);
-  });
+  onSnapshot(collection(db, COL_ACTIVE),
+    (qs) => {
+      const rows=[];
+      qs.forEach((d)=>rows.push({id:d.id,...d.data()}));
+      rows.forEach((r)=>{if(!r.ro) r.ro=r.id;});
+      rows.sort((a,b)=>String(a.ro||a.id).localeCompare(String(b.ro||b.id),undefined,{numeric:true}));
+      renderRows(rows);
+    },
+    (err)=>{
+      console.error("activeROs error:",err);
+      alert("activeROs error: "+err.message);
+    }
+  );
 }
 
 $("btnAdd")?.addEventListener("click", addNewRO);
@@ -461,10 +463,11 @@ $("btnSettings")?.addEventListener("click", () => openSettingsModal());
 
 initScanner();
 
-// notifications
-const notifApi = initNotifications();
-notifApi.bindStatusToButton("btnNotify");
+// TEMP: disable these until activeROs backbone is confirmed
+// const notifApi = initNotifications();
+// notifApi.bindStatusToButton("btnNotify");
 
-initFollowUp();
-initArchiveModal();
+// initFollowUp();
+// initArchiveModal();
+
 listenActive();
