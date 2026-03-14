@@ -12,7 +12,7 @@ import {
 
 import { fmtDateMMDDYYYY } from "./utils.js";
 
-const COL_ACTIVE = "activeROs";
+const COL_ACTIVE = "ros";
 const COL_ARCHIVE = "followup";
 
 async function safeUpdate(roId, patch) {

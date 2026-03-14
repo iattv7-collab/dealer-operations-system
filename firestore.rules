@@ -461,6 +461,59 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+/* ---------------------------------------
+   ROS COLLECTION
+--------------------------------------- */
+
+match /ros/{roId} {
+
+  // approved internal users can read
+  allow read: if isEmployee();
+
+  // admin, manager, advisor, booker can create new ROs
+  allow create: if isAdmin() || isManager() || isAdvisor() || isBooker();
+
+  // admin and manager full control
+  allow update, delete: if isAdmin() || isManager();
+
+  // advisor and booker can update normal RO tracker fields
+  allow update: if (isAdvisor() || isBooker())
+    && onlyChanges([
+      "customerName",
+      "phone",
+      "tag",
+      "roDate",
+      "promiseDate",
+      "model",
+      "concern",
+      "status",
+      "notes",
+      "techVideo",
+      "readyCalled",
+      "calledAtMs",
+      "nextUpdateAtMs",
+      "customerWaiting",
+      "hasLoaner",
+      "advisor",
+      "source",
+      "updatedAt"
+    ]);
+
+  // per-field corrections
+  allow update: if canFixTag()
+    && onlyChanges([
+      "tag",
+      "updatedAt"
+    ]);
+
+  allow update: if canFixRo()
+    && onlyChanges([
+      "ro",
+      "updatedAt"
+    ]);
+}
+
+
     /* ---------------------------------------
        DEFAULT DENY
     --------------------------------------- */

@@ -1,30 +1,184 @@
 <!doctype html>
 <html>
+
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>RO Scanner</title>
   <style>
-    body { font-family: "Times New Roman", Times, serif; padding: 14px; }
-    h2 { margin: 0 0 12px; }
-    .row { margin: 10px 0; }
-    button { padding: 10px 14px; font-size: 16px; }
-    input[type="file"] { font-size: 16px; }
-    #status { font-weight: bold; margin-top: 8px; }
-    pre { white-space: pre-wrap; word-wrap: break-word; background:#f6f6f6; padding:10px; border:1px solid #ddd; border-radius:8px; }
-    .ok { color: #0a7a0a; }
-    .bad { color: #b00020; }
+    body {
+      font-family: "Times New Roman", Times, serif;
+      padding: 14px;
+    }
+
+    h2,
+    h3 {
+      margin: 0 0 12px;
+    }
+
+    .row {
+      margin: 10px 0;
+    }
+
+    button,
+    input,
+    textarea {
+      font-family: inherit;
+      font-size: 16px;
+    }
+
+    button {
+      padding: 10px 14px;
+    }
+
+    input[type="file"] {
+      font-size: 16px;
+    }
+
+    #status {
+      font-weight: bold;
+      margin-top: 8px;
+    }
+
+    pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      background: #f6f6f6;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+
+    .ok {
+      color: #0a7a0a;
+    }
+
+    .bad {
+      color: #b00020;
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 10px 0 14px;
+    }
+
+    .manual-box {
+      display: none;
+      margin: 16px 0;
+      padding: 14px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+
+    .manual-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(220px, 1fr));
+      gap: 12px 16px;
+    }
+
+    .manual-grid .full {
+      grid-column: 1 / -1;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    input[type="text"],
+    input[type="date"],
+    textarea {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 8px;
+    }
+
+    textarea {
+      min-height: 90px;
+      resize: vertical;
+    }
+
+    #manualMsg {
+      margin-top: 10px;
+      font-weight: bold;
+    }
   </style>
 </head>
+
 <body>
+  <div id="nav"></div>
+
   <h2>RO Scanner</h2>
 
   <div class="row">
     <input id="file" type="file" accept="image/*" capture="environment" />
   </div>
 
-  <div class="row">
+  <div class="actions">
     <button id="btnScan" type="button">Scan</button>
+    <button id="btnShowManual" type="button">Add RO Manually</button>
+    <button id="btnHideManual" type="button" style="display:none;">Hide Manual Entry</button>
+  </div>
+
+  <div id="manualBox" class="manual-box">
+    <h3>Manual RO Entry</h3>
+
+    <div class="manual-grid">
+      <div>
+        <label for="mCustomer">Customer Name</label>
+        <input id="mCustomer" type="text" />
+      </div>
+
+      <div>
+        <label for="mPhone">Phone</label>
+        <input id="mPhone" type="text" />
+      </div>
+
+      <div>
+        <label for="mRo">RO #</label>
+        <input id="mRo" type="text" />
+      </div>
+
+      <div>
+        <label for="mTag">Tag #</label>
+        <input id="mTag" type="text" />
+      </div>
+
+      <div>
+        <label for="mRoDate">RO Date</label>
+        <input id="mRoDate" type="date" />
+      </div>
+
+      <div>
+        <label for="mPromiseDate">Promise Date</label>
+        <input id="mPromiseDate" type="date" />
+      </div>
+
+      <div>
+        <label for="mModel">Model</label>
+        <input id="mModel" type="text" />
+      </div>
+
+      <div>
+        <label for="mAdvisor">Advisor</label>
+        <input id="mAdvisor" type="text" />
+      </div>
+
+      <div class="full">
+        <label for="mConcern">Concern</label>
+        <textarea id="mConcern"></textarea>
+      </div>
+    </div>
+
+    <div class="actions" style="margin-top:14px;">
+      <button id="btnSaveManual" type="button">Save Manual RO</button>
+    </div>
+
+    <div id="manualMsg"></div>
   </div>
 
   <div id="status">Idle</div>
@@ -41,97 +195,263 @@
   <h3>Errors</h3>
   <pre id="errOut">(none)</pre>
 
-<script>
-  // ✅ PUT YOUR REAL DEPLOYED FUNCTION URL HERE:
-  // Example:
-  // const FUNCTION_URL = "https://us-central1-ro-tracker-app.cloudfunctions.net/scanRO";
-  const FUNCTION_URL = "PASTE_YOUR_FUNCTION_URL_HERE";
+  <script type="module">
+    import { renderNav } from "/js/nav.js";
+    import { requireRole, getUserProfile } from "/js/guard.js";
+    import { auth, db } from "/js/firebase.js";
+    import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import {
+      collection,
+      doc,
+      setDoc,
+      getDoc,
+      getDocs,
+      query,
+      where,
+      serverTimestamp
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-  const $ = (id) => document.getElementById(id);
-  const statusEl = $("status");
-  const httpOut = $("httpOut");
-  const rawOut = $("rawOut");
-  const jsonOut = $("jsonOut");
-  const errOut = $("errOut");
-  const btn = $("btnScan");
-  const fileEl = $("file");
+    document.getElementById("nav").innerHTML = renderNav("scanner");
+    requireRole(["admin", "manager", "advisor", "booker"]);
 
-  function setStatus(msg, good) {
-    statusEl.textContent = msg;
-    statusEl.className = good === true ? "ok" : good === false ? "bad" : "";
-  }
+    // ✅ PUT YOUR REAL DEPLOYED FUNCTION URL HERE
+    const FUNCTION_URL = "PASTE_YOUR_FUNCTION_URL_HERE";
 
-  function logErr(msg) {
-    errOut.textContent = (errOut.textContent === "(none)" ? "" : errOut.textContent + "\n") + msg;
-    setStatus("Error", false);
-  }
+    const $ = (id) => document.getElementById(id);
 
-  window.addEventListener("error", (e) => {
-    logErr("JS error: " + (e.message || e.error || "unknown"));
-  });
-  window.addEventListener("unhandledrejection", (e) => {
-    logErr("Promise rejection: " + (e.reason?.message || String(e.reason)));
-  });
+    const statusEl = $("status");
+    const httpOut = $("httpOut");
+    const rawOut = $("rawOut");
+    const jsonOut = $("jsonOut");
+    const errOut = $("errOut");
+    const btnScan = $("btnScan");
+    const fileEl = $("file");
 
-  btn.addEventListener("click", async () => {
-    // Make it obvious the click happened
-    setStatus("Clicked Scan…", null);
-    httpOut.textContent = "(waiting)";
-    rawOut.textContent = "(waiting)";
-    jsonOut.textContent = "(waiting)";
-    errOut.textContent = "(none)";
+    const manualBox = $("manualBox");
+    const btnShowManual = $("btnShowManual");
+    const btnHideManual = $("btnHideManual");
+    const btnSaveManual = $("btnSaveManual");
+    const manualMsg = $("manualMsg");
 
-    try {
-      if (!FUNCTION_URL || FUNCTION_URL.includes("PASTE_")) {
-        throw new Error("FUNCTION_URL is not set. Paste the deployed scanRO URL in scan.html.");
-      }
+    const mCustomer = $("mCustomer");
+    const mPhone = $("mPhone");
+    const mRo = $("mRo");
+    const mTag = $("mTag");
+    const mRoDate = $("mRoDate");
+    const mPromiseDate = $("mPromiseDate");
+    const mModel = $("mModel");
+    const mAdvisor = $("mAdvisor");
+    const mConcern = $("mConcern");
 
-      const f = fileEl.files && fileEl.files[0];
-      if (!f) {
-        throw new Error("No image selected. Take/pick a photo first.");
-      }
-
-      setStatus("Uploading…", null);
-
-      const fd = new FormData();
-      // server should read "file" (common). If yours expects another key, change here.
-      fd.append("file", f, f.name || "ro.jpg");
-
-      const r = await fetch(FUNCTION_URL, {
-        method: "POST",
-        body: fd
-      });
-
-      const ct = r.headers.get("content-type") || "";
-      const raw = await r.text(); // ✅ ALWAYS read as text first (prevents r.json() crash)
-
-      httpOut.textContent =
-        "URL: " + FUNCTION_URL + "\n" +
-        "Status: " + r.status + " " + (r.ok ? "(OK)" : "(NOT OK)") + "\n" +
-        "Content-Type: " + ct;
-
-      rawOut.textContent = raw || "(empty body)";
-
-      // Try JSON parse if possible
-      let parsed = null;
-      try {
-        parsed = JSON.parse(raw);
-        jsonOut.textContent = JSON.stringify(parsed, null, 2);
-      } catch (_) {
-        jsonOut.textContent = "(not JSON)";
-      }
-
-      if (!r.ok) {
-        setStatus("HTTP error " + r.status, false);
-        return;
-      }
-
-      setStatus(parsed ? "Scan complete (JSON received)" : "Scan complete (non-JSON response)", true);
-
-    } catch (e) {
-      logErr(e.message || String(e));
+    function setStatus(msg, good) {
+      statusEl.textContent = msg;
+      statusEl.className = good === true ? "ok" : good === false ? "bad" : "";
     }
-  });
-</script>
+
+    function logErr(msg) {
+      errOut.textContent = (errOut.textContent === "(none)" ? "" : errOut.textContent + "\n") + msg;
+      setStatus("Error", false);
+    }
+
+    function setManualMsg(msg, good) {
+      manualMsg.textContent = msg || "";
+      manualMsg.className = good === true ? "ok" : good === false ? "bad" : "";
+    }
+
+    function showManual() {
+      manualBox.style.display = "block";
+      btnShowManual.style.display = "none";
+      btnHideManual.style.display = "inline-block";
+    }
+
+    function hideManual() {
+      manualBox.style.display = "none";
+      btnShowManual.style.display = "inline-block";
+      btnHideManual.style.display = "none";
+      setManualMsg("");
+    }
+
+    function clean(v) {
+      return String(v || "").trim();
+    }
+
+    function digitsOnly(v) {
+      return String(v || "").replace(/\D/g, "");
+    }
+
+    async function existsByField(field, value) {
+      const v = clean(value);
+      if (!v) return false;
+      const qy = query(collection(db, "ros"), where(field, "==", v));
+      const snap = await getDocs(qy);
+      return !snap.empty;
+    }
+
+    async function getCurrentUserName() {
+      return new Promise((resolve) => {
+        const unsub = onAuthStateChanged(auth, async (user) => {
+          unsub();
+          if (!user) {
+            resolve("");
+            return;
+          }
+          try {
+            const profile = await getUserProfile(user);
+            resolve(clean(profile?.name) || clean(user.email) || "");
+          } catch {
+            resolve(clean(user.email) || "");
+          }
+        });
+      });
+    }
+
+    btnShowManual.addEventListener("click", async () => {
+      showManual();
+      if (!mAdvisor.value) {
+        mAdvisor.value = await getCurrentUserName();
+      }
+    });
+
+    btnHideManual.addEventListener("click", hideManual);
+
+    btnSaveManual.addEventListener("click", async () => {
+      try {
+        setManualMsg("Saving...", null);
+
+        const customerName = clean(mCustomer.value);
+        const phone = clean(mPhone.value);
+        const ro = clean(mRo.value);
+        const tag = clean(mTag.value);
+        const roDate = clean(mRoDate.value);
+        const promiseDate = clean(mPromiseDate.value);
+        const model = clean(mModel.value);
+        const advisor = clean(mAdvisor.value);
+        const concern = clean(mConcern.value);
+
+        if (!ro) {
+          throw new Error("RO # is required.");
+        }
+        if (!tag) {
+          throw new Error("Tag # is required.");
+        }
+
+        const roRef = doc(db, "ros", ro);
+        const existingRo = await getDoc(roRef);
+        if (existingRo.exists()) {
+          throw new Error(`RO # ${ro} already exists.`);
+        }
+
+        const tagExists = await existsByField("tag", tag);
+        if (tagExists) {
+          throw new Error(`Tag # ${tag} already exists.`);
+        }
+
+        await setDoc(roRef, {
+          ro,
+          customerName,
+          phone,
+          tag,
+          roDate,
+          promiseDate,
+          model,
+          concern,
+
+          status: "",
+          notes: "",
+          techVideo: false,
+          readyCalled: false,
+          calledAtMs: null,
+          nextUpdateAtMs: null,
+          customerWaiting: false,
+          hasLoaner: false,
+
+          advisor,
+          source: "manual-scanner",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        setManualMsg("Manual RO saved.", true);
+
+        mCustomer.value = "";
+        mPhone.value = "";
+        mRo.value = "";
+        mTag.value = "";
+        mRoDate.value = "";
+        mPromiseDate.value = "";
+        mModel.value = "";
+        mConcern.value = "";
+        mAdvisor.value = "";
+
+      } catch (e) {
+        setManualMsg(e.message || String(e), false);
+      }
+    });
+
+    window.addEventListener("error", (e) => {
+      logErr("JS error: " + (e.message || e.error || "unknown"));
+    });
+
+    window.addEventListener("unhandledrejection", (e) => {
+      logErr("Promise rejection: " + (e.reason?.message || String(e.reason)));
+    });
+
+    btnScan.addEventListener("click", async () => {
+      setStatus("Clicked Scan…", null);
+      httpOut.textContent = "(waiting)";
+      rawOut.textContent = "(waiting)";
+      jsonOut.textContent = "(waiting)";
+      errOut.textContent = "(none)";
+
+      try {
+        if (!FUNCTION_URL || FUNCTION_URL.includes("PASTE_")) {
+          throw new Error("FUNCTION_URL is not set. Paste the deployed scanRO URL in scan.html.");
+        }
+
+        const f = fileEl.files && fileEl.files[0];
+        if (!f) {
+          throw new Error("No image selected. Take/pick a photo first.");
+        }
+
+        setStatus("Uploading…", null);
+
+        const fd = new FormData();
+        fd.append("file", f, f.name || "ro.jpg");
+
+        const r = await fetch(FUNCTION_URL, {
+          method: "POST",
+          body: fd
+        });
+
+        const ct = r.headers.get("content-type") || "";
+        const raw = await r.text();
+
+        httpOut.textContent =
+          "URL: " + FUNCTION_URL + "\n" +
+          "Status: " + r.status + " " + (r.ok ? "(OK)" : "(NOT OK)") + "\n" +
+          "Content-Type: " + ct;
+
+        rawOut.textContent = raw || "(empty body)";
+
+        let parsed = null;
+        try {
+          parsed = JSON.parse(raw);
+          jsonOut.textContent = JSON.stringify(parsed, null, 2);
+        } catch (_) {
+          jsonOut.textContent = "(not JSON)";
+        }
+
+        if (!r.ok) {
+          setStatus("HTTP error " + r.status, false);
+          return;
+        }
+
+        setStatus(parsed ? "Scan complete (JSON received)" : "Scan complete (non-JSON response)", true);
+
+      } catch (e) {
+        logErr(e.message || String(e));
+      }
+    });
+  </script>
 </body>
+
 </html>
