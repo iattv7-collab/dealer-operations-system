@@ -346,7 +346,20 @@
           throw new Error(`Tag # ${tag} already exists.`);
         }
 
+        const user = auth.currentUser;
+        if (!user) {
+          throw new Error("You must be signed in.");
+        }
+
+        const profile = await getUserProfile(user);
+        const dealerId = Number(profile?.dealerId || 0);
+
+        if (!dealerId) {
+          throw new Error("Missing dealerId on user profile.");
+        }
+
         await setDoc(roRef, {
+          dealerId,
           ro,
           customerName,
           phone,

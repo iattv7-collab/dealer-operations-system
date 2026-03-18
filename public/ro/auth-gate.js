@@ -9,5 +9,5 @@ onAuthStateChanged(auth, (user) => {
     window.location.replace(`/login.html?next=${encodeURIComponent(NEXT)}`);
     return;
   }
-  import("./app.js");
+  import("./app.js?v=20260314-1");
 });

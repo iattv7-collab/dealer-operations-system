@@ -1,14 +1,14 @@
 // public/ro/app.js
-import { db } from "./firebase.js";
+import { auth, db } from "./firebase.js";
+import { getUserDealerId } from "../js/guard.js";
 import {
   collection, doc, setDoc, updateDoc, deleteDoc,
-  onSnapshot, serverTimestamp, getDoc
+  onSnapshot, serverTimestamp, getDoc, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 import { pickDateTimeMs, formatNoYearDateTime, formatNoYearDate } from "./datetimePicker.js";
 import { dateInputToMMDDYYYY, mmddyyyyToDateInput } from "./modules/utils.js";
-import { COL_ACTIVE, COL_ARCHIVE, safeUpdate, addNewRO } from "./modules/firestore.js";
-import { initScanner } from "./modules/scanner.js";
+import { COL_ACTIVE, COL_ARCHIVE, safeUpdate } from "./modules/firestore.js?v=20260314-1";
 import { initNotifications } from "./modules/notifications.js";
 import { initFollowUp } from "./modules/followup.js";
 import { initArchiveModal } from "./modules/archive.js";
@@ -442,26 +442,32 @@ function renderRows(rows) {
   });
 }
 
-function listenActive() {
-  onSnapshot(collection(db, COL_ACTIVE),
+async function listenActive() {
+  const user = auth.currentUser;
+  const dealerId = user ? await getUserDealerId(user) : 0;
+
+  const q = query(
+    collection(db, COL_ACTIVE),
+    where("dealerId", "==", dealerId)
+  );
+
+  onSnapshot(q,
     (qs) => {
-      const rows=[];
-      qs.forEach((d)=>rows.push({id:d.id,...d.data()}));
-      rows.forEach((r)=>{if(!r.ro) r.ro=r.id;});
-      rows.sort((a,b)=>String(a.ro||a.id).localeCompare(String(b.ro||b.id),undefined,{numeric:true}));
+      const rows = [];
+      qs.forEach((d) => rows.push({ id: d.id, ...d.data() }));
+      rows.forEach((r) => { if (!r.ro) r.ro = r.id; });
+      rows.sort((a, b) => String(a.ro || a.id).localeCompare(String(b.ro || b.id), undefined, { numeric: true }));
       renderRows(rows);
     },
-    (err)=>{
-      console.error("activeROs error:",err);
-      alert("activeROs error: "+err.message);
+    (err) => {
+      console.error("RO tracker read error:", err);
+      alert("RO tracker read error: " + err.message);
     }
   );
 }
 
-$("btnAdd")?.addEventListener("click", addNewRO);
 $("btnSettings")?.addEventListener("click", () => openSettingsModal());
 
-initScanner();
 
 // TEMP: disable these until activeROs backbone is confirmed
 // const notifApi = initNotifications();

@@ -1,6 +1,7 @@
-// public/modules/firestore.js
+// public/ro/modules/firestore.js  ← ACTIVE FILE (USED BY RO TRACKER)
 
-import { db } from "../firebase.js";
+import { auth, db } from "../firebase.js";
+import { getUserDealerId } from "../../js/guard.js";
 import {
   doc,
   setDoc,
@@ -70,7 +71,11 @@ async function addNewRO() {
     return;
   }
 
+  const user = auth.currentUser;
+  const dealerId = user ? await getUserDealerId(user) : 1;
+
   await setDoc(ref, {
+    dealerId,
     ro: roId,
     customerName: "",
     phone: "",
