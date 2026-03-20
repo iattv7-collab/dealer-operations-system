@@ -1,6 +1,6 @@
 // public/js/ticketsUI.js
 import { auth } from "./firebase.js";
-import { listenTickets } from "./washTickets.js";
+import { listenTickets } from "./rosWash.js";
 
 import { tabDefsForRole } from "./ui/roles.js";
 import { colsForView } from "./ui/columns.js";

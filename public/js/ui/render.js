@@ -4,7 +4,7 @@ import { auth, db } from "../firebase.js";
 import { capsFor } from "./roles.js";
 import { el } from "./dom.js";
 import { formatCell } from "./formatters.js";
-import { fmtCreated, fmtTs, fmtTime } from "../washTickets.js";
+import { fmtCreated, fmtTs, fmtTime } from "../rosWash.js";
 import {
   updateDoc,
   doc,

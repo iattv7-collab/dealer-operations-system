@@ -1,6 +1,6 @@
 // public/js/ui/actions.js
 import { auth, db } from "../firebase.js";
-import { requestRewash, setTicketStatus } from "../washTickets.js";
+import { requestRewash, setTicketStatus } from "../rosWash.js";
 import { pickDateTimeMs } from "./datetimePicker.js";
 import { pickQcUserUid } from "./qcUsers.js";
 import { capsFor } from "./roles.js";
@@ -51,7 +51,7 @@ export async function requestRewashWithNeedBy(ticketId, user, role, needByMs) {
   await requestRewash(ticketId, user, role);
 
   if (Number.isFinite(needByMs)) {
-    const ref = doc(db, "washTickets", ticketId);
+    const ref = doc(db, "ros", ticketId);
     await updateDoc(ref, {
       needByAtMs: needByMs,
       needBySetBy: user.uid,
@@ -61,7 +61,7 @@ export async function requestRewashWithNeedBy(ticketId, user, role, needByMs) {
 }
 
 export async function setNeedBy(ticketId, user, needByMs) {
-  const ref = doc(db, "washTickets", ticketId);
+  const ref = doc(db, "ros", ticketId);
   await updateDoc(ref, {
     priorityType: "needby",
     needByAtMs: needByMs,
@@ -201,7 +201,7 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
 
     // Corrections actions (tab-only + per-field perms)
     if (canUseCorrectionsTab(tab)) {
-      const ref = doc(db, "washTickets", id);
+      const ref = doc(db, "ros", id);
 
       if (btn.classList.contains("btn-fix-tag")) {
         if (!canFixField(correctionsPerms, "tag")) return;
@@ -271,7 +271,7 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
     if (btn.classList.contains("btn-cpbooked")) {
       if (!canCpBook) return;
 
-      const ref = doc(db, "washTickets", id);
+      const ref = doc(db, "ros", id);
       await updateDoc(ref, {
         cpBookedAt: serverTimestamp(),
         cpBookedBy: user.uid,
@@ -285,7 +285,7 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
     if (btn.classList.contains("btn-wtybooked")) {
       if (!canWtyBook) return;
 
-      const ref = doc(db, "washTickets", id);
+      const ref = doc(db, "ros", id);
       await updateDoc(ref, {
         wtyBookedAt: serverTimestamp(),
         wtyBookedBy: user.uid,
@@ -302,7 +302,7 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
       const assignedUid = await pickQcUserUid();
       if (!assignedUid) return;
 
-      const ref = doc(db, "washTickets", id);
+      const ref = doc(db, "ros", id);
       await updateDoc(ref, {
         qcRequestedAt: serverTimestamp(),
         qcRequestedBy: user.uid,
@@ -317,7 +317,7 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
     if (btn.classList.contains("btn-noqc")) {
       if (!canQcDecision) return;
 
-      const ref = doc(db, "washTickets", id);
+      const ref = doc(db, "ros", id);
       await updateDoc(ref, {
         qcRequestedAt: serverTimestamp(),
         qcRequestedBy: user.uid,
@@ -332,7 +332,7 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
     if (btn.classList.contains("btn-qcdone")) {
       if (role !== "qc") return;
 
-      const ref = doc(db, "washTickets", id);
+      const ref = doc(db, "ros", id);
       await updateDoc(ref, {
         qcDoneAt: serverTimestamp(),
         qcDoneBy: user.uid,

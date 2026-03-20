@@ -133,7 +133,7 @@ const SCHEDULER_KEYS = [
 
 
 exports.onWashTicketWrite = functions.firestore
-.document("washTickets/{ticketId}")
+.document("ros/{ticketId}")
 .onWrite(async(change,context)=>{
 
   const after = change.after.exists ? change.after.data() : null;
@@ -142,8 +142,8 @@ exports.onWashTicketWrite = functions.firestore
 
   const db = admin.firestore();
 
-  const snap = await db.collection("washTickets")
-  .where("status","in",["queued","washing"])
+  const snap = await db.collection("ros")
+  .where("washStatus","in",["queued","washing"])
   .get();
 
   const batch = db.batch();
@@ -151,9 +151,9 @@ exports.onWashTicketWrite = functions.firestore
 
   let bay=1;
 
-  snap.forEach(doc=>{
+  snap.forEach(docSnap=>{
 
-    const ref = db.collection("washTickets").doc(doc.id);
+    const ref = db.collection("ros").doc(docSnap.id);
 
     batch.set(ref,{
       scheduledBay:bay,
@@ -180,8 +180,8 @@ exports.onSettingsSystemWrite = functions.firestore
 
   const db = admin.firestore();
 
-  const snap = await db.collection("washTickets")
-  .where("status","in",["queued","washing"])
+  const snap = await db.collection("ros")
+  .where("washStatus","in",["queued","washing"])
   .get();
 
   const batch = db.batch();
@@ -189,9 +189,9 @@ exports.onSettingsSystemWrite = functions.firestore
 
   let bay=1;
 
-  snap.forEach(doc=>{
+  snap.forEach(docSnap=>{
 
-    const ref = db.collection("washTickets").doc(doc.id);
+    const ref = db.collection("ros").doc(docSnap.id);
 
     batch.set(ref,{
       scheduledBay:bay,

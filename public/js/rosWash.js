@@ -1,4 +1,4 @@
-// public/js/washTickets.js
+// public/js/rosWash.js
 
 import { db, auth } from "./firebase.js";
 import { getUserDealerId } from "./guard.js";
