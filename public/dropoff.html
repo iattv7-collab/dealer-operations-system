@@ -7,7 +7,7 @@
   <style>
     body { font-family: "Times New Roman", Times, serif; margin: 16px; }
     input, textarea, button, select { font-family: inherit; font-size: 16px; }
-    .card { border: 1px solid #ccc; padding: 12px; border-radius: 8px; max-width: 720px; }
+    .card { border: 1px solid #ccc; padding: 12px; border-radius: 8px; max-width: 820px; }
     label { display:block; margin-top: 10px; }
     #msg { margin-top: 10px; }
     table { border-collapse: collapse; width: 100%; }
@@ -18,6 +18,11 @@
     .row > div { flex: 1 1 220px; }
     .ok { color:#0a6; }
     .err { color:#b00; }
+    .preview-card { margin-top: 14px; padding: 12px; border: 1px solid #bbb; border-radius: 8px; background: #fafafa; display:none; }
+    .preview-grid { display:grid; grid-template-columns: repeat(2, minmax(220px,1fr)); gap:10px 16px; }
+    .preview-grid .full { grid-column: 1 / -1; }
+    .value { font-weight: normal; }
+    .warn { color:#b06a00; font-weight:bold; }
   </style>
 </head>
 <body>
@@ -27,47 +32,77 @@
   <h2>Dropoff</h2>
 
   <div class="card">
-    <h3>Create Wash Ticket</h3>
+    <h3>Find RO / Send to Wash</h3>
 
     <div class="row">
       <div>
         <label>
-          Tag # (required)
-          <input id="tag" placeholder="e.g. 1234" />
+          Search by RO or Tag
+          <input id="searchInput" placeholder="Enter RO # or Tag #" />
         </label>
       </div>
 
       <div>
-        <label>
-          Waiter?
-          <select id="waiter">
-            <option value="false" selected>No</option>
-            <option value="true">Yes (Waiter)</option>
-          </select>
-        </label>
-      </div>
-
-      <div>
-        <label>
-          Location (required)
-          <select id="location">
-            <option value="" selected>Select…</option>
-            <option value="Service Lane">Service Lane</option>
-            <option value="Wash Bay">Wash Bay</option>
-            <option value="Front Row">Front Row</option>
-            <option value="Back Lot">Back Lot</option>
-            <option value="Other">Other</option>
-          </select>
-        </label>
+        <label>&nbsp;</label>
+        <button id="findBtn" type="button">Find Ticket</button>
       </div>
     </div>
 
-    <label>
-      Notes (optional)
-      <textarea id="notes" rows="3" placeholder="Anything wash team should know..."></textarea>
-    </label>
+    <div id="previewCard" class="preview-card">
+      <h3>Ticket Preview</h3>
 
-    <button id="createBtn">Create Ticket</button>
+      <div class="preview-grid">
+        <div><b>RO:</b> <span id="pRo" class="value"></span></div>
+        <div><b>Tag:</b> <span id="pTag" class="value"></span></div>
+        <div><b>Customer:</b> <span id="pCustomer" class="value"></span></div>
+        <div><b>Phone:</b> <span id="pPhone" class="value"></span></div>
+        <div><b>Model:</b> <span id="pModel" class="value"></span></div>
+        <div><b>Current Wash Status:</b> <span id="pWashStatus" class="value"></span></div>
+        <div><b>Location:</b> <span id="pLocation" class="value"></span></div>
+        <div><b>Waiter:</b> <span id="pWaiter" class="value"></span></div>
+        <div class="full"><b>Concern:</b> <span id="pConcern" class="value"></span></div>
+      </div>
+
+      <div class="row" style="margin-top:14px;">
+        <div>
+          <label>
+            Waiter?
+            <select id="waiter">
+              <option value="false" selected>No</option>
+              <option value="true">Yes (Waiter)</option>
+            </select>
+          </label>
+        </div>
+
+        <div>
+          <label>
+            Location (required)
+            <select id="location">
+              <option value="" selected>Select…</option>
+              <option value="Service Lane">Service Lane</option>
+              <option value="Wash Bay">Wash Bay</option>
+              <option value="Front Row">Front Row</option>
+              <option value="Back Lot">Back Lot</option>
+              <option value="Other">Other</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <label>
+        Notes (optional)
+        <textarea id="notes" rows="3" placeholder="Anything wash team should know..."></textarea>
+      </label>
+
+      <div id="alreadyInWashMsg" class="warn" style="display:none; margin-top:10px;">
+        This vehicle is already in the wash flow and cannot be sent again.
+      </div>
+
+      <div style="margin-top:12px;">
+        <button id="sendBtn" type="button">Send to Wash</button>
+      </div>
+    </div>
+
     <div id="msg" class="muted"></div>
   </div>
 
@@ -81,6 +116,7 @@
       <thead>
         <tr>
           <th style="width:120px">Tag</th>
+          <th style="width:120px">RO</th>
           <th style="width:100px">Waiter</th>
           <th style="width:160px">Location</th>
           <th style="width:140px">Status</th>
@@ -93,10 +129,11 @@
   </div>
 
   <script type="module">
-    import { auth } from "./js/firebase.js";
+    import { auth, db } from "./js/firebase.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-    import { requireRole } from "./js/guard.js";
+    import { requireRole, getUserDealerId } from "./js/guard.js";
     import { renderNav } from "./js/nav.js";
     import { createWashTicket, listenTickets, fmtTime } from "./js/rosWash.js";
 
@@ -104,34 +141,184 @@
 
     requireRole(["staff", "advisor", "wash", "manager", "admin"]);
 
-    const tagEl = document.getElementById("tag");
+    const searchInputEl = document.getElementById("searchInput");
+    const findBtn = document.getElementById("findBtn");
+
     const notesEl = document.getElementById("notes");
     const waiterEl = document.getElementById("waiter");
     const locationEl = document.getElementById("location");
 
     const msgEl = document.getElementById("msg");
     const rowsEl = document.getElementById("rows");
-    const btn = document.getElementById("createBtn");
+    const sendBtn = document.getElementById("sendBtn");
+
+    const previewCard = document.getElementById("previewCard");
+    const alreadyInWashMsg = document.getElementById("alreadyInWashMsg");
+
+    const pRo = document.getElementById("pRo");
+    const pTag = document.getElementById("pTag");
+    const pCustomer = document.getElementById("pCustomer");
+    const pPhone = document.getElementById("pPhone");
+    const pModel = document.getElementById("pModel");
+    const pWashStatus = document.getElementById("pWashStatus");
+    const pLocation = document.getElementById("pLocation");
+    const pWaiter = document.getElementById("pWaiter");
+    const pConcern = document.getElementById("pConcern");
 
     let currentUser = null;
+    let selectedTicket = null;
+
     onAuthStateChanged(auth, (u) => { currentUser = u; });
 
-    btn.addEventListener("click", async () => {
+    function clean(v) {
+      return String(v || "").trim();
+    }
+
+    function resetPreview() {
+      selectedTicket = null;
+      previewCard.style.display = "none";
+      alreadyInWashMsg.style.display = "none";
+      sendBtn.disabled = false;
+
+      pRo.textContent = "";
+      pTag.textContent = "";
+      pCustomer.textContent = "";
+      pPhone.textContent = "";
+      pModel.textContent = "";
+      pWashStatus.textContent = "";
+      pLocation.textContent = "";
+      pWaiter.textContent = "";
+      pConcern.textContent = "";
+
+      notesEl.value = "";
+      waiterEl.value = "false";
+      locationEl.value = "";
+    }
+
+    function fillPreview(ticket) {
+      const washStatus = clean(ticket.washStatus).toLowerCase();
+
+      selectedTicket = ticket;
+      previewCard.style.display = "block";
+
+      pRo.textContent = clean(ticket.ro) || "";
+      pTag.textContent = clean(ticket.tag) || "";
+      pCustomer.textContent = clean(ticket.customerName) || "";
+      pPhone.textContent = clean(ticket.phone) || "";
+      pModel.textContent = clean(ticket.model) || "";
+      pWashStatus.textContent = washStatus || "not in wash";
+      pLocation.textContent = clean(ticket.location) || "";
+      pWaiter.textContent = ticket.customerWaiting ? "Yes" : "No";
+      pConcern.textContent = clean(ticket.concern) || "";
+
+      waiterEl.value = ticket.customerWaiting ? "true" : "false";
+      if (clean(ticket.location)) locationEl.value = clean(ticket.location);
+
+      const alreadyInWash = ["queued", "washing"].includes(washStatus);
+      alreadyInWashMsg.style.display = alreadyInWash ? "block" : "none";
+      sendBtn.disabled = alreadyInWash;
+    }
+
+    async function findTicket() {
+      msgEl.className = "muted";
+      msgEl.textContent = "";
+      resetPreview();
+
+      if (!currentUser) return;
+
+      const search = clean(searchInputEl.value);
+      if (!search) {
+        msgEl.className = "err";
+        msgEl.textContent = "Enter an RO # or Tag #.";
+        searchInputEl.focus();
+        return;
+      }
+
+      try {
+        const dealerId = await getUserDealerId(currentUser);
+        if (!dealerId) {
+          msgEl.className = "err";
+          msgEl.textContent = "Missing dealerId on user profile.";
+          return;
+        }
+
+        const rosRef = collection(db, "ros");
+
+        const qRo = query(
+          rosRef,
+          where("dealerId", "==", dealerId),
+          where("ro", "==", search)
+        );
+
+        const roSnap = await getDocs(qRo);
+
+        if (!roSnap.empty) {
+          if (roSnap.size > 1) {
+            msgEl.className = "err";
+            msgEl.textContent = "Multiple tickets found for that RO.";
+            return;
+          }
+          const docSnap = roSnap.docs[0];
+          fillPreview({ id: docSnap.id, ...docSnap.data() });
+          msgEl.className = "ok";
+          msgEl.textContent = "Ticket found.";
+          return;
+        }
+
+        const qTag = query(
+          rosRef,
+          where("dealerId", "==", dealerId),
+          where("tag", "==", search)
+        );
+
+        const tagSnap = await getDocs(qTag);
+
+        if (tagSnap.empty) {
+          msgEl.className = "err";
+          msgEl.textContent = "No RO found. Please create it first in Scanner.";
+          return;
+        }
+
+        if (tagSnap.size > 1) {
+          msgEl.className = "err";
+          msgEl.textContent = "Multiple tickets found for that Tag. Search by RO.";
+          return;
+        }
+
+        const docSnap = tagSnap.docs[0];
+        fillPreview({ id: docSnap.id, ...docSnap.data() });
+        msgEl.className = "ok";
+        msgEl.textContent = "Ticket found.";
+      } catch (e) {
+        console.error(e);
+        msgEl.className = "err";
+        msgEl.textContent = e?.message || "Error searching ticket.";
+      }
+    }
+
+    findBtn.addEventListener("click", findTicket);
+
+    searchInputEl.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        await findTicket();
+      }
+    });
+
+    sendBtn.addEventListener("click", async () => {
       msgEl.className = "muted";
       msgEl.textContent = "";
       if (!currentUser) return;
 
-      const tag = String(tagEl.value || "").trim();
-      const location = String(locationEl.value || "").trim();
-      const waiter = waiterEl.value === "true";
-      const notes = String(notesEl.value || "").trim();
-
-      if (!tag) {
+      if (!selectedTicket) {
         msgEl.className = "err";
-        msgEl.textContent = "Tag # is required.";
-        tagEl.focus();
+        msgEl.textContent = "Find a ticket first.";
         return;
       }
+
+      const location = clean(locationEl.value);
+      const waiter = waiterEl.value === "true";
+      const notes = clean(notesEl.value);
 
       if (!location) {
         msgEl.className = "err";
@@ -141,25 +328,31 @@
       }
 
       try {
-        btn.disabled = true;
+        sendBtn.disabled = true;
 
-        const id = await createWashTicket({ tag, notes, waiter, location }, currentUser, "staff");
-
+        const id = await createWashTicket(
+          {
+            tag: selectedTicket.tag,
+            notes,
+            waiter,
+            location
+          },
+          currentUser,
+          "staff"
+        );
 
         msgEl.className = "ok";
-        msgEl.textContent = `Created ticket: ${id}`;
+        msgEl.textContent = `Sent to wash: ${id}`;
 
-        tagEl.value = "";
-        notesEl.value = "";
-        waiterEl.value = "false";
-        locationEl.value = "";
-        tagEl.focus();
+        searchInputEl.value = "";
+        resetPreview();
+        searchInputEl.focus();
       } catch (e) {
         msgEl.className = "err";
-        msgEl.textContent = e?.message || "Error creating ticket.";
+        msgEl.textContent = e?.message || "Error sending ticket to wash.";
         console.error(e);
       } finally {
-        btn.disabled = false;
+        sendBtn.disabled = false;
       }
     });
 
@@ -167,6 +360,7 @@
       rowsEl.innerHTML = rows.map(r => `
         <tr>
           <td><b>${escapeHtml(r.tag || "")}</b></td>
+          <td>${escapeHtml(r.ro || "")}</td>
           <td>${r.waiter ? "Yes" : "No"}</td>
           <td>${escapeHtml(r.location || "")}</td>
           <td>${escapeHtml(r.status || "")}</td>
@@ -174,7 +368,7 @@
           <td>${escapeHtml(r.notes || "")}</td>
         </tr>
       `).join("") || `
-        <tr><td colspan="6" class="muted">No queued tickets.</td></tr>
+        <tr><td colspan="7" class="muted">No queued tickets.</td></tr>
       `;
     });
 
