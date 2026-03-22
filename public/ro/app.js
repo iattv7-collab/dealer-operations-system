@@ -22,6 +22,48 @@ let pendingHighlightRo = null;
 let activeSnapshotInitialized = false;
 let previousActiveRos = new Set();
 let activeSearchTerm = "";
+let currentUserProfile = null;
+let activeTrackerTab = "mine";
+
+function renderSignedInInfo(user, profile) {
+  const el = $("signedInInfo");
+  if (!el) return;
+
+  const name = String(profile?.name || "").trim() || String(user?.email || "").trim();
+  const dealerId = Number(profile?.dealerId || 0);
+
+  el.textContent = `Dealer ${dealerId} · ${name}`;
+}
+
+function makeTabButton(label, key, active) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.textContent = label;
+  btn.className = "smallbtn";
+  btn.dataset.tabKey = key;
+
+  if (active) {
+    btn.style.fontWeight = "bold";
+    btn.style.border = "2px solid #333";
+  }
+
+  btn.addEventListener("click", () => {
+    activeTrackerTab = key;
+    renderTrackerTabs();
+    renderRows(filterActiveRows(ACTIVE_ROWS));
+  });
+
+  return btn;
+}
+
+function renderTrackerTabs() {
+  const wrap = $("trackerTabs");
+  if (!wrap) return;
+
+  wrap.innerHTML = "";
+  wrap.appendChild(makeTabButton("My ROs", "mine", activeTrackerTab === "mine"));
+}
+
 
 function selectRow(tr, ro = null) {
   if (selectedRowEl && selectedRowEl !== tr) {
@@ -356,10 +398,16 @@ function openTextEditor(title, value, onSave) {
 }
 
 function filterActiveRows(rows) {
-  const q = String(activeSearchTerm || "").trim().toLowerCase();
-  if (!q) return rows;
+  let filtered = rows;
 
-  return rows.filter((r) => {
+  if (activeTrackerTab === "mine" && currentUserProfile?.role === "advisor") {
+    filtered = filtered.filter((r) => String(r.advisorId || "") === String(auth.currentUser?.uid || ""));
+  }
+
+  const q = String(activeSearchTerm || "").trim().toLowerCase();
+  if (!q) return filtered;
+
+  return filtered.filter((r) => {
     const ro = String(r.ro || "").toLowerCase();
     const tag = String(r.tag || "").toLowerCase();
     const customer = String(r.customerName || "").toLowerCase();
@@ -373,7 +421,6 @@ function filterActiveRows(rows) {
     );
   });
 }
-
 
 function tdCheckSimple(checked, onToggle) {
   const td = document.createElement("td");
@@ -611,6 +658,10 @@ async function listenActive() {
   const dealerId = user ? await getUserDealerId(user) : 0;
   const profile = user ? await getUserProfile(user) : null;
   const role = String(profile?.role || "").toLowerCase();
+
+  currentUserProfile = profile;
+  renderSignedInInfo(user, profile);
+  renderTrackerTabs();
 
   let q;
 

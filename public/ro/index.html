@@ -18,7 +18,21 @@
 </head>
 
 <body>
-  <header>RO Tracker</header>
+<header style="display:flex; justify-content:space-between; align-items:center;">
+  
+  <!-- LEFT -->
+  <div style="font-weight:bold;">RO Tracker</div>
+
+  <!-- RIGHT -->
+  <div style="display:flex; align-items:center; gap:12px;">
+    
+    <div id="signedInInfo" style="font-size:14px; opacity:0.9;"></div>
+
+    <div id="trackerTabs" style="display:flex; gap:6px;"></div>
+
+  </div>
+
+</header>
 
   <div class="toolbar">
     <button class="btn" id="btnFollowUp">Follow Up</button>
@@ -30,7 +44,7 @@
       style="margin-left:10px;padding:6px 10px;width:260px;font-family:'Times New Roman';" />
   </div>
 
-
+    
   <div class="tablewrap">
     <table>
       <thead>
