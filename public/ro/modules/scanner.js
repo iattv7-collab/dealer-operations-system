@@ -11,7 +11,7 @@ import {
 
 import { fmtDateMMDDYYYY } from "./utils.js";
 
-const COL_ACTIVE = "activeROs";
+const COL_ACTIVE = "ros";
 const SCAN_ENDPOINT = "https://us-central1-dealer-wash-system.cloudfunctions.net/scanRO";
 
 function $(id) {
