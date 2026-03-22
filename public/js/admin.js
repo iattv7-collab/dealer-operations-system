@@ -242,6 +242,10 @@ async function loadPending() {
     const empInput = document.createElement("input");
     empInput.value = data.employeeId || "";
 
+    const dealerInput = document.createElement("input");
+    dealerInput.type = "number";
+    dealerInput.value = Number(data.dealerId || 1);
+
     // Default role when approving
     const sel = roleSelect("advisor");
 
@@ -252,6 +256,7 @@ async function loadPending() {
       await updateDoc(doc(db, "users", docSnap.id), {
         name: nameInput.value.trim(),
         employeeId: empInput.value.trim(),
+        dealerId: Number(dealerInput.value) || 1,
         role: sel.value,
         active: true,
         // default permissions for new users (safe)
@@ -286,9 +291,11 @@ async function loadPending() {
       <td></td>
       <td></td>
       <td></td>
+      <td></td>
     `;
     tr.children[1].appendChild(nameInput);
     tr.children[2].appendChild(empInput);
+    tr.children[3].appendChild(dealerInput);
     tr.children[3].appendChild(sel);
     tr.children[4].appendChild(approveBtn);
 
@@ -330,6 +337,10 @@ async function loadAllUsers() {
 
     const empInput = document.createElement("input");
     empInput.value = data.employeeId || "";
+
+    const dealerInput = document.createElement("input");
+    dealerInput.type = "number";
+    dealerInput.value = Number(data.dealerId || 1);
 
     const sel = roleSelect(data.role || "pending");
 
@@ -408,6 +419,7 @@ async function loadAllUsers() {
       const patch = {
         name: nameInput.value.trim(),
         employeeId: empInput.value.trim(),
+        dealerId: Number(dealerInput.value || 1),
         role: sel.value,
         active: activeCheckbox.checked,
         updatedAt: serverTimestamp(),
@@ -439,11 +451,11 @@ async function loadAllUsers() {
     };
 
     // NOTE:
-    // Your admin.html currently has extra columns on the right (based on your screenshot).
-    // We will output 12 columns total to match:
-    // Email | Name | Employee ID | Role | Active | Supervisor | Can Edit Tickets | Fix Tag | Fix RO | Fix Loc | Fix Adv | Actions
+    // We now output 13 columns total to match:
+    // Email | Name | Employee ID | Dealer ID | Role | Active | Supervisor | Can Edit Tickets | Fix Tag | Fix RO | Fix Loc | Fix Adv | Actions
     tr.innerHTML = `
       <td>${data.email || ""}</td>
+      <td></td>
       <td></td>
       <td></td>
       <td></td>
@@ -459,19 +471,20 @@ async function loadAllUsers() {
 
     tr.children[1].appendChild(nameInput);
     tr.children[2].appendChild(empInput);
-    tr.children[3].appendChild(sel);
-    tr.children[4].appendChild(activeCheckbox);
-    tr.children[5].appendChild(supervisorCheckbox);
+    tr.children[3].appendChild(dealerInput);
+    tr.children[4].appendChild(sel);
+    tr.children[5].appendChild(activeCheckbox);
+    tr.children[6].appendChild(supervisorCheckbox);
 
-    tr.children[6].appendChild(canEditTicketsCb);
-    tr.children[7].appendChild(fixTagCb);
-    tr.children[8].appendChild(fixRoCb);
-    tr.children[9].appendChild(fixLocCb);
-    tr.children[10].appendChild(fixAdvCb);
+    tr.children[7].appendChild(canEditTicketsCb);
+    tr.children[8].appendChild(fixTagCb);
+    tr.children[9].appendChild(fixRoCb);
+    tr.children[10].appendChild(fixLocCb);
+    tr.children[11].appendChild(fixAdvCb);
 
-    tr.children[11].appendChild(columnsBtn);
-    tr.children[11].appendChild(saveBtn);
-    tr.children[11].appendChild(deleteBtn);
+    tr.children[12].appendChild(columnsBtn);
+    tr.children[12].appendChild(saveBtn);
+    tr.children[12].appendChild(deleteBtn);
 
     usersTable.appendChild(tr);
   });

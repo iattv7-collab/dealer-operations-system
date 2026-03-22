@@ -1,6 +1,7 @@
 // public/ro/modules/scanner.js
 
 import { db } from "../firebase.js";
+import { auth } from "../firebase.js";
 import {
   doc,
   setDoc,
@@ -25,7 +26,7 @@ async function fileToImageBitmap(file) {
       return bmp;
     }
   } finally {
-    try { URL.revokeObjectURL(blobUrl); } catch {}
+    try { URL.revokeObjectURL(blobUrl); } catch { }
   }
 
   return await new Promise((resolve, reject) => {
@@ -92,8 +93,8 @@ async function tryDecodeReynoldsBarcode(fullFile) {
   } catch {
     return "";
   } finally {
-    try { URL.revokeObjectURL(url); } catch {}
-    try { reader.reset(); } catch {}
+    try { URL.revokeObjectURL(url); } catch { }
+    try { reader.reset(); } catch { }
   }
 }
 
@@ -183,6 +184,8 @@ function initScanner() {
         customerWaiting: false,
         hasLoaner: false,
         advisor: data.advisor || "",
+        advisorId: auth.currentUser?.uid || "",
+        advisorName: auth.currentUser?.displayName || data.advisor || "",
         vin: data.vin || "",
         ocrConfidenceHint: data.confidenceHint || "",
         createdAt: serverTimestamp(),

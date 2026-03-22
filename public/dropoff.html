@@ -54,13 +54,12 @@
       <div class="preview-grid">
         <div><b>RO:</b> <span id="pRo" class="value"></span></div>
         <div><b>Tag:</b> <span id="pTag" class="value"></span></div>
-        <div><b>Customer:</b> <span id="pCustomer" class="value"></span></div>
-        <div><b>Phone:</b> <span id="pPhone" class="value"></span></div>
+        
         <div><b>Model:</b> <span id="pModel" class="value"></span></div>
         <div><b>Current Wash Status:</b> <span id="pWashStatus" class="value"></span></div>
         <div><b>Location:</b> <span id="pLocation" class="value"></span></div>
         <div><b>Waiter:</b> <span id="pWaiter" class="value"></span></div>
-        <div class="full"><b>Concern:</b> <span id="pConcern" class="value"></span></div>
+        
       </div>
 
       <div class="row" style="margin-top:14px;">
@@ -157,13 +156,12 @@
 
     const pRo = document.getElementById("pRo");
     const pTag = document.getElementById("pTag");
-    const pCustomer = document.getElementById("pCustomer");
-    const pPhone = document.getElementById("pPhone");
+    
     const pModel = document.getElementById("pModel");
     const pWashStatus = document.getElementById("pWashStatus");
     const pLocation = document.getElementById("pLocation");
     const pWaiter = document.getElementById("pWaiter");
-    const pConcern = document.getElementById("pConcern");
+    
 
     let currentUser = null;
     let selectedTicket = null;
@@ -182,13 +180,12 @@
 
       pRo.textContent = "";
       pTag.textContent = "";
-      pCustomer.textContent = "";
-      pPhone.textContent = "";
+      
       pModel.textContent = "";
       pWashStatus.textContent = "";
       pLocation.textContent = "";
       pWaiter.textContent = "";
-      pConcern.textContent = "";
+      
 
       notesEl.value = "";
       waiterEl.value = "false";
@@ -203,13 +200,12 @@
 
       pRo.textContent = clean(ticket.ro) || "";
       pTag.textContent = clean(ticket.tag) || "";
-      pCustomer.textContent = clean(ticket.customerName) || "";
-      pPhone.textContent = clean(ticket.phone) || "";
+      
       pModel.textContent = clean(ticket.model) || "";
       pWashStatus.textContent = washStatus || "not in wash";
       pLocation.textContent = clean(ticket.location) || "";
       pWaiter.textContent = ticket.customerWaiting ? "Yes" : "No";
-      pConcern.textContent = clean(ticket.concern) || "";
+      
 
       waiterEl.value = ticket.customerWaiting ? "true" : "false";
       if (clean(ticket.location)) locationEl.value = clean(ticket.location);
