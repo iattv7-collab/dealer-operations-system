@@ -15,6 +15,22 @@ import { initArchiveModal } from "./modules/archive.js";
 import { loadRemotePrivateSettings, openSettingsModal } from "./modules/settings.js";
 
 const $ = (id) => document.getElementById(id);
+let ACTIVE_ROWS = [];
+let selectedRowEl = null;
+let selectedRoKey = null;
+let pendingHighlightRo = null;
+let activeSnapshotInitialized = false;
+let previousActiveRos = new Set();
+let activeSearchTerm = "";
+
+function selectRow(tr, ro = null) {
+  if (selectedRowEl && selectedRowEl !== tr) {
+    selectedRowEl.classList.remove("row-selected");
+  }
+  selectedRowEl = tr;
+  selectedRoKey = ro != null ? String(ro) : String(tr?.dataset?.ro || "");
+  tr.classList.add("row-selected");
+}
 
 function isReadyCalled(r) {
   const legacy = String(r.status || "").trim().toLowerCase() === "ready called";
@@ -44,6 +60,15 @@ function rowClass(r) {
   return "";
 }
 
+
+function formatPhoneInput(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 10);
+
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
 function tdInput(value, onCommit, opts = {}) {
   const td = document.createElement("td");
   const inp = document.createElement("input");
@@ -52,7 +77,26 @@ function tdInput(value, onCommit, opts = {}) {
   inp.value = value || "";
   inp.placeholder = opts.placeholder || "";
 
-  inp.addEventListener("blur", () => onCommit(inp.value));
+  if (opts.phone) {
+    inp.value = formatPhoneInput(inp.value);
+    inp.addEventListener("input", () => {
+      inp.value = formatPhoneInput(inp.value);
+      if (opts.hoverFull) inp.title = inp.value || "";
+    });
+  }
+
+  if (opts.hoverFull) {
+    inp.title = inp.value || "";
+    inp.addEventListener("input", () => {
+      inp.title = inp.value || "";
+    });
+  }
+
+  inp.addEventListener("blur", () => {
+    if (opts.hoverFull) inp.title = inp.value || "";
+    onCommit(inp.value);
+  });
+
   inp.addEventListener("keydown", (e) => {
     if (e.key === "Enter") { e.preventDefault(); inp.blur(); }
   });
@@ -60,6 +104,7 @@ function tdInput(value, onCommit, opts = {}) {
   td.appendChild(inp);
   return td;
 }
+
 
 function tdHover(text) {
   const td = document.createElement("td");
@@ -246,6 +291,90 @@ function tdWaiter(r, tr) {
   return td;
 }
 
+function openTextEditor(title, value, onSave) {
+  const overlay = document.createElement("div");
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.background = "rgba(0,0,0,.35)";
+  overlay.style.display = "flex";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.zIndex = "9999";
+
+  const box = document.createElement("div");
+  box.style.background = "#fff";
+  box.style.padding = "18px";
+  box.style.borderRadius = "6px";
+  box.style.width = "520px";
+  box.style.boxShadow = "0 10px 30px rgba(0,0,0,.3)";
+  box.style.fontFamily = "Times New Roman";
+
+  const h = document.createElement("div");
+  h.textContent = title;
+  h.style.fontSize = "18px";
+  h.style.marginBottom = "10px";
+
+  const ta = document.createElement("textarea");
+  ta.value = value || "";
+  ta.style.width = "100%";
+  ta.style.height = "160px";
+  ta.style.fontFamily = "Times New Roman";
+  ta.style.fontSize = "14px";
+  ta.style.padding = "6px";
+
+  const btnRow = document.createElement("div");
+  btnRow.style.marginTop = "10px";
+  btnRow.style.textAlign = "right";
+
+  const cancel = document.createElement("button");
+  cancel.textContent = "Cancel";
+  cancel.className = "smallbtn";
+  cancel.style.marginRight = "8px";
+
+  const save = document.createElement("button");
+  save.textContent = "Save";
+  save.className = "smallbtn";
+
+  cancel.onclick = () => document.body.removeChild(overlay);
+
+  save.onclick = () => {
+    onSave(ta.value);
+    document.body.removeChild(overlay);
+  };
+
+  btnRow.appendChild(cancel);
+  btnRow.appendChild(save);
+
+  box.appendChild(h);
+  box.appendChild(ta);
+  box.appendChild(btnRow);
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  ta.focus();
+}
+
+function filterActiveRows(rows) {
+  const q = String(activeSearchTerm || "").trim().toLowerCase();
+  if (!q) return rows;
+
+  return rows.filter((r) => {
+    const ro = String(r.ro || "").toLowerCase();
+    const tag = String(r.tag || "").toLowerCase();
+    const customer = String(r.customerName || "").toLowerCase();
+    const phone = String(r.phone || "").toLowerCase();
+
+    return (
+      ro.includes(q) ||
+      tag.includes(q) ||
+      customer.includes(q) ||
+      phone.includes(q)
+    );
+  });
+}
+
+
 function tdCheckSimple(checked, onToggle) {
   const td = document.createElement("td");
   td.className = "center";
@@ -368,9 +497,10 @@ function renderRows(rows) {
 
     const tr = document.createElement("tr");
     tr.className = rowClass(r);
+    tr.dataset.ro = String(r.ro || "");
 
     tr.appendChild(tdInput(r.customerName, (v) => safeUpdate(r.ro, { customerName: v })));
-    tr.appendChild(tdInput(r.phone, (v) => safeUpdate(r.ro, { phone: v })));
+    tr.appendChild(tdInput(r.phone, (v) => safeUpdate(r.ro, { phone: v }), { phone: true }));
 
     // RO # (editable with warning + safe Firestore rename)
     tr.appendChild(tdEditableRO(r));
@@ -380,14 +510,40 @@ function renderRows(rows) {
     tr.appendChild(tdDatePickerNoYear(r.promiseDate, (v) => safeUpdate(r.ro, { promiseDate: v })));
     tr.appendChild(tdInput(r.model, (v) => safeUpdate(r.ro, { model: v })));
 
+
     // Concern (editable)
-    tr.appendChild(tdInput(r.concern, (v) => safeUpdate(r.ro, { concern: v })));
+    const concernCell = tdInput(
+      r.concern,
+      (v) => safeUpdate(r.ro, { concern: v }),
+      { hoverFull: true }
+    );
+
+    concernCell.addEventListener("dblclick", () => {
+      openTextEditor("Edit Concern", r.concern || "", (val) => {
+        safeUpdate(r.ro, { concern: val });
+      });
+    });
+
+    tr.appendChild(concernCell);
 
     const readyCell = tdReadyCalled(r, tr);
     tr.appendChild(readyCell.td);
 
     // Notes (editable)
-    tr.appendChild(tdInput(r.notes, (v) => safeUpdate(r.ro, { notes: v })));
+    const notesCell = tdInput(
+      r.notes,
+      (v) => safeUpdate(r.ro, { notes: v }),
+      { hoverFull: true }
+    );
+
+    notesCell.addEventListener("dblclick", () => {
+      openTextEditor("Edit Notes", r.notes || "", (val) => {
+        safeUpdate(r.ro, { notes: val });
+      });
+    });
+
+    tr.appendChild(notesCell);
+
 
     tr.appendChild(tdTechVideo(r, tr, readyCell));
 
@@ -439,6 +595,14 @@ function renderRows(rows) {
     }));
 
     tb.appendChild(tr);
+
+    if (pendingHighlightRo && String(r.ro || "") === String(pendingHighlightRo)) {
+      selectRow(tr, r.ro);
+      tr.scrollIntoView({ block: "center", behavior: "smooth" });
+      pendingHighlightRo = null;
+    } else if (selectedRoKey && String(r.ro || "") === String(selectedRoKey)) {
+      selectRow(tr, r.ro);
+    }
   });
 }
 
@@ -457,7 +621,22 @@ async function listenActive() {
       qs.forEach((d) => rows.push({ id: d.id, ...d.data() }));
       rows.forEach((r) => { if (!r.ro) r.ro = r.id; });
       rows.sort((a, b) => String(a.ro || a.id).localeCompare(String(b.ro || b.id), undefined, { numeric: true }));
-      renderRows(rows);
+
+      const currentRos = new Set(rows.map((r) => String(r.ro || r.id || "")));
+
+      if (activeSnapshotInitialized) {
+        const newRows = rows.filter((r) => !previousActiveRos.has(String(r.ro || r.id || "")));
+        if (newRows.length) {
+          const newest = newRows[newRows.length - 1];
+          pendingHighlightRo = String(newest.ro || newest.id || "");
+        }
+      } else {
+        activeSnapshotInitialized = true;
+      }
+
+      previousActiveRos = currentRos;
+      ACTIVE_ROWS = rows;
+      renderRows(filterActiveRows(ACTIVE_ROWS));
     },
     (err) => {
       console.error("RO tracker read error:", err);
@@ -467,7 +646,18 @@ async function listenActive() {
 }
 
 $("btnSettings")?.addEventListener("click", () => openSettingsModal());
+$("searchActive")?.addEventListener("input", (e) => {
+  activeSearchTerm = e.target.value || "";
+  renderRows(filterActiveRows(ACTIVE_ROWS));
+});
 
+$("searchActive")?.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    e.target.value = "";
+    activeSearchTerm = "";
+    renderRows(ACTIVE_ROWS);
+  }
+});
 
 // TEMP: disable these until activeROs backbone is confirmed
 // const notifApi = initNotifications();
@@ -475,5 +665,10 @@ $("btnSettings")?.addEventListener("click", () => openSettingsModal());
 
 // initFollowUp();
 // initArchiveModal();
+
+$("tbody")?.addEventListener("click", (e) => {
+  const tr = e.target.closest("tr");
+  if (tr) selectRow(tr, tr.dataset.ro || "");
+});
 
 listenActive();

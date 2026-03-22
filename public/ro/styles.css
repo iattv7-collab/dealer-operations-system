@@ -205,3 +205,13 @@ th{
   z-index: 10;
   background: var(--bg);
 }
+
+tr.row-selected td {
+  background: #e6e6e6 !important;
+}
+
+tr.row-selected input,
+tr.row-selected textarea,
+tr.row-selected select {
+  background: #f3f3f3 !important;
+}
