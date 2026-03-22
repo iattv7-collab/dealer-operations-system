@@ -1,6 +1,6 @@
 // public/ro/app.js
 import { auth, db } from "./firebase.js";
-import { getUserDealerId } from "../js/guard.js";
+import { getUserDealerId, getUserProfile } from "../js/guard.js";
 import {
   collection, doc, setDoc, updateDoc, deleteDoc,
   onSnapshot, serverTimestamp, getDoc, query, where
@@ -609,11 +609,23 @@ function renderRows(rows) {
 async function listenActive() {
   const user = auth.currentUser;
   const dealerId = user ? await getUserDealerId(user) : 0;
+  const profile = user ? await getUserProfile(user) : null;
+  const role = String(profile?.role || "").toLowerCase();
 
-  const q = query(
-    collection(db, COL_ACTIVE),
-    where("dealerId", "==", dealerId)
-  );
+  let q;
+
+  if (role === "advisor") {
+    q = query(
+      collection(db, COL_ACTIVE),
+      where("dealerId", "==", dealerId),
+      where("advisorId", "==", user.uid)
+    );
+  } else {
+    q = query(
+      collection(db, COL_ACTIVE),
+      where("dealerId", "==", dealerId)
+    );
+  }
 
   onSnapshot(q,
     (qs) => {

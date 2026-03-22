@@ -358,6 +358,9 @@
           throw new Error("Missing dealerId on user profile.");
         }
 
+        const advisorId = user.uid;
+        const advisorName = clean(profile?.name) || clean(user.email) || advisor;
+
         await setDoc(roRef, {
           dealerId,
           ro,
@@ -379,6 +382,8 @@
           hasLoaner: false,
 
           advisor,
+          advisorId,
+          advisorName,
           source: "manual-scanner",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
