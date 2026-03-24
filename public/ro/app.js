@@ -25,6 +25,7 @@ let activeSearchTerm = "";
 let currentUserProfile = null;
 let activeTrackerTab = "mine";
 let sharedTrackerTabs = [];
+let iAmSharing = false;
 
 function renderSignedInInfo(user, profile) {
   const el = $("signedInInfo");
@@ -43,9 +44,20 @@ function makeTabButton(label, key, active, onClickOverride = null) {
   btn.className = "smallbtn";
   btn.dataset.tabKey = key;
 
+  btn.style.padding = "4px 10px";
+  btn.style.borderRadius = "12px";
+  btn.style.border = "1px solid #ccc";
+  btn.style.cursor = "pointer";
+  btn.style.fontFamily = "Times New Roman";
+  btn.style.fontSize = "13px";
+  btn.style.background = "#ffffff";
+  btn.style.color = "#111";
+
   if (active) {
+    btn.style.background = "#9af39e";
+    
+    btn.style.color = "#0b3d91";
     btn.style.fontWeight = "bold";
-    btn.style.border = "2px solid #333";
   }
 
   btn.addEventListener("click", () => {
@@ -74,12 +86,14 @@ function renderTrackerTabs() {
     sharedTrackerTabs.forEach((tab) => {
       const key = `shared:${tab.ownerId}`;
       wrap.appendChild(
-        makeTabButton(`Shared: ${tab.ownerName}`, key, activeTrackerTab === key)
+        makeTabButton(`${tab.ownerName}'s ROs`, key, activeTrackerTab === key)
       );
     });
 
+    const isSharing = iAmSharing;
+
     wrap.appendChild(
-      makeTabButton("Share", "share", false, () => {
+      makeTabButton(isSharing ? "Sharing" : "Share", "share", false, () => {
         openShareTrackerModal();
       })
     );
@@ -123,6 +137,23 @@ async function loadSharedTrackersForMe(user, profile) {
       ownerName
     });
   });
+}
+
+async function loadMySharingState(user) {
+  iAmSharing = false;
+  if (!user) return;
+
+  const shareRef = doc(db, "trackerShares", user.uid);
+  const snap = await getDoc(shareRef);
+
+  if (!snap.exists()) {
+    iAmSharing = false;
+    return;
+  }
+
+  const data = snap.data() || {};
+  const ids = Array.isArray(data.sharedWithIds) ? data.sharedWithIds : [];
+  iAmSharing = ids.length > 0;
 }
 
 async function openShareTrackerModal() {
@@ -253,7 +284,9 @@ async function openShareTrackerModal() {
 
   save.onclick = async () => {
     try {
-      const selectedIds = checkboxRefs.filter((cb) => cb.checked).map((cb) => String(cb.value));
+      const selectedIds = checkboxRefs
+        .filter((cb) => cb.checked)
+        .map((cb) => String(cb.value));
 
       await setDoc(shareRef, {
         ownerId: user.uid,
@@ -265,6 +298,19 @@ async function openShareTrackerModal() {
       });
 
       msg.textContent = "Sharing saved.";
+
+      setTimeout(() => {
+        document.body.removeChild(overlay);
+
+        Promise.all([
+          loadSharedTrackersForMe(user, currentUserProfile),
+          loadMySharingState(user)
+        ]).then(() => {
+          renderTrackerTabs();
+          renderRows(filterActiveRows(ACTIVE_ROWS));
+        });
+      }, 300);
+
     } catch (e) {
       msg.textContent = e?.message || "Save failed.";
     }
@@ -890,9 +936,11 @@ async function listenActive() {
 
   try {
     await loadSharedTrackersForMe(user, profile);
+    await loadMySharingState(user);
   } catch (e) {
     console.error("loadSharedTrackersForMe failed:", e);
     sharedTrackerTabs = [];
+    iAmSharing = false;
   }
 
   renderSignedInInfo(user, profile);
