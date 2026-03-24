@@ -3,7 +3,7 @@ import { auth, db } from "./firebase.js";
 import { getUserDealerId, getUserProfile } from "../js/guard.js";
 import {
   collection, doc, setDoc, updateDoc, deleteDoc,
-  onSnapshot, serverTimestamp, getDoc, query, where
+  onSnapshot, serverTimestamp, getDoc, getDocs, query, where
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 import { pickDateTimeMs, formatNoYearDateTime, formatNoYearDate } from "./datetimePicker.js";
@@ -24,6 +24,7 @@ let previousActiveRos = new Set();
 let activeSearchTerm = "";
 let currentUserProfile = null;
 let activeTrackerTab = "mine";
+let sharedTrackerTabs = [];
 
 function renderSignedInInfo(user, profile) {
   const el = $("signedInInfo");
@@ -35,7 +36,7 @@ function renderSignedInInfo(user, profile) {
   el.textContent = `Dealer ${dealerId} · ${name}`;
 }
 
-function makeTabButton(label, key, active) {
+function makeTabButton(label, key, active, onClickOverride = null) {
   const btn = document.createElement("button");
   btn.type = "button";
   btn.textContent = label;
@@ -48,6 +49,11 @@ function makeTabButton(label, key, active) {
   }
 
   btn.addEventListener("click", () => {
+    if (typeof onClickOverride === "function") {
+      onClickOverride();
+      return;
+    }
+
     activeTrackerTab = key;
     renderTrackerTabs();
     renderRows(filterActiveRows(ACTIVE_ROWS));
@@ -61,9 +67,221 @@ function renderTrackerTabs() {
   if (!wrap) return;
 
   wrap.innerHTML = "";
-  wrap.appendChild(makeTabButton("My ROs", "mine", activeTrackerTab === "mine"));
+
+  if (String(currentUserProfile?.role || "").toLowerCase() === "advisor") {
+    wrap.appendChild(makeTabButton("My ROs", "mine", activeTrackerTab === "mine"));
+
+    sharedTrackerTabs.forEach((tab) => {
+      const key = `shared:${tab.ownerId}`;
+      wrap.appendChild(
+        makeTabButton(`Shared: ${tab.ownerName}`, key, activeTrackerTab === key)
+      );
+    });
+
+    wrap.appendChild(
+      makeTabButton("Share", "share", false, () => {
+        openShareTrackerModal();
+      })
+    );
+  } else {
+    wrap.appendChild(makeTabButton("All ROs", "all", activeTrackerTab === "all"));
+  }
 }
 
+async function loadSharedTrackersForMe(user, profile) {
+  sharedTrackerTabs = [];
+
+  if (!user || !profile) return;
+  if (String(profile.role || "").toLowerCase() !== "advisor") return;
+
+  const dealerId = Number(profile.dealerId || 0);
+  if (!dealerId) return;
+
+  const q = query(
+    collection(db, "trackerShares"),
+    where("dealerId", "==", dealerId),
+    where("sharedWithIds", "array-contains", user.uid)
+  );
+
+  let snap;
+  try {
+    snap = await getDocs(q);
+  } catch (e) {
+    console.error("trackerShares query failed:", e);
+    return;
+  }
+
+  snap.forEach((docSnap) => {
+    const data = docSnap.data() || {};
+    const ownerId = String(data.ownerId || docSnap.id || "").trim();
+    const ownerName = String(data.ownerName || ownerId).trim();
+
+    if (!ownerId) return;
+
+    sharedTrackerTabs.push({
+      ownerId,
+      ownerName
+    });
+  });
+}
+
+async function openShareTrackerModal() {
+  const user = auth.currentUser;
+  const profile = currentUserProfile;
+
+  if (!user || !profile) return;
+  if (String(profile.role || "").toLowerCase() !== "advisor") {
+    alert("Only advisors can share their tracker.");
+    return;
+  }
+
+  const dealerId = Number(profile.dealerId || 0);
+  if (!dealerId) {
+    alert("Missing dealerId.");
+    return;
+  }
+
+  const usersSnap = await getDocs(
+    query(collection(db, "users"), where("dealerId", "==", dealerId))
+  );
+
+  const advisors = [];
+  usersSnap.forEach((docSnap) => {
+    const data = docSnap.data() || {};
+    const role = String(data.role || "").toLowerCase();
+    const active = data.active !== false;
+
+    if (!active) return;
+    if (role !== "advisor") return;
+    if (docSnap.id === user.uid) return;
+
+    advisors.push({
+      uid: docSnap.id,
+      name: String(data.name || data.email || docSnap.id).trim()
+    });
+  });
+
+  advisors.sort((a, b) => a.name.localeCompare(b.name));
+
+  const shareRef = doc(db, "trackerShares", user.uid);
+  const existingSnap = await getDoc(shareRef);
+  const existing = existingSnap.exists() ? (existingSnap.data() || {}) : {};
+  const existingIds = Array.isArray(existing.sharedWithIds) ? existing.sharedWithIds.map(String) : [];
+
+  const overlay = document.createElement("div");
+  overlay.style.position = "fixed";
+  overlay.style.inset = "0";
+  overlay.style.background = "rgba(0,0,0,.35)";
+  overlay.style.display = "flex";
+  overlay.style.alignItems = "center";
+  overlay.style.justifyContent = "center";
+  overlay.style.zIndex = "9999";
+
+  const box = document.createElement("div");
+  box.style.background = "#fff";
+  box.style.padding = "18px";
+  box.style.borderRadius = "8px";
+  box.style.width = "520px";
+  box.style.maxWidth = "92vw";
+  box.style.maxHeight = "80vh";
+  box.style.overflow = "auto";
+  box.style.boxShadow = "0 10px 30px rgba(0,0,0,.3)";
+  box.style.fontFamily = "Times New Roman";
+
+  const h = document.createElement("div");
+  h.textContent = "Share My RO Tracker";
+  h.style.fontSize = "20px";
+  h.style.marginBottom = "10px";
+  h.style.fontWeight = "bold";
+
+  const sub = document.createElement("div");
+  sub.textContent = "Select one or more advisors who can view your tracker.";
+  sub.style.marginBottom = "14px";
+
+  const list = document.createElement("div");
+  list.style.display = "grid";
+  list.style.gap = "8px";
+
+  const checkboxRefs = [];
+
+  advisors.forEach((a) => {
+    const label = document.createElement("label");
+    label.style.display = "flex";
+    label.style.alignItems = "center";
+    label.style.gap = "8px";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = a.uid;
+    cb.checked = existingIds.includes(a.uid);
+
+    const span = document.createElement("span");
+    span.textContent = a.name;
+
+    label.appendChild(cb);
+    label.appendChild(span);
+    list.appendChild(label);
+
+    checkboxRefs.push(cb);
+  });
+
+  if (!advisors.length) {
+    const empty = document.createElement("div");
+    empty.textContent = "No other advisors found.";
+    list.appendChild(empty);
+  }
+
+  const msg = document.createElement("div");
+  msg.style.marginTop = "12px";
+  msg.style.fontWeight = "bold";
+
+  const btnRow = document.createElement("div");
+  btnRow.style.marginTop = "14px";
+  btnRow.style.display = "flex";
+  btnRow.style.justifyContent = "flex-end";
+  btnRow.style.gap = "8px";
+
+  const cancel = document.createElement("button");
+  cancel.textContent = "Cancel";
+  cancel.className = "smallbtn";
+
+  const save = document.createElement("button");
+  save.textContent = "Save";
+  save.className = "smallbtn";
+
+  cancel.onclick = () => document.body.removeChild(overlay);
+
+  save.onclick = async () => {
+    try {
+      const selectedIds = checkboxRefs.filter((cb) => cb.checked).map((cb) => String(cb.value));
+
+      await setDoc(shareRef, {
+        ownerId: user.uid,
+        ownerName: String(profile.name || user.email || user.uid).trim(),
+        dealerId,
+        sharedWithIds: selectedIds,
+        active: selectedIds.length > 0,
+        updatedAt: serverTimestamp()
+      });
+
+      msg.textContent = "Sharing saved.";
+    } catch (e) {
+      msg.textContent = e?.message || "Save failed.";
+    }
+  };
+
+  btnRow.appendChild(cancel);
+  btnRow.appendChild(save);
+
+  box.appendChild(h);
+  box.appendChild(sub);
+  box.appendChild(list);
+  box.appendChild(msg);
+  box.appendChild(btnRow);
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+}
 
 function selectRow(tr, ro = null) {
   if (selectedRowEl && selectedRowEl !== tr) {
@@ -399,9 +617,17 @@ function openTextEditor(title, value, onSave) {
 
 function filterActiveRows(rows) {
   let filtered = rows;
+  const role = String(currentUserProfile?.role || "").toLowerCase();
 
-  if (activeTrackerTab === "mine" && currentUserProfile?.role === "advisor") {
-    filtered = filtered.filter((r) => String(r.advisorId || "") === String(auth.currentUser?.uid || ""));
+  if (role === "advisor") {
+    if (activeTrackerTab === "mine") {
+      filtered = filtered.filter((r) => String(r.advisorId || "") === String(auth.currentUser?.uid || ""));
+    } else if (String(activeTrackerTab).startsWith("shared:")) {
+      const ownerId = String(activeTrackerTab).split(":")[1] || "";
+      filtered = filtered.filter((r) => String(r.advisorId || "") === ownerId);
+    } else {
+      filtered = [];
+    }
   }
 
   const q = String(activeSearchTerm || "").trim().toLowerCase();
@@ -660,23 +886,22 @@ async function listenActive() {
   const role = String(profile?.role || "").toLowerCase();
 
   currentUserProfile = profile;
+  activeTrackerTab = role === "advisor" ? "mine" : "all";
+
+  try {
+    await loadSharedTrackersForMe(user, profile);
+  } catch (e) {
+    console.error("loadSharedTrackersForMe failed:", e);
+    sharedTrackerTabs = [];
+  }
+
   renderSignedInInfo(user, profile);
   renderTrackerTabs();
 
-  let q;
-
-  if (role === "advisor") {
-    q = query(
-      collection(db, COL_ACTIVE),
-      where("dealerId", "==", dealerId),
-      where("advisorId", "==", user.uid)
-    );
-  } else {
-    q = query(
-      collection(db, COL_ACTIVE),
-      where("dealerId", "==", dealerId)
-    );
-  }
+  const q = query(
+    collection(db, COL_ACTIVE),
+    where("dealerId", "==", dealerId)
+  );
 
   onSnapshot(q,
     (qs) => {
