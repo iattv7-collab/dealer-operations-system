@@ -84,7 +84,7 @@ function makeTabButton(label, key, active, onClickOverride = null) {
   btn.style.color = "#111";
 
   if (active) {
-    btn.style.background = "#9af39e";
+    btn.style.background = "#8feb94";
 
     btn.style.color = "#0b3d91";
     btn.style.fontWeight = "bold";
