@@ -18,41 +18,42 @@
 </head>
 
 <body>
-<header style="display:flex; justify-content:space-between; align-items:center;">
-  
-  <!-- LEFT -->
-  <div style="font-weight:bold;">RO Tracker</div>
+  <header style="display:flex; justify-content:space-between; align-items:center;">
 
-  <!-- RIGHT -->
-  <div style="display:flex; align-items:center; gap:12px;">
-    
-    <div id="signedInInfo" style="font-size:14px; opacity:0.9;"></div>
+    <!-- LEFT -->
+    <div style="font-weight:bold;">RO Tracker</div>
 
-    <div id="trackerTabs" style="display:flex; gap:6px;"></div>
+    <!-- RIGHT -->
+    <div style="display:flex; align-items:center; gap:12px;">
 
-  </div>
+      <div id="signedInInfo" style="font-size:14px; opacity:0.9;"></div>
 
-</header>
+      <div id="trackerTabs" style="display:flex; gap:6px;"></div>
+
+    </div>
+
+  </header>
 
   <div class="toolbar">
     <button class="btn" id="btnFollowUp">Follow Up</button>
     <button class="btn" id="btnSettings">Settings</button>
     <button class="btn" id="btnArchiveView">Archive / Follow Up</button>
     <button class="btn" id="btnNotify">Enable Notifications</button>
+    <button class="btn" id="btnToggleView">Short View</button>
 
     <input id="searchActive" type="text" placeholder="Search RO, Tag, Name, Phone"
       style="margin-left:10px;padding:6px 10px;width:260px;font-family:'Times New Roman';" />
   </div>
 
-    
+
   <div class="tablewrap">
     <table>
       <thead>
         <tr>
-          <th>Customer name</th>
-          <th>Phone</th>
           <th>RO #</th>
           <th>Tag #</th>
+          <th>Customer name</th>
+          <th>Phone</th>
           <th>RO Date</th>
           <th>Promise Date</th>
           <th>Model</th>

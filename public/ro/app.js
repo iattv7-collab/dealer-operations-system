@@ -26,6 +26,36 @@ let currentUserProfile = null;
 let activeTrackerTab = "mine";
 let sharedTrackerTabs = [];
 let iAmSharing = false;
+let isShortView = false;
+
+function applyColumnVisibility() {
+  const table = document.querySelector(".tablewrap table");
+  if (!table) return;
+
+  const hideIndexes = [3, 4, 5, 6, 10];
+  // 1-based columns:
+  // 3 Customer
+  // 4 Phone
+  // 5 RO Date
+  // 6 Promise Date
+  // 10 Notes
+
+  const rows = table.querySelectorAll("tr");
+
+  rows.forEach((row) => {
+    Array.from(row.children).forEach((cell, idx) => {
+      const col = idx + 1;
+      if (hideIndexes.includes(col)) {
+        cell.style.display = isShortView ? "none" : "";
+      }
+    });
+  });
+
+  const btn = $("btnToggleView");
+  if (btn) {
+    btn.textContent = isShortView ? "Full View" : "Short View";
+  }
+}
 
 function renderSignedInInfo(user, profile) {
   const el = $("signedInInfo");
@@ -55,7 +85,7 @@ function makeTabButton(label, key, active, onClickOverride = null) {
 
   if (active) {
     btn.style.background = "#9af39e";
-    
+
     btn.style.color = "#0b3d91";
     btn.style.fontWeight = "bold";
   }
@@ -818,19 +848,28 @@ function renderRows(rows) {
     tr.className = rowClass(r);
     tr.dataset.ro = String(r.ro || "");
 
-    tr.appendChild(tdInput(r.customerName, (v) => safeUpdate(r.ro, { customerName: v })));
-    tr.appendChild(tdInput(r.phone, (v) => safeUpdate(r.ro, { phone: v }), { phone: true }));
-
-    // RO # (editable with warning + safe Firestore rename)
+    // 1) RO #
     tr.appendChild(tdEditableRO(r));
 
+    // 2) Tag #
     tr.appendChild(tdInput(r.tag, (v) => safeUpdate(r.ro, { tag: v })));
+
+    // 3) Customer name
+    tr.appendChild(tdInput(r.customerName, (v) => safeUpdate(r.ro, { customerName: v })));
+
+    // 4) Phone
+    tr.appendChild(tdInput(r.phone, (v) => safeUpdate(r.ro, { phone: v }), { phone: true }));
+
+    // 5) RO Date
     tr.appendChild(tdDatePickerNoYear(r.roDate, (v) => safeUpdate(r.ro, { roDate: v })));
+
+    // 6) Promise Date
     tr.appendChild(tdDatePickerNoYear(r.promiseDate, (v) => safeUpdate(r.ro, { promiseDate: v })));
+
+    // 7) Model
     tr.appendChild(tdInput(r.model, (v) => safeUpdate(r.ro, { model: v })));
 
-
-    // Concern (editable)
+    // 8) Concern
     const concernCell = tdInput(
       r.concern,
       (v) => safeUpdate(r.ro, { concern: v }),
@@ -845,10 +884,11 @@ function renderRows(rows) {
 
     tr.appendChild(concernCell);
 
+    // 9) Ready Called
     const readyCell = tdReadyCalled(r, tr);
     tr.appendChild(readyCell.td);
 
-    // Notes (editable)
+    // 10) Notes
     const notesCell = tdInput(
       r.notes,
       (v) => safeUpdate(r.ro, { notes: v }),
@@ -863,24 +903,34 @@ function renderRows(rows) {
 
     tr.appendChild(notesCell);
 
-
+    // 11) Tech Video
     tr.appendChild(tdTechVideo(r, tr, readyCell));
 
+    // 12) Called
     tr.appendChild(tdDateTimePicker(
       r.calledAtMs || null,
       (ms) => safeUpdate(r.ro, { calledAtMs: ms }),
       { showNow: true, stepMin: 5 }
     ));
 
+    // 13) Next Update
     tr.appendChild(tdDateTimePicker(
       r.nextUpdateAtMs || null,
-      (ms) => { r.nextUpdateAtMs = ms; tr.className = rowClass(r); return safeUpdate(r.ro, { nextUpdateAtMs: ms }); },
+      (ms) => {
+        r.nextUpdateAtMs = ms;
+        tr.className = rowClass(r);
+        return safeUpdate(r.ro, { nextUpdateAtMs: ms });
+      },
       { showNow: false, stepMin: 15 }
     ));
 
+    // 14) Waiter
     tr.appendChild(tdWaiter(r, tr));
+
+    // 15) Loaner
     tr.appendChild(tdCheckSimple(!!r.hasLoaner, (v) => safeUpdate(r.ro, { hasLoaner: v })));
 
+    // 16) Actions
     tr.appendChild(tdBtn("Archive", async () => {
       const activeRef = doc(db, COL_ACTIVE, r.ro);
       const snap = await getDoc(activeRef);
@@ -923,6 +973,8 @@ function renderRows(rows) {
       selectRow(tr, r.ro);
     }
   });
+
+  applyColumnVisibility();
 }
 
 async function listenActive() {
@@ -982,6 +1034,12 @@ async function listenActive() {
 }
 
 $("btnSettings")?.addEventListener("click", () => openSettingsModal());
+
+$("btnToggleView")?.addEventListener("click", () => {
+  isShortView = !isShortView;
+  applyColumnVisibility();
+});
+
 $("searchActive")?.addEventListener("input", (e) => {
   activeSearchTerm = e.target.value || "";
   renderRows(filterActiveRows(ACTIVE_ROWS));

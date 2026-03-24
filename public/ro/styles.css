@@ -215,3 +215,25 @@ tr.row-selected textarea,
 tr.row-selected select {
   background: #f3f3f3 !important;
 }
+
+/* Freeze first column (RO #) */
+table th:first-child,
+table td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: #fff;
+}
+
+/* Keep header above body cells */
+table thead th:first-child {
+  z-index: 4;
+  background: #0b3d91;
+  color: #fff;
+}
+
+/* Optional: subtle divider so it feels fixed */
+table th:first-child,
+table td:first-child {
+  box-shadow: 2px 0 4px rgba(0,0,0,0.08);
+}
