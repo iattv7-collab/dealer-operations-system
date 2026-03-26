@@ -83,7 +83,7 @@ td {
   border-right: 1px solid var(--grid);
   border-bottom: 1px solid var(--grid);
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 16px;
 
   height: var(--row-h);
   line-height: calc(var(--row-h) - 4px);
@@ -103,7 +103,7 @@ th:last-child {
   width: 100%;
   box-sizing: border-box;
   font-family: inherit;
-  font-size: inherit;
+  font-size: 16px;
   padding: var(--edit-pad-y) 6px;
 
   border: none;
@@ -131,7 +131,7 @@ th:last-child {
 
 .smallbtn {
   font-family: "Times New Roman", Times, serif;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1;
   padding: 1px 6px;
   border-radius: 6px;
@@ -144,7 +144,7 @@ th:last-child {
 }
 
 .smallbtn:hover {
-  background: #f2f2f2;
+  background: #e6e4e4;
 }
 
 .center {

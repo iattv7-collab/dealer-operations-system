@@ -139,7 +139,7 @@ export function pickDateTimeMs(titleText = "Pick date/time", initialMs = null, s
           font-family:"Times New Roman", Times, serif;
           padding:8px 10px;
           border:1px solid #c8d0d9; border-radius:8px;
-          font-size:14px;
+          font-size:16px;
         }
         .rtp-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:14px; }
         .rtp-btn{
@@ -148,7 +148,7 @@ export function pickDateTimeMs(titleText = "Pick date/time", initialMs = null, s
           border:1px solid #888; background:#fff; cursor:pointer;
         }
         .rtp-btn.primary{ background:#0b3d91; color:#fff; border-color:#0b3d91; }
-        .rtp-note{ margin-top:6px; font-size:12px; color:#444; }
+        .rtp-note{ margin-top:6px; font-size:14px; color:#444; }
       `;
       document.head.appendChild(st);
     }
