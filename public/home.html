@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ArrowFlow – Home</title>
+
+    <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+
+    <style>
+        :root {
+            --blue: #0b3d91;
+            --teal: #00a8c6;
+            --bg: #f4f6f8;
+            --card: #ffffff;
+            --grid: #c9c9c9;
+            --text: #1f2937;
+            --muted: #6b7280;
+            --danger: #b42318;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            min-height: 100%;
+            font-family: "Times New Roman", Times, serif;
+            background:
+                linear-gradient(135deg, rgba(11, 61, 145, 0.08), rgba(0, 168, 198, 0.08)),
+                var(--bg);
+            color: var(--text);
+        }
+
+        body {
+            min-height: 100vh;
+        }
+
+        .topbar {
+            background: var(--blue);
+            color: #fff;
+            padding: 18px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            border-bottom: 4px solid var(--teal);
+        }
+
+        .brand {
+            font-size: 30px;
+            font-weight: bold;
+            line-height: 1.1;
+        }
+
+        .userbox {
+            font-size: 15px;
+            opacity: 0.95;
+        }
+
+        .page {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 24px 18px 30px;
+        }
+
+        .hero {
+            background: #fff;
+            border: 1px solid var(--grid);
+            border-radius: 14px;
+            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.08);
+            padding: 22px 22px 18px;
+            margin-bottom: 18px;
+        }
+
+        .hero h1 {
+            margin: 0 0 8px;
+            font-size: 30px;
+            color: var(--blue);
+        }
+
+        .hero p {
+            margin: 0;
+            font-size: 17px;
+            color: #374151;
+        }
+
+        .section-title {
+            font-size: 22px;
+            font-weight: bold;
+            margin: 10px 0 14px;
+            color: var(--blue);
+        }
+
+        .home-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+            gap: 16px;
+        }
+
+        .home-card {
+            background: #fff;
+            border: 1px solid var(--grid);
+            border-radius: 14px;
+            border-left: 4px solid var(--teal);
+            padding: 18px;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+            cursor: pointer;
+            transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
+        }
+
+        .home-card:hover {
+            transform: translateY(-2px);
+            background: #f8fbff;
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.10);
+        }
+
+        .home-card-title {
+            font-size: 22px;
+            font-weight: bold;
+            color: var(--blue);
+            margin-bottom: 6px;
+        }
+
+        .home-card-desc {
+            font-size: 15px;
+            color: #374151;
+            line-height: 1.35;
+        }
+
+        .status-box {
+            background: #fff;
+            border: 1px solid var(--grid);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-top: 18px;
+            font-size: 15px;
+            color: var(--muted);
+        }
+
+        .error-box {
+            background: #fff;
+            border: 1px solid #efc7c2;
+            color: var(--danger);
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-top: 18px;
+            font-size: 15px;
+        }
+
+        .top-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 18px;
+        }
+
+        .btn {
+            font-family: "Times New Roman", Times, serif;
+            border: 1px solid #aaa;
+            background: #fff;
+            padding: 8px 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            text-decoration: none;
+            color: #111827;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background: #f7f7f7;
+        }
+
+        @media (max-width: 640px) {
+            .brand {
+                font-size: 26px;
+            }
+
+            .hero h1 {
+                font-size: 26px;
+            }
+
+            .hero p {
+                font-size: 16px;
+            }
+        }
+
+        #logoutBtn {
+            margin-top: 6px;
+            font-family: "Times New Roman", Times, serif;
+            font-size: 14px;
+            padding: 4px 8px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+        }
+
+        #logoutBtn:hover {
+            background: #f2f2f2;
+        }
+    </style>
+    logoutBtn.addEventListener("click", async () => {
+    await signOut(auth);
+    window.location.href = "/login.html";
+    });
+</head>
+
+<body>
+    <div class="topbar">
+        <div class="brand">ArrowFlow</div>
+        <div style="font-size:14px; opacity:0.9;">System Dashboard</div>
+        <div class="userbox">
+            <div id="userEmail"></div>
+            <div id="userRole" style="font-size:13px; opacity:0.8;"></div>
+            <button id="logoutBtn" class="logout-btn">Logout</button>
+        </div>
+    </div>
+
+    <div class="page">
+        <div class="hero">
+            <h1 id="welcomeTitle">Welcome</h1>
+
+            <div class="top-actions">
+
+            </div>
+        </div>
+
+        <div class="section-title">Available Screens</div>
+
+        <div id="errorBox" class="error-box" style="display:none;"></div>
+        <div id="homeGrid" class="home-grid"></div>
+    </div>
+
+    <script type="module">
+        import { auth, db } from "./js/firebase.js";
+        import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+        import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+        const userEmailEl = document.getElementById("userEmail");
+        const userRoleEl = document.getElementById("userRole");
+        const logoutBtn = document.getElementById("logoutBtn");
+        const homeGrid = document.getElementById("homeGrid");
+        const statusBox = document.getElementById("statusBox");
+        const errorBox = document.getElementById("errorBox");
+
+        logoutBtn.addEventListener("click", async () => {
+            try {
+                await signOut(auth);
+                window.location.href = "/login.html";
+            } catch (err) {
+                console.error("Logout failed:", err);
+                alert("Logout failed. Check console.");
+            }
+        });
+
+        const SCREENS = [
+            {
+                title: "Drop Off",
+                desc: "Create and send vehicles into the wash flow.",
+                href: "/dropoff.html",
+                roles: ["admin", "manager", "advisor", "wash", "staff", "valet", "dropoff"]
+            },
+            {
+                title: "Advisor",
+                desc: "Advisor queue and service follow-through view.",
+                href: "/advisor.html",
+                roles: ["admin", "manager", "advisor"]
+            },
+            {
+                title: "Wash",
+                desc: "Wash team working screen.",
+                href: "/wash.html",
+                roles: ["admin", "manager", "wash"]
+            },
+            {
+                title: "Valet",
+                desc: "Vehicle staging and movement control.",
+                href: "/valet.html",
+                roles: ["admin", "manager", "valet"]
+            },
+            {
+                title: "Booker",
+                desc: "Booking and dispatch work area.",
+                href: "/booker.html",
+                roles: ["admin", "manager", "booker"]
+            },
+            {
+                title: "QC",
+                desc: "Quality control review screen.",
+                href: "/qc.html",
+                roles: ["admin", "manager", "qc"]
+            },
+            {
+                title: "Manager",
+                desc: "Manager overview and queue control.",
+                href: "/manager.html",
+                roles: ["admin", "manager"]
+            },
+            {
+                title: "Admin",
+                desc: "User approvals and system setup.",
+                href: "/admin.html",
+                roles: ["admin"]
+            },
+            {
+                title: "RO Tracker",
+                desc: "Open the RO tracker workspace.",
+                href: "/ro/",
+                roles: ["admin", "manager", "advisor"]
+            }
+        ];
+
+        function showError(message) {
+            errorBox.textContent = message;
+            errorBox.style.display = "block";
+        }
+
+        function makeCard(screen) {
+            const card = document.createElement("div");
+            card.className = "home-card";
+            card.innerHTML = `
+        <div class="home-card-title">${screen.title}</div>
+        <div class="home-card-desc">${screen.desc}</div>
+      `;
+            card.addEventListener("click", () => {
+                window.location.href = screen.href;
+            });
+            return card;
+        }
+
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                window.location.href = "/login.html";
+                return;
+            }
+
+            userEmailEl.textContent = user.email || "";
+
+            try {
+                const snap = await getDoc(doc(db, "users", user.uid));
+
+                if (!snap.exists()) {
+                    showError("No user profile was found for this account.");
+                    statusBox.textContent = "Profile missing.";
+                    return;
+                }
+
+                const profile = snap.data();
+                const role = String(profile.role || "pending").toLowerCase();
+                const active = profile.active !== false;
+
+                if (!active) {
+                    window.location.href = "/index.html";
+                    return;
+                }
+
+                if (role === "pending") {
+                    window.location.href = "/pending.html";
+                    return;
+                }
+
+                const allowedScreens = SCREENS.filter(screen => screen.roles.includes(role));
+
+                homeGrid.innerHTML = "";
+
+                if (!allowedScreens.length) {
+                    showError(`No screens are assigned to role: ${role}`);
+                    statusBox.textContent = "No available screens.";
+                    return;
+                }
+
+                allowedScreens.forEach(screen => {
+                    homeGrid.appendChild(makeCard(screen));
+                });
+
+                const name = user.email ? user.email.split("@")[0] : "User";
+
+                document.getElementById("welcomeTitle").textContent = `Welcome ${name}`;
+                userRoleEl.textContent = role;
+            } catch (err) {
+                console.error(err);
+                showError("There was a problem loading your home screen.");
+                statusBox.textContent = "Load failed.";
+            }
+        });
+    </script>
+</body>
+
+</html>

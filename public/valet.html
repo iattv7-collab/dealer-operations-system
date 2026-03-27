@@ -129,7 +129,11 @@
         import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
         import { listenSystemSettings, setSystemSettings } from "./js/settings.js";
 
-        document.getElementById("nav").innerHTML = renderNav("valet");
+        document.getElementById("nav").innerHTML = `
+  <div style="display:flex; gap:10px; margin-bottom:12px;">
+    <a href="/home.html" style="text-decoration:none; padding:6px 10px; border:1px solid #ccc; border-radius:6px; color:#000;">Home</a>
+  </div>
+` + renderNav("ROLE");
         requireRole(["valet", "manager", "admin"]);
 
         const openBtn = document.getElementById("openWashBtn");

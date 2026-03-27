@@ -1,23 +1,218 @@
 <!doctype html>
-<html>
+<html lang="en">
 
 <head>
   <meta charset="utf-8">
-  <title>Dealer Wash System – Login</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ArrowFlow – Login</title>
+
+  <style>
+    :root {
+      --blue: #0b3d91;
+      --teal: #00a8c6;
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --grid: #c9c9c9;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --danger: #b42318;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      font-family: "Times New Roman", Times, serif;
+      background:
+        linear-gradient(135deg, rgba(11, 61, 145, 0.08), rgba(0, 168, 198, 0.08)),
+        var(--bg);
+      color: var(--text);
+    }
+
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .login-shell {
+      width: 100%;
+      max-width: 440px;
+    }
+
+    .login-card {
+      background: var(--card);
+      border: 1px solid var(--grid);
+      border-radius: 14px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.10);
+      overflow: hidden;
+    }
+
+    .login-top {
+      background: var(--blue);
+      color: #fff;
+      padding: 20px 24px 18px;
+      border-bottom: 4px solid var(--teal);
+    }
+
+    .login-title {
+      margin: 0;
+      font-size: 30px;
+      line-height: 1.1;
+      font-weight: bold;
+    }
+
+    .login-subtitle {
+      margin: 8px 0 0;
+      font-size: 15px;
+      opacity: 0.95;
+    }
+
+    .login-body {
+      padding: 24px;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 16px;
+      font-weight: bold;
+    }
+
+    .field input {
+      width: 100%;
+      height: 44px;
+      padding: 10px 12px;
+      border: 1px solid #b9c1cc;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 17px;
+      background: #fff;
+      outline: none;
+    }
+
+    .field input:focus {
+      border-color: var(--teal);
+      box-shadow: 0 0 0 3px rgba(0, 168, 198, 0.14);
+    }
+
+    .signin-btn {
+      width: 100%;
+      height: 46px;
+      border: 1px solid #0a347b;
+      border-radius: 8px;
+      background: var(--blue);
+      color: #fff;
+      font-family: inherit;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .signin-btn:hover {
+      filter: brightness(1.03);
+    }
+
+    .signin-btn:disabled {
+      opacity: 0.7;
+      cursor: wait;
+    }
+
+    .login-links {
+      margin-top: 16px;
+      text-align: center;
+      font-size: 16px;
+    }
+
+    .login-links a {
+      color: var(--blue);
+      font-weight: bold;
+      text-decoration: none;
+    }
+
+    .login-links a:hover {
+      text-decoration: underline;
+    }
+
+    .error-box {
+      min-height: 22px;
+      margin-top: 14px;
+      color: var(--danger);
+      font-size: 15px;
+      text-align: center;
+    }
+
+    .login-footer {
+      margin-top: 14px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 520px) {
+      body {
+        padding: 14px;
+      }
+
+      .login-title {
+        font-size: 26px;
+      }
+
+      .login-body {
+        padding: 18px;
+      }
+    }
+  </style>
 </head>
 
 <body>
 
-  <h2>Dealer Wash System</h2>
+  <div class="login-shell">
+    <div class="login-card">
+      <div class="login-top">
+        <h1 class="login-title">ArrowFlow</h1>
+        <p class="login-subtitle">Sign in to continue</p>
+      </div>
 
-  <form id="loginForm">
-    <div><input type="email" id="email" placeholder="Email" required /></div>
-    <div><input type="password" id="password" placeholder="Password" required /></div>
-    <button type="submit">Sign in</button>
-  </form>
+      <div class="login-body">
+        <form id="loginForm">
+          <div class="field">
+            <label for="email">Email</label>
+            <input type="email" id="email" placeholder="Enter your email" required autocomplete="username">
+          </div>
 
-  <p><a href="/register.html">Create an account</a></p>
-  <p id="error" style="color:red"></p>
+          <div class="field">
+            <label for="password">Password</label>
+            <input type="password" id="password" placeholder="Enter your password" required
+              autocomplete="current-password">
+          </div>
+
+          <button type="submit" class="signin-btn" id="signinBtn">Sign in</button>
+        </form>
+
+        <div class="login-links">
+          <a href="/register.html">Create an account</a>
+        </div>
+
+        <div id="error" class="error-box"></div>
+      </div>
+    </div>
+
+    <div class="login-footer">
+      Role-based access
+    </div>
+  </div>
 
   <script type="module">
     import { auth, db } from "./js/firebase.js";
@@ -26,26 +221,23 @@
 
     const form = document.getElementById("loginForm");
     const errorEl = document.getElementById("error");
+    const signinBtn = document.getElementById("signinBtn");
 
     const ROLE_TO_PAGE = {
       admin: "/admin.html",
       manager: "/manager.html",
       advisor: "/advisor.html",
       wash: "/wash.html",
-
-      // staff/droffoff routing
       staff: "/dropoff.html",
       dropoff: "/dropoff.html",
-
-      // ✅ missing roles
       valet: "/valet.html",
       booker: "/booker.html",
       qc: "/qc.html"
     };
+
     function getNextPath() {
       const params = new URLSearchParams(window.location.search);
       const next = params.get("next");
-      // basic safety: only allow internal relative paths
       if (!next || typeof next !== "string") return null;
       if (!next.startsWith("/")) return null;
       if (next.startsWith("//")) return null;
@@ -55,6 +247,8 @@
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       errorEl.textContent = "";
+      signinBtn.disabled = true;
+      signinBtn.textContent = "Signing in...";
 
       const email = document.getElementById("email").value.trim();
       const password = document.getElementById("password").value;
@@ -62,7 +256,6 @@
       try {
         const cred = await signInWithEmailAndPassword(auth, email, password);
 
-        // Load role + active
         const snap = await getDoc(doc(db, "users", cred.user.uid));
         const role = snap.exists() ? String(snap.data().role || "pending").toLowerCase() : "pending";
         const active = snap.exists() ? (snap.data().active !== false) : true;
@@ -77,17 +270,13 @@
           return;
         }
 
-        // ✅ If settings (or anything) sent us here with ?next=..., go there first
-        const next = getNextPath();
-        if (next) {
-          window.location.href = next;
-          return;
-        }
-
-        // fallback: normal role routing
-        window.location.href = ROLE_TO_PAGE[role] || "/index.html";
+        window.location.href = ROLE_TO_PAGE[role] || "/home.html";
       } catch (err) {
-        errorEl.textContent = err.message;
+        errorEl.textContent = "Sign in failed. Please check your email and password.";
+        console.error(err);
+      } finally {
+        signinBtn.disabled = false;
+        signinBtn.textContent = "Sign in";
       }
     });
   </script>
