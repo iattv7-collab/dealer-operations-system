@@ -114,9 +114,7 @@
 
   <h2>RO Scanner</h2>
 
-  <div class="row">
-    <input id="file" type="file" accept="image/*" capture="environment" />
-  </div>
+  <input id="file" type="file" accept="image/*" capture="environment" style="display:none;" />
 
   <div class="actions">
     <button id="btnScan" type="button">Scan</button>
@@ -214,8 +212,7 @@
     document.getElementById("nav").innerHTML = renderNav("scanner");
     requireRole(["admin", "manager", "advisor", "booker"]);
 
-    // ✅ PUT YOUR REAL DEPLOYED FUNCTION URL HERE
-    const FUNCTION_URL = "PASTE_YOUR_FUNCTION_URL_HERE";
+    const FUNCTION_URL = "https://us-central1-dealer-wash-system.cloudfunctions.net/scanRO";
 
     const $ = (id) => document.getElementById(id);
 
@@ -275,8 +272,21 @@
       return String(v || "").trim();
     }
 
-    function digitsOnly(v) {
-      return String(v || "").replace(/\D/g, "");
+    function toDateInputValue(v) {
+      const s = String(v || "").trim();
+      if (!s) return "";
+
+      if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+      const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+      if (m) {
+        const mm = m[1].padStart(2, "0");
+        const dd = m[2].padStart(2, "0");
+        const yyyy = m[3];
+        return `${yyyy}-${mm}-${dd}`;
+      }
+
+      return "";
     }
 
     async function existsByField(field, value) {
@@ -388,7 +398,9 @@
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         });
+
         setManualMsg("Manual RO saved.", true);
+        setStatus("Saved successfully.", true);
 
         mCustomer.value = "";
         mPhone.value = "";
@@ -401,7 +413,9 @@
         mAdvisor.value = "";
 
       } catch (e) {
-        setManualMsg(e.message || String(e), false);
+        const msg = e.message || String(e);
+        setManualMsg(msg, false);
+        setStatus(msg, false);
       }
     });
 
@@ -413,8 +427,12 @@
       logErr("Promise rejection: " + (e.reason?.message || String(e.reason)));
     });
 
-    btnScan.addEventListener("click", async () => {
-      setStatus("Clicked Scan…", null);
+    btnScan.addEventListener("click", () => {
+      fileEl.click();
+    });
+
+    fileEl.addEventListener("change", async (e) => {
+      setStatus("Processing image...", null);
       httpOut.textContent = "(waiting)";
       rawOut.textContent = "(waiting)";
       jsonOut.textContent = "(waiting)";
@@ -425,12 +443,13 @@
           throw new Error("FUNCTION_URL is not set. Paste the deployed scanRO URL in scan.html.");
         }
 
-        const f = fileEl.files && fileEl.files[0];
-        if (!f) {
-          throw new Error("No image selected. Take/pick a photo first.");
-        }
+        const f = e.target.files && e.target.files[0];
+        e.target.value = "";
 
-        setStatus("Uploading…", null);
+        if (!f) {
+          setStatus("No image selected.", false);
+          return;
+        }
 
         const fd = new FormData();
         fd.append("file", f, f.name || "ro.jpg");
@@ -463,10 +482,59 @@
           return;
         }
 
-        setStatus(parsed ? "Scan complete (JSON received)" : "Scan complete (non-JSON response)", true);
+        if (!parsed) {
+          throw new Error("Scan succeeded but no JSON returned.");
+        }
+
+        const data = parsed.data || parsed || {};
+
+        const ro = clean(data.roNumber || data.ro || "");
+        const customerName = clean(data.customerName || "");
+        const phone = clean(data.cellPhone || data.phone || "");
+        const tag = clean(data.tagNumber || data.tag || "");
+        const roDate = clean(data.roDate || "");
+        const promiseDate = clean(data.promiseDate || "");
+        const model = clean(data.yearModel || data.model || "");
+        const advisor = clean(data.advisor || "");
+        const concern = clean(data.concern || "");
+
+        if (!ro) {
+          throw new Error("Scan could not find RO #.");
+        }
+
+        const roRef = doc(db, "ros", ro);
+        const existingRo = await getDoc(roRef);
+        if (existingRo.exists()) {
+          throw new Error(`RO # ${ro} already exists.`);
+        }
+
+        if (tag) {
+          const tagExists = await existsByField("tag", tag);
+          if (tagExists) {
+            throw new Error(`Tag # ${tag} already exists.`);
+          }
+        }
+
+        showManual();
+
+        mCustomer.value = customerName;
+        mPhone.value = phone;
+        mRo.value = ro;
+        mTag.value = tag;
+        mRoDate.value = toDateInputValue(roDate);
+        mPromiseDate.value = toDateInputValue(promiseDate);
+        mModel.value = model;
+        mAdvisor.value = advisor || await getCurrentUserName();
+        mConcern.value = concern;
+
+        setManualMsg("");
+        setStatus("Scan complete. Verify and click Save Manual RO.", true);
+        window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
 
       } catch (e) {
-        logErr(e.message || String(e));
+        const msg = e.message || String(e);
+        logErr(msg);
+        setStatus(msg, false);
       }
     });
   </script>

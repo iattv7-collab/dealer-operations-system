@@ -18,6 +18,23 @@ function $(id) {
   return document.getElementById(id);
 }
 
+function toDateInputValue(v) {
+  const s = String(v || "").trim();
+  if (!s) return "";
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (m) {
+    const mm = m[1].padStart(2, "0");
+    const dd = m[2].padStart(2, "0");
+    const yyyy = m[3];
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return "";
+}
+
 async function fileToImageBitmap(file) {
   const blobUrl = URL.createObjectURL(file);
   try {
@@ -163,34 +180,46 @@ function initScanner() {
       }
 
       const now = new Date();
-      const roDate = data.roDate || fmtDateMMDDYYYY(now);
-      const promiseDate = data.promiseDate || fmtDateMMDDYYYY(now);
+      const todayIso = now.toISOString().slice(0, 10);
+      const roDate = data.roDate || todayIso;
+      const promiseDate = data.promiseDate || todayIso;
 
-      await setDoc(ref, {
-        ro: roId,
-        customerName: data.customerName || "",
-        phone: data.cellPhone || "",
-        tag: data.tagNumber || "",
-        roDate,
-        promiseDate,
-        model: data.yearModel || "",
-        concern: data.concern || "",
-        status: "",
-        notes: "",
-        techVideo: false,
-        readyCalled: false,
-        calledAtMs: null,
-        nextUpdateAtMs: null,
-        customerWaiting: false,
-        hasLoaner: false,
-        advisor: data.advisor || "",
-        advisorId: auth.currentUser?.uid || "",
-        advisorName: auth.currentUser?.displayName || data.advisor || "",
-        vin: data.vin || "",
-        ocrConfidenceHint: data.confidenceHint || "",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
+      const manualBox = $("manualBox");
+      const btnShowManual = $("btnShowManual");
+      const btnHideManual = $("btnHideManual");
+
+      const mCustomer = $("mCustomer");
+      const mPhone = $("mPhone");
+      const mRo = $("mRo");
+      const mTag = $("mTag");
+      const mRoDate = $("mRoDate");
+      const mPromiseDate = $("mPromiseDate");
+      const mModel = $("mModel");
+      const mAdvisor = $("mAdvisor");
+      const mConcern = $("mConcern");
+
+      if (!manualBox || !mRo) {
+        throw new Error("Scanner verification form was not found on this page.");
+      }
+
+      manualBox.style.display = "block";
+      if (btnShowManual) btnShowManual.style.display = "none";
+      if (btnHideManual) btnHideManual.style.display = "inline-block";
+
+      mRo.value = roId;
+      mCustomer.value = data.customerName || "";
+      mPhone.value = data.cellPhone || "";
+      mTag.value = data.tagNumber || "";
+      mRoDate.value = toDateInputValue(roDate);
+      mPromiseDate.value = toDateInputValue(promiseDate);
+      mModel.value = data.yearModel || "";
+      mConcern.value = data.concern || "";
+      mAdvisor.value = auth.currentUser?.displayName || data.advisor || "";
+
+      alert("Scan complete. Please verify the data, then click Save Manual RO.");
+
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+      return;
 
     } catch (err) {
       alert(err.message || String(err));

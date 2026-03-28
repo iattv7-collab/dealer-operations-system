@@ -7,7 +7,7 @@ import { capsFor } from "./roles.js";
 import { isRewashTicket } from "./formatters.js";
 import { el } from "./dom.js";
 
-import { updateDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { updateDoc, doc, serverTimestamp, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 export const NO_QC_TOKEN = "__NO_QC__";
 
@@ -218,16 +218,44 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
         return;
       }
 
-      if (btn.classList.contains("btn-fix-ro")) {
+           if (btn.classList.contains("btn-fix-ro")) {
         if (!canFixField(correctionsPerms, "ro")) return;
 
         const next = await promptNonEmpty("Correct RO:", tRow.ro || "");
         if (next === null) return;
 
-        await updateDoc(ref, {
+        if (!/^\d+$/.test(next)) {
+          if (msgEl) { msgEl.className = "err"; msgEl.textContent = "RO must be numeric."; }
+          return;
+        }
+
+        if (next === id) {
+          if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "RO unchanged."; }
+          return;
+        }
+
+        const newRef = doc(db, "ros", next);
+        const newSnap = await getDoc(newRef);
+        if (newSnap.exists()) {
+          if (msgEl) { msgEl.className = "err"; msgEl.textContent = `RO ${next} already exists.`; }
+          return;
+        }
+
+        const oldSnap = await getDoc(ref);
+        if (!oldSnap.exists()) {
+          if (msgEl) { msgEl.className = "err"; msgEl.textContent = "Original RO record not found."; }
+          return;
+        }
+
+        const oldData = oldSnap.data();
+
+        await setDoc(newRef, {
+          ...oldData,
           ro: next,
           ...buildLastEditedPatch(role, user.uid, ["ro"])
         });
+
+        await deleteDoc(ref);
 
         if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "RO corrected."; }
         return;
