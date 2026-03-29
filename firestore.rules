@@ -39,10 +39,10 @@ service cloud.firestore {
       return signedIn() && isActive() && role() == "wash";
     }
 
-    // Keep BOTH to avoid breaking older calls
     function isstaff() {
       return signedIn() && isActive() && role() == "staff";
     }
+
     function isStaff() {
       return isstaff();
     }
@@ -59,7 +59,6 @@ service cloud.firestore {
       return signedIn() && isActive() && role() == "valet";
     }
 
-    // Any approved internal user
     function isEmployee() {
       return isAdmin()
         || isManager()
@@ -78,14 +77,12 @@ service cloud.firestore {
         .hasOnly(allowedKeys);
     }
 
-    // supervisors can control wash day/settings
     function canControlWashDay() {
       return isAdmin()
         || isManager()
         || (signedIn() && isActive() && userDoc().data.permissions.canControlWashDay == true);
     }
 
-    // --- Corrections permission helpers (per-user, admin-managed) ---
     function canEditTickets() {
       return signedIn()
         && isActive()
@@ -112,9 +109,9 @@ service cloud.firestore {
         && userDoc().data.permissions.corrections.advisorNumber == true;
     }
 
-    function auditKeys() {
-      // note: Firestore rules can't return arrays, so we inline audit sets per rule
-      return true;
+    function isArrowDev() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/arrowdevUsers/$(request.auth.uid));
     }
 
     /* ---------------------------------------
@@ -123,7 +120,7 @@ service cloud.firestore {
 
     match /users/{uid} {
 
-      allow list: if isAdmin() || isManager() || isBooker();
+      allow list: if isAdmin() || isManager() || isBooker() || isAdvisor();
 
       allow get: if
         (signedIn() && request.auth.uid == uid)
@@ -136,14 +133,12 @@ service cloud.firestore {
         && request.resource.data.role == "pending"
         && request.resource.data.active == true;
 
-      // user can update own non-role/non-active fields only (strict)
       allow update: if
         signedIn()
         && request.auth.uid == uid
         && request.resource.data.role == resource.data.role
         && request.resource.data.active == resource.data.active;
 
-      // manager can assign roles (NOT admin)
       allow update: if
         isManager()
         && uid != request.auth.uid
@@ -159,7 +154,6 @@ service cloud.firestore {
         ]
         && request.resource.data.role != "admin";
 
-      // admin/manager can set permissions (expanded)
       allow update: if
         (isAdmin() || isManager())
         && uid != request.auth.uid
@@ -195,23 +189,11 @@ service cloud.firestore {
 
     match /washTickets/{ticketId} {
 
-      /* READ */
       allow read: if isEmployee();
-
-      /* CREATE */
       allow create: if isEmployee();
 
-      /* UPDATE */
-
-      // Admin / Manager: full control
       allow update: if isAdmin() || isManager();
 
-      // ---------------------------------------------------------
-      // CORRECTIONS (per-user + per-field)
-      // One-field-at-a-time edits ONLY (matches your button flow)
-      // ---------------------------------------------------------
-
-      // Fix Tag
       allow update: if canFixTag()
         && onlyChanges([
           "tag",
@@ -225,7 +207,6 @@ service cloud.firestore {
           "updatedByEmail"
         ]);
 
-      // Fix RO
       allow update: if canFixRo()
         && onlyChanges([
           "ro",
@@ -239,7 +220,6 @@ service cloud.firestore {
           "updatedByEmail"
         ]);
 
-      // Fix Location
       allow update: if canFixLocation()
         && onlyChanges([
           "location",
@@ -253,7 +233,6 @@ service cloud.firestore {
           "updatedByEmail"
         ]);
 
-      // Fix Advisor #
       allow update: if canFixAdvisorNumber()
         && onlyChanges([
           "advisorNumber",
@@ -267,46 +246,30 @@ service cloud.firestore {
           "updatedByEmail"
         ]);
 
-      // ---------------------------------------------------------
-      // WASH ROLE: washing workflow
-      // ---------------------------------------------------------
       allow update: if isWash()
         && onlyChanges([
-          // status workflow
           "status",
           "updatedAt",
           "updatedByUid",
           "updatedByName",
           "updatedByEmail",
-
-          // wash start fields
           "washingStartedAt",
           "washingStartedAtMs",
           "washingStartedBy",
-
-          // wash complete fields
           "washedAt",
           "washedAtMs",
           "washedBy",
-
-          // counters / rewash state
           "washCount",
           "rewashCount",
           "priorityType",
           "isRewashCycle",
           "rewashRequestedAtMs",
           "rewashRequestedBy",
-
-          // audit
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
           "lastEditedFields",
-
-          // event log
           "events",
-
-          // scheduler fields
           "scheduledAtMs",
           "scheduledEndAtMs",
           "scheduledBay",
@@ -314,30 +277,22 @@ service cloud.firestore {
           "scheduleUpdatedAtMs"
         ]);
 
-      // ---------------------------------------------------------
-      // ADVISOR: Need By + RO edit
-      // ---------------------------------------------------------
       allow update: if isAdvisor()
         && onlyChanges([
           "priorityType",
           "needByAtMs",
           "needBySetBy",
           "ro",
-
           "updatedAt",
           "updatedByUid",
           "updatedByName",
           "updatedByEmail",
-
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
           "lastEditedFields"
         ]);
 
-      // ---------------------------------------------------------
-      // ADVISOR: REWASH REQUEST
-      // ---------------------------------------------------------
       allow update: if isAdvisor()
         && resource.data.status == "washed"
         && request.resource.data.status == "queued"
@@ -347,26 +302,17 @@ service cloud.firestore {
         && request.resource.data.isRewashCycle == true
         && onlyChanges([
           "status",
-
           "rewashRequestedAtMs",
           "rewashRequestedBy",
-
           "priorityType",
           "isRewashCycle",
-
-          // optional: advisor may also set need-by for the rewash
           "needByAtMs",
           "needBySetBy",
-
-          // optional: RO field
           "ro",
-
-          // audit + events
           "updatedAt",
           "updatedByUid",
           "updatedByName",
           "updatedByEmail",
-
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
@@ -374,9 +320,6 @@ service cloud.firestore {
           "events"
         ]);
 
-      // ---------------------------------------------------------
-      // ADVISOR: request/assign QC + CP booked stamps
-      // ---------------------------------------------------------
       allow update: if isAdvisor()
         && onlyChanges([
           "cpBookedAt",
@@ -384,21 +327,16 @@ service cloud.firestore {
           "qcRequestedAt",
           "qcRequestedBy",
           "qcAssignedTo",
-
           "updatedAt",
           "updatedByUid",
           "updatedByName",
           "updatedByEmail",
-
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
           "lastEditedFields"
         ]);
 
-      // ---------------------------------------------------------
-      // BOOKER: CP / WTY booked + QC assign/request
-      // ---------------------------------------------------------
       allow update: if isBooker()
         && onlyChanges([
           "cpBookedAt",
@@ -408,39 +346,31 @@ service cloud.firestore {
           "qcRequestedAt",
           "qcRequestedBy",
           "qcAssignedTo",
-
           "updatedAt",
           "updatedByUid",
           "updatedByName",
           "updatedByEmail",
-
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
           "lastEditedFields"
         ]);
 
-      // ---------------------------------------------------------
-      // QC: mark QC complete ONLY if assigned
-      // ---------------------------------------------------------
       allow update: if isQc()
         && resource.data.qcAssignedTo == request.auth.uid
         && onlyChanges([
           "qcDoneAt",
           "qcDoneBy",
-
           "updatedAt",
           "updatedByUid",
           "updatedByName",
           "updatedByEmail",
-
           "lastEditedAtMs",
           "lastEditedBy",
           "lastEditedRole",
           "lastEditedFields"
         ]);
 
-      /* DELETE */
       allow delete: if isAdmin() || isManager();
     }
 
@@ -451,8 +381,8 @@ service cloud.firestore {
     match /settings/{docId} {
       allow read: if isEmployee();
       allow write: if canControlWashDay();
-    } 
-    
+    }
+
     /* ---------------------------------------
        ACTIVE ROS (temporary test access)
     --------------------------------------- */
@@ -461,58 +391,80 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
-/* ---------------------------------------
-   ROS COLLECTION
---------------------------------------- */
+    /* ---------------------------------------
+       ARROWDEV USERS
+    --------------------------------------- */
 
-match /ros/{roId} {
+    match /arrowdevUsers/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list: if isArrowDev();
+      allow create, update, delete: if false;
+    }
 
-  // approved internal users can read
-  allow read: if isEmployee();
+    /* ---------------------------------------
+       INTEGRATIONS
+    --------------------------------------- */
 
-  // admin, manager, advisor, booker can create new ROs
-  allow create: if isAdmin() || isManager() || isAdvisor() || isBooker();
+    match /integrations/{integrationId} {
+      allow read, write: if isArrowDev();
+    }
 
-  // admin and manager full control
-  allow update, delete: if isAdmin() || isManager();
+    /* ---------------------------------------
+       INTEGRATION LOGS
+    --------------------------------------- */
 
-  // advisor and booker can update normal RO tracker fields
-  allow update: if (isAdvisor() || isBooker())
-    && onlyChanges([
-      "customerName",
-      "phone",
-      "tag",
-      "roDate",
-      "promiseDate",
-      "model",
-      "concern",
-      "status",
-      "notes",
-      "techVideo",
-      "readyCalled",
-      "calledAtMs",
-      "nextUpdateAtMs",
-      "customerWaiting",
-      "hasLoaner",
-      "advisor",
-      "source",
-      "updatedAt"
-    ]);
+    match /integrationLogs/{logId} {
+      allow read, write: if isArrowDev();
+    }
 
-  // per-field corrections
-  allow update: if canFixTag()
-    && onlyChanges([
-      "tag",
-      "updatedAt"
-    ]);
+    /* ---------------------------------------
+       ROS COLLECTION
+    --------------------------------------- */
 
-  allow update: if canFixRo()
-    && onlyChanges([
-      "ro",
-      "updatedAt"
-    ]);
-}
+    match /ros/{roId} {
 
+      allow read: if isEmployee();
+
+      allow create: if isAdmin() || isManager() || isAdvisor() || isBooker();
+
+      allow update, delete: if isAdmin() || isManager();
+
+      allow update: if (isAdvisor() || isBooker())
+        && onlyChanges([
+          "customerName",
+          "phone",
+          "tag",
+          "roDate",
+          "promiseDate",
+          "model",
+          "concern",
+          "status",
+          "notes",
+          "techVideo",
+          "readyCalled",
+          "calledAtMs",
+          "nextUpdateAtMs",
+          "customerWaiting",
+          "hasLoaner",
+          "advisor",
+          "source",
+          "updatedAt"
+        ]);
+
+      allow update: if canFixTag()
+        && onlyChanges([
+          "tag",
+          "updatedAt"
+        ]);
+
+      allow update: if canFixRo()
+        && onlyChanges([
+          "ro",
+          "updatedAt"
+        ]);
+
+      allow delete: if canFixRo();
+    }
 
     /* ---------------------------------------
        DEFAULT DENY

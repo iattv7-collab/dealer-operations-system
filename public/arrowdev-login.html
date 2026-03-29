@@ -1,0 +1,237 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ArrowDev Login</title>
+  <style>
+    body {
+      font-family: "Times New Roman", Times, serif;
+      margin: 0;
+      min-height: 100vh;
+      background: #e9eff6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      box-sizing: border-box;
+    }
+
+    .wrap {
+      width: 100%;
+      max-width: 430px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #d7d7d7;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 4px 18px rgba(0, 0, 0, 0.06);
+    }
+
+    .head {
+      background: #123a86;
+      color: #fff;
+      padding: 22px 20px 18px;
+      border-bottom: 4px solid #11b5d8;
+    }
+
+    .head h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+    }
+
+    .head p {
+      margin: 0;
+      font-size: 16px;
+    }
+
+    .body {
+      padding: 20px;
+    }
+
+    label {
+      display: block;
+      font-weight: bold;
+      margin: 0 0 6px;
+    }
+
+    input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 12px 14px;
+      margin: 0 0 16px;
+      border: 1px solid #bfc8d6;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 16px;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px 14px;
+      border: 0;
+      border-radius: 8px;
+      background: #123a86;
+      color: #fff;
+      font-family: inherit;
+      font-size: 18px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:disabled {
+      opacity: 0.65;
+      cursor: not-allowed;
+    }
+
+    .msg {
+      margin-top: 14px;
+      font-weight: bold;
+      min-height: 22px;
+    }
+
+    .ok { color: #0a7a0a; }
+    .bad { color: #b00020; }
+
+    .foot {
+      text-align: center;
+      margin-top: 14px;
+      color: #555;
+      font-size: 14px;
+    }
+
+    .small-link {
+      display: inline-block;
+      margin-top: 10px;
+      color: #123a86;
+      text-decoration: underline;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+      width: auto;
+      font-size: 15px;
+      font-family: inherit;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="head">
+        <h1>ArrowDev</h1>
+        <p>Developer access only</p>
+      </div>
+
+      <div class="body">
+        <label for="email">Email</label>
+        <input id="email" type="email" autocomplete="username" />
+
+        <label for="password">Password</label>
+        <input id="password" type="password" autocomplete="current-password" />
+
+        <button id="btnLogin" type="button">Sign in</button>
+
+        <div id="msg" class="msg"></div>
+
+        <div class="foot">
+          Platform developer control panel
+          <br />
+          <button id="btnBack" class="small-link" type="button">Back to main login</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { auth, db } from "/js/firebase.js";
+    import {
+      onAuthStateChanged,
+      signInWithEmailAndPassword,
+      signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import {
+      doc,
+      getDoc
+    } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+    const emailEl = document.getElementById("email");
+    const passwordEl = document.getElementById("password");
+    const btnLogin = document.getElementById("btnLogin");
+    const btnBack = document.getElementById("btnBack");
+    const msgEl = document.getElementById("msg");
+
+    function setMsg(msg, good) {
+      msgEl.textContent = msg || "";
+      msgEl.className = "msg " + (good === true ? "ok" : good === false ? "bad" : "");
+    }
+
+    async function isArrowDevUser(uid) {
+      const snap = await getDoc(doc(db, "arrowdevUsers", uid));
+      return snap.exists();
+    }
+
+    onAuthStateChanged(auth, async (user) => {
+      if (!user) return;
+
+      try {
+        const ok = await isArrowDevUser(user.uid);
+        if (ok) {
+          window.location.href = "/arrowdev.html";
+          return;
+        }
+
+        await signOut(auth);
+        setMsg("This account is not authorized for ArrowDev.", false);
+      } catch (e) {
+        setMsg(e.message || String(e), false);
+      }
+    });
+
+    btnLogin.addEventListener("click", async () => {
+      const email = String(emailEl.value || "").trim();
+      const password = String(passwordEl.value || "");
+
+      if (!email || !password) {
+        setMsg("Enter email and password.", false);
+        return;
+      }
+
+      btnLogin.disabled = true;
+      setMsg("Signing in...", null);
+
+      try {
+        const cred = await signInWithEmailAndPassword(auth, email, password);
+        const ok = await isArrowDevUser(cred.user.uid);
+
+        if (!ok) {
+          await signOut(auth);
+          setMsg("This account is not authorized for ArrowDev.", false);
+          btnLogin.disabled = false;
+          return;
+        }
+
+        setMsg("Access granted. Redirecting...", true);
+        window.location.href = "/arrowdev.html";
+      } catch (e) {
+        setMsg(e.message || "Login failed.", false);
+        btnLogin.disabled = false;
+      }
+    });
+
+    btnBack.addEventListener("click", () => {
+      window.location.href = "/login.html";
+    });
+
+    passwordEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") btnLogin.click();
+    });
+
+    emailEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") btnLogin.click();
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,402 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>ArrowDev</title>
+    <style>
+        body {
+            font-family: "Times New Roman", Times, serif;
+            padding: 14px;
+            margin: 0;
+            background: #f7f7f7;
+        }
+
+        h1,
+        h2,
+        h3,
+        p {
+            margin-top: 0;
+        }
+
+        .page {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .hero {
+            background: #0b2a66;
+            color: #fff;
+            padding: 18px 20px;
+            border-radius: 10px;
+            margin: 14px 0 18px;
+        }
+
+        .hero h1 {
+            margin: 0 0 8px;
+            font-size: 32px;
+        }
+
+        .hero p {
+            margin: 0;
+            opacity: 0.95;
+        }
+
+        .topbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .status {
+            padding: 10px 12px;
+            border-radius: 8px;
+            background: #fff;
+            border: 1px solid #ddd;
+            font-weight: bold;
+        }
+
+        .ok {
+            color: #0a7a0a;
+        }
+
+        .bad {
+            color: #b00020;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            padding: 16px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+        }
+
+        .card h3 {
+            margin-bottom: 8px;
+        }
+
+        .muted {
+            color: #666;
+        }
+
+        .kv {
+            margin: 8px 0;
+        }
+
+        .kv strong {
+            display: inline-block;
+            min-width: 120px;
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        button {
+            font-family: inherit;
+            font-size: 16px;
+            padding: 10px 14px;
+            cursor: pointer;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background: #fafafa;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 12px;
+            margin: 0;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: #fff;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        th {
+            background: #f0f0f0;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="page">
+        <div id="nav"></div>
+
+        <div class="hero">
+            <h1>ArrowDev</h1>
+            <p>Platform developer control panel for integrations, sync, and system diagnostics.</p>
+        </div>
+
+        <div class="topbar">
+            <div id="accessStatus" class="status">Checking ArrowDev access...</div>
+            <div id="whoami" class="status">Not loaded</div>
+        </div>
+
+        <div id="mainContent" class="hidden">
+            <div class="grid">
+                <div class="card">
+                    <h3>Access</h3>
+                    <div class="kv"><strong>Mode:</strong> <span>ArrowDev</span></div>
+                    <div class="kv"><strong>Scope:</strong> <span>Platform / integrations</span></div>
+                    <div class="kv"><strong>Auth:</strong> <span id="authEmail">-</span></div>
+                    <div class="kv"><strong>UID:</strong> <span id="authUid">-</span></div>
+                </div>
+
+                <div class="card">
+                    <h3>Integrations</h3>
+                    <div class="kv"><strong>Reynolds:</strong> <span id="int-reynolds">Not configured</span></div>
+                    <div class="kv"><strong>ADP:</strong> <span id="int-adp">Not configured</span></div>
+                    <div class="kv"><strong>CDK:</strong> <span id="int-cdk">Not configured</span></div>
+                    <div class="actions">
+                        <button id="btnRefresh">Refresh</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>Next Phase</h3>
+                    <p class="muted">
+                        This page is the control panel only. Actual connector code will still be built in VS Code /
+                        backend.
+                    </p>
+                    <div class="actions">
+                        <button id="btnSeedReynolds">Seed Reynolds</button>
+                        <button id="btnSeedAdp">Seed ADP</button>
+                        <button id="btnSeedCdk">Seed CDK</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-top:16px;">
+                <h3>Integration Records</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Provider</th>
+                            <th>Enabled</th>
+                            <th>Mode</th>
+                            <th>Last Sync</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody id="integrationsBody">
+                        <tr>
+                            <td colspan="6">Loading...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="card" style="margin-top:16px;">
+                <h3>Debug Output</h3>
+                <pre id="debugOut">(nothing yet)</pre>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { auth, db } from "/js/firebase.js";
+        import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+        import {
+            doc,
+            getDoc,
+            setDoc,
+            collection,
+            getDocs,
+            serverTimestamp
+        } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
+        const $ = (id) => document.getElementById(id);
+
+        const accessStatus = $("accessStatus");
+        const whoami = $("whoami");
+        const mainContent = $("mainContent");
+        const authEmail = $("authEmail");
+        const authUid = $("authUid");
+        const debugOut = $("debugOut");
+        const integrationsBody = $("integrationsBody");
+
+        function setStatus(msg, good) {
+            accessStatus.textContent = msg;
+            accessStatus.className = "status " + (good === true ? "ok" : good === false ? "bad" : "");
+        }
+
+        function log(msg) {
+            debugOut.textContent =
+                (debugOut.textContent === "(nothing yet)" ? "" : debugOut.textContent + "\n") + msg;
+        }
+
+        function fmtTs(v) {
+            try {
+                if (!v) return "";
+                if (typeof v.toDate === "function") return v.toDate().toLocaleString();
+                return String(v);
+            } catch {
+                return String(v || "");
+            }
+        }
+
+        async function isArrowDevUser(uid) {
+            const snap = await getDoc(doc(db, "arrowdevUsers", uid));
+            return snap.exists();
+        }
+
+        async function loadIntegrations() {
+            integrationsBody.innerHTML = `<tr><td colspan="6">Loading...</td></tr>`;
+
+            const snap = await getDocs(collection(db, "integrations"));
+            const rows = [];
+
+            snap.forEach((d) => {
+                rows.push({ id: d.id, ...d.data() });
+            });
+
+            if (!rows.length) {
+                integrationsBody.innerHTML = `<tr><td colspan="6">No integration records yet.</td></tr>`;
+                $("int-reynolds").textContent = "Not configured";
+                $("int-adp").textContent = "Not configured";
+                $("int-cdk").textContent = "Not configured";
+                return;
+            }
+
+            rows.sort((a, b) => String(a.id).localeCompare(String(b.id)));
+
+            integrationsBody.innerHTML = rows.map((r) => `
+        <tr>
+          <td>${r.id || ""}</td>
+          <td>${r.provider || ""}</td>
+          <td>${r.enabled === true ? "Yes" : "No"}</td>
+          <td>${r.mode || ""}</td>
+          <td>${fmtTs(r.lastSyncAt)}</td>
+          <td>${r.notes || ""}</td>
+        </tr>
+      `).join("");
+
+            const byId = Object.fromEntries(rows.map(r => [r.id, r]));
+            $("int-reynolds").textContent = byId.reynolds ? (byId.reynolds.enabled ? "Configured / enabled" : "Configured / disabled") : "Not configured";
+            $("int-adp").textContent = byId.adp ? (byId.adp.enabled ? "Configured / enabled" : "Configured / disabled") : "Not configured";
+            $("int-cdk").textContent = byId.cdk ? (byId.cdk.enabled ? "Configured / enabled" : "Configured / disabled") : "Not configured";
+        }
+
+        async function seedIntegration(id, provider) {
+            await setDoc(doc(db, "integrations", id), {
+                provider,
+                enabled: false,
+                mode: "placeholder",
+                lastSyncAt: null,
+                notes: "",
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            log(`Seeded integration: ${id}`);
+            await loadIntegrations();
+        }
+
+        $("btnRefresh").addEventListener("click", async () => {
+            try {
+                await loadIntegrations();
+                log("Refreshed integrations.");
+            } catch (e) {
+                log("Refresh error: " + (e.message || String(e)));
+            }
+        });
+
+        $("btnSeedReynolds").addEventListener("click", async () => {
+            try {
+                await seedIntegration("reynolds", "reynolds");
+            } catch (e) {
+                log("Seed Reynolds error: " + (e.message || String(e)));
+            }
+        });
+
+        $("btnSeedAdp").addEventListener("click", async () => {
+            try {
+                await seedIntegration("adp", "adp");
+            } catch (e) {
+                log("Seed ADP error: " + (e.message || String(e)));
+            }
+        });
+
+        $("btnSeedCdk").addEventListener("click", async () => {
+            try {
+                await seedIntegration("cdk", "cdk");
+            } catch (e) {
+                log("Seed CDK error: " + (e.message || String(e)));
+            }
+        });
+
+        onAuthStateChanged(auth, async (user) => {
+            if (!user) {
+                setStatus("Not signed in.", false);
+                window.location.href = "/arrowdev-login.html";
+                return;
+            }
+
+            try {
+                document.getElementById("nav").innerHTML = `
+  <div style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+    <div style="font-weight:bold;">ArrowDev Control Panel</div>
+    <button id="btnSignOut">Sign out</button>
+  </div>
+`;
+
+                document.getElementById("btnSignOut").addEventListener("click", async () => {
+                    await signOut(auth);
+                    window.location.href = "/arrowdev-login.html";
+                });
+
+                const ok = await isArrowDevUser(user.uid);
+
+                whoami.textContent = user.email || user.uid;
+                authEmail.textContent = user.email || "";
+                authUid.textContent = user.uid || "";
+
+                if (!ok) {
+                    setStatus("Access denied. ArrowDev only.", false);
+                    mainContent.classList.add("hidden");
+                    return;
+                }
+
+                setStatus("ArrowDev access granted.", true);
+                mainContent.classList.remove("hidden");
+
+                await loadIntegrations();
+                log("ArrowDev session loaded.");
+            } catch (e) {
+                setStatus("Error loading ArrowDev.", false);
+                log(e.message || String(e));
+            }
+        });
+    </script>
+</body>
+
+</html>
