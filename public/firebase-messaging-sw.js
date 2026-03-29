@@ -12,12 +12,12 @@ try {
 try {
   if (self.firebase && self.firebase.initializeApp) {
     self.firebase.initializeApp({
-      apiKey: "AIzaSyBTkwUjsZ-B-z4MICwtzaWS9PCIj85Xx3I",
-      authDomain: "ro-tracker-app.firebaseapp.com",
-      projectId: "ro-tracker-app",
-      storageBucket: "ro-tracker-app.firebasestorage.app",
-      messagingSenderId: "767089230784",
-      appId: "1:767089230784:web:c32ff2ba3fa2340f863e25"
+      apiKey: "AIzaSyCUMHLuNf3AafN-BmzTMGX1HJhwk2RA-RE",
+      authDomain: "dealer-wash-system.firebaseapp.com",
+      projectId: "dealer-wash-system",
+      storageBucket: "dealer-wash-system.appspot.app",
+      messagingSenderId: "308118093197",
+      appId: "1:308118093197:web:882c2687f394cb3cfd11c4"
     });
   }
 } catch (e) {

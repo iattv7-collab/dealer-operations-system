@@ -384,6 +384,14 @@ service cloud.firestore {
     }
 
     /* ---------------------------------------
+      PRIVATE SETTINGS
+    --------------------------------------- */
+
+    match /privateSettings/{docId} {
+      allow read, write: if signedIn();
+    }
+
+    /* ---------------------------------------
        ACTIVE ROS (temporary test access)
     --------------------------------------- */
 

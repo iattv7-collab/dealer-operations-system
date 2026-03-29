@@ -1,14 +1,41 @@
 <!doctype html>
 <html>
-<head><meta charset="utf-8"><title>Pending Approval</title></head>
+<head>
+  <meta charset="utf-8">
+  <title>Pending Approval</title>
+</head>
 <body>
   <h2>Waiting for approval</h2>
   <p>Your account is pending. Please contact your manager/admin.</p>
   <p id="status"></p>
+
+  <button id="btnBackLogin" type="button">Back to Login</button>
+  <button id="btnBackArrowDev" type="button">ArrowDev Login</button>
+  <button id="btnSignOut" type="button">Sign out</button>
+
   <script type="module">
-    import { requireRole } from "./js/guard.js";
-    // No roles required — this page is safe for pending users
-    requireRole([]);
+    import { auth } from "./js/firebase.js";
+    import { signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    const statusEl = document.getElementById("status");
+
+    document.getElementById("btnBackLogin").addEventListener("click", () => {
+      window.location.href = "/login.html";
+    });
+
+    document.getElementById("btnBackArrowDev").addEventListener("click", () => {
+      window.location.href = "/arrowdev-login.html";
+    });
+
+    document.getElementById("btnSignOut").addEventListener("click", async () => {
+      try {
+        statusEl.textContent = "Signing out...";
+        await signOut(auth);
+        window.location.href = "/login.html";
+      } catch (e) {
+        statusEl.textContent = e.message || "Sign out failed.";
+      }
+    });
   </script>
 </body>
 </html>

@@ -1053,9 +1053,8 @@ $("searchActive")?.addEventListener("keydown", (e) => {
   }
 });
 
-// TEMP: disable these until activeROs backbone is confirmed
-// const notifApi = initNotifications();
-// notifApi.bindStatusToButton("btnNotify");
+const notifApi = initNotifications();
+notifApi.bindStatusToButton("btnNotify");
 
 // initFollowUp();
 // initArchiveModal();
