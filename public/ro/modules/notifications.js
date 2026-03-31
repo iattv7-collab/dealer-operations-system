@@ -37,19 +37,28 @@ async function ensureServiceWorker() {
 async function loadRemoteToken() {
   try {
     const snap = await getDoc(PRIVATE_DOC);
-    if (!snap.exists()) return "";
+    if (!snap.exists()) return [];
+
     const d = snap.data() || {};
-    return String(d.fcmToken || "");
+    return Array.isArray(d.fcmTokens) ? d.fcmTokens : [];
   } catch {
-    return "";
+    return [];
   }
 }
 
 async function saveRemoteToken(token) {
+  if (!token) return;
+
+  const snap = await getDoc(PRIVATE_DOC);
+  const existing = snap.exists() ? (snap.data().fcmTokens || []) : [];
+
+  // prevent duplicates
+  const updated = Array.from(new Set([...existing, token]));
+
   await setDoc(
     PRIVATE_DOC,
     {
-      fcmToken: token || "",
+      fcmTokens: updated,
       fcmTokenUpdatedAtMs: Date.now(),
     },
     { merge: true }
@@ -87,6 +96,16 @@ async function disableThisDevice() {
   const messaging = getMessaging();
   const reg = await ensureServiceWorker();
 
+  let currentToken = "";
+  try {
+    currentToken = await getToken(messaging, {
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: reg,
+    });
+  } catch {
+    // ignore
+  }
+
   try {
     await deleteToken(messaging);
   } catch {
@@ -94,7 +113,16 @@ async function disableThisDevice() {
   }
 
   await unsubscribePushManager(reg);
-  await saveRemoteToken("");
+
+  try {
+    const snap = await getDoc(PRIVATE_DOC);
+    const existing = snap.exists() ? (snap.data().fcmTokens || []) : [];
+    const updated = existing.filter(t => t !== currentToken);
+
+    await setDoc(PRIVATE_DOC, { fcmTokens: updated }, { merge: true });
+  } catch {
+    // ignore
+  }
 }
 
 async function enableThisDevice() {
@@ -175,16 +203,16 @@ function applyButtonStyle(btn, state) {
 }
 
 export function initNotifications() {
-  let cachedToken = "";
+  let cachedTokens = [];
 
   async function refreshTokenCache() {
-    cachedToken = await loadRemoteToken();
-    return cachedToken;
+    cachedTokens = await loadRemoteToken();
+    return cachedTokens;
   }
 
   async function refreshButton(btn) {
     const perm = ("Notification" in window) ? Notification.permission : "unsupported";
-    const hasToken = !!(cachedToken && cachedToken.length > 10);
+    const hasToken = Array.isArray(cachedTokens) && cachedTokens.length > 0;
     const state = computeState(perm, hasToken);
 
     btn.textContent = labelForState(state);

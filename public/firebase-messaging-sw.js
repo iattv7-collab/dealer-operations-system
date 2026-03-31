@@ -38,7 +38,7 @@ function normalizePayload(raw) {
   const data = payload.data || {};
   const n = payload.notification || {};
 
-  const title = n.title || data.title || "RO Tracker";
+  const title = n.title || data.title || "ArrowFlow";
   const body = n.body || data.body || "Follow-up due";
 
   // Prefer payload.notification.icon if present, else default

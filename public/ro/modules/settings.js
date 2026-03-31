@@ -1,8 +1,7 @@
 // public/modules/settings.js
 
 import { db } from "../firebase.js";
-import { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-
+import { doc, getDoc, setDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 /* ===========================
    SETTINGS (Local + Remote)
 =========================== */
@@ -47,6 +46,27 @@ export async function loadRemotePrivateSettings() {
     return snap.exists() ? (snap.data() || {}) : {};
   } catch {
     return {};
+  }
+}
+
+export async function registerPushToken(token) {
+  if (!token) return;
+
+  try {
+    await updateDoc(PRIVATE_DOC, {
+      fcmTokens: arrayUnion(token),
+      fcmTokenUpdatedAtMs: Date.now()
+    });
+  } catch (e) {
+    // if doc doesn't exist yet → create it
+    await setDoc(
+      PRIVATE_DOC,
+      {
+        fcmTokens: [token],
+        fcmTokenUpdatedAtMs: Date.now()
+      },
+      { merge: true }
+    );
   }
 }
 
@@ -244,7 +264,7 @@ export async function openSettingsModal() {
     rowQuick.className = "rt-row";
 
     const labQuick = document.createElement("label");
-    labQuick.textContent = "Push after archive:";
+    labQuick.textContent = "Auto Push After Archive (minutes):";
     labQuick.style.width = "140px";
 
     const quickToggle = document.createElement("input");
@@ -280,7 +300,7 @@ export async function openSettingsModal() {
     const btnTest = document.createElement("button");
     btnTest.className = "rt-btn";
     btnTest.type = "button";
-    btnTest.textContent = "TEST (2 min)";
+    btnTest.textContent = "TEST Notification (5 sec)";
 
     let notifStatus = buildNotifStatusEl();
 
@@ -292,11 +312,11 @@ export async function openSettingsModal() {
         notifStatus = nextStatus;
 
         await setDoc(PRIVATE_DOC, {
-          followUpTestAtMs: Date.now() + 2 * 60 * 1000,
+          followUpTestAtMs: Date.now() + 5 * 1000,
           followUpTestRequestedAtMs: Date.now()
         }, { merge: true });
 
-        alert("TEST scheduled ✅ You should get a push in ~2 minutes.");
+        alert("TEST scheduled ✅ You should get a push in a few seconds.");
       } catch (e) {
         alert(String(e?.message || e));
       }

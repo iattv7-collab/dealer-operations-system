@@ -475,6 +475,18 @@ service cloud.firestore {
     }
 
     /* ---------------------------------------
+       FOLLOWUP / ARCHIVE COLLECTION
+    --------------------------------------- */
+
+    match /followup/{roId} {
+      allow read: if isEmployee();
+
+      allow create: if isAdmin() || isManager() || isAdvisor() || isBooker();
+
+      allow update, delete: if isAdmin() || isManager() || isAdvisor() || isBooker();
+    }
+
+    /* ---------------------------------------
        DEFAULT DENY
     --------------------------------------- */
 

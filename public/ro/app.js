@@ -1056,8 +1056,8 @@ $("searchActive")?.addEventListener("keydown", (e) => {
 const notifApi = initNotifications();
 notifApi.bindStatusToButton("btnNotify");
 
-// initFollowUp();
-// initArchiveModal();
+initFollowUp();
+initArchiveModal();;
 
 $("tbody")?.addEventListener("click", (e) => {
   const tr = e.target.closest("tr");

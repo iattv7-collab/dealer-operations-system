@@ -243,6 +243,88 @@ exports.deleteUser = functions.https.onCall(async (data, context) => {
   return { ok: true };
 });
 
+// ===================================================== 
+// RO TRACKER PUSH NOTIFICATIONS
+// =====================================================
+
+exports.followUpScheduler = functions.pubsub
+  .schedule("every 1 minutes")
+  .timeZone("America/New_York")
+  .onRun(async () => {
+
+    const db = admin.firestore();
+    const now = Date.now();
+
+    const settingsRef = db.doc("privateSettings/me");
+    const settingsSnap = await settingsRef.get();
+    if (!settingsSnap.exists) return null;
+
+    const settings = settingsSnap.data() || {};
+
+    const tokens = Array.isArray(settings.fcmTokens) && settings.fcmTokens.length
+      ? settings.fcmTokens
+      : [];
+
+    functions.logger.info("Push tokens:", tokens);
+
+    if (!tokens.length) return null;
+
+    // =========================
+    // TEST PUSH (instant)
+    // =========================
+    if (settings.followUpTestAtMs) {
+      await admin.messaging().sendEachForMulticast({
+        tokens,
+        notification: {
+          title: "Test Notification",
+          body: "Push is working ✅"
+        }
+      });
+
+      await settingsRef.set({
+        followUpTestAtMs: null,
+        followUpTestRequestedAtMs: admin.firestore.FieldValue.delete(),
+        followUpLastTestSentAtMs: now
+      }, { merge: true });
+
+      return null;
+    }
+
+    // =========================
+    // ARCHIVE / FOLLOW-UP PUSH
+    // =========================
+    const snap = await db.collection("followup").get();
+
+    for (const docSnap of snap.docs) {
+      const d = docSnap.data() || {};
+
+      if (
+        d.pushAfterArchiveAtMs &&
+        d.pushAfterArchiveAtMs <= now &&
+        !d.pushAfterArchiveSentAtMs
+      ) {
+        await admin.messaging().sendEachForMulticast({
+          tokens,
+          notification: {
+            title: "Follow Up Reminder",
+            body: `RO ${d.ro || docSnap.id} needs follow-up`
+          },
+          data: {
+            url: `/ro/index.html?fu=1&ro=${encodeURIComponent(String(d.ro || docSnap.id))}&slot=archive`
+          }
+        });
+
+        await docSnap.ref.set({
+          pushAfterArchiveSentAtMs: now
+        }, { merge: true });
+
+        break;
+      }
+    }
+
+    return null;
+  });
+
 // =====================================================
 // SCHEDULER
 // =====================================================
@@ -627,7 +709,7 @@ exports.onSettingsSystemWrite = functions.firestore
     return null;
   });
 
-  // =====================================================
+// =====================================================
 // SCAN RO
 // =====================================================
 
@@ -683,7 +765,7 @@ function readUpload(req) {
       busboy.on("file", (_fieldname, file) => {
         fileFound = true;
         file.on("data", chunk => chunks.push(chunk));
-        file.on("end", () => {});
+        file.on("end", () => { });
       });
 
       busboy.on("finish", () => {
@@ -1177,7 +1259,7 @@ function readUpload(req) {
       busboy.on("file", (_fieldname, file) => {
         fileFound = true;
         file.on("data", chunk => chunks.push(chunk));
-        file.on("end", () => {});
+        file.on("end", () => { });
       });
 
       busboy.on("finish", () => {

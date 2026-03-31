@@ -1,6 +1,6 @@
 {
-  "name": "RO Tracker",
-  "short_name": "RO Tracker",
+  "name": "ArrowFlow",
+  "short_name": "ArrowFlow",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0b3d91",
