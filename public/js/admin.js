@@ -1,4 +1,6 @@
-// public/js/admin.js
+// File: public/js/admin.js
+// Purpose: Admin user management page, including per-user column visibility/edit modal
+
 import { auth, db } from "./firebase.js";
 import {
   collection,
@@ -38,8 +40,8 @@ let modalState = {
   uid: null,
   email: "",
   viewKey: "advisor",
-  // latest from Firestore snapshot (if any)
   viewColumnsMap: {},
+  editColumnsMap: {},
 };
 
 function setModalMsg(text, ok = true) {
@@ -61,11 +63,16 @@ function closeModal() {
   setModalMsg("");
 }
 
+function enableModalSave() {
+  if (!modalSaveBtn) return;
+  modalSaveBtn.disabled = false;
+  modalSaveBtn.style.opacity = "1";
+}
+
 if (modalCloseBtn) modalCloseBtn.onclick = closeModal;
 if (modalCancelBtn) modalCancelBtn.onclick = closeModal;
 if (modalBackdrop) {
   modalBackdrop.addEventListener("click", (e) => {
-    // click outside the modal closes
     if (e.target === modalBackdrop) closeModal();
   });
 }
@@ -98,12 +105,13 @@ function arrayEq(a, b) {
   const A = Array.isArray(a) ? a : [];
   const B = Array.isArray(b) ? b : [];
   if (A.length !== B.length) return false;
-  for (let i = 0; i < A.length; i++) if (A[i] !== B[i]) return false;
+  for (let i = 0; i < A.length; i++) {
+    if (A[i] !== B[i]) return false;
+  }
   return true;
 }
 
 function normalizeKeys(keys) {
-  // Keep only known catalog keys; keep order as provided
   const known = new Set(allColumnKeys());
   return (keys || []).map(String).filter((k) => known.has(k));
 }
@@ -117,27 +125,77 @@ function getEffectiveKeysForView(viewKey) {
 function renderColumnsGrid(viewKey) {
   if (!modalGrid) return;
 
-  const effective = new Set(getEffectiveKeysForView(viewKey));
-  const keys = allColumnKeys().slice().sort(); // simple stable list
+  const effectiveView = new Set(getEffectiveKeysForView(viewKey));
+  const editMap = modalState.editColumnsMap || {};
+  const effectiveEdit = new Set(normalizeKeys(editMap[viewKey] || []));
+  const keys = allColumnKeys().slice().sort();
 
   modalGrid.innerHTML = "";
+
   keys.forEach((k) => {
-    const label = document.createElement("label");
-    label.style.display = "flex";
-    label.style.gap = "8px";
-    label.style.alignItems = "center";
+    const row = document.createElement("div");
+    row.style.display = "grid";
+    row.style.gridTemplateColumns = "1fr auto auto";
+    row.style.alignItems = "center";
+    row.style.gap = "10px";
 
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = effective.has(k);
-    cb.dataset.colKey = k;
+    const left = document.createElement("span");
+    left.textContent = k;
 
-    const txt = document.createElement("span");
-    txt.textContent = k;
+    const viewWrap = document.createElement("label");
+    viewWrap.style.display = "flex";
+    viewWrap.style.alignItems = "center";
+    viewWrap.style.gap = "6px";
 
-    label.appendChild(cb);
-    label.appendChild(txt);
-    modalGrid.appendChild(label);
+    const viewCb = document.createElement("input");
+    viewCb.type = "checkbox";
+    viewCb.checked = effectiveView.has(k);
+    viewCb.dataset.colKey = k;
+    viewCb.dataset.type = "view";
+
+    const viewTxt = document.createElement("span");
+    viewTxt.textContent = "View";
+
+    viewWrap.appendChild(viewCb);
+    viewWrap.appendChild(viewTxt);
+
+    const editWrap = document.createElement("label");
+    editWrap.style.display = "flex";
+    editWrap.style.alignItems = "center";
+    editWrap.style.gap = "6px";
+
+    const editCb = document.createElement("input");
+    editCb.type = "checkbox";
+    editCb.checked = effectiveEdit.has(k);
+    editCb.dataset.colKey = k;
+    editCb.dataset.type = "edit";
+    editCb.disabled = !viewCb.checked;
+
+    const editTxt = document.createElement("span");
+    editTxt.textContent = "Edit";
+
+    editWrap.appendChild(editCb);
+    editWrap.appendChild(editTxt);
+
+    viewCb.addEventListener("change", () => {
+      if (!viewCb.checked) {
+        editCb.checked = false;
+        editCb.disabled = true;
+      } else {
+        editCb.disabled = false;
+      }
+      enableModalSave(); // ✅ THIS WAS MISSING
+    });
+
+    editCb.addEventListener("change", () => {
+      enableModalSave();
+    });
+
+    row.appendChild(left);
+    row.appendChild(viewWrap);
+    row.appendChild(editWrap);
+
+    modalGrid.appendChild(row);
   });
 }
 
@@ -155,11 +213,12 @@ function fillViewSelect(selectedViewKey) {
   modalViewSelect.value = selectedViewKey;
 }
 
-function openColumnsModalForUser({ uid, email, initialViewKey, viewColumnsMap }) {
+function openColumnsModalForUser({ uid, email, initialViewKey, viewColumnsMap, editColumnsMap }) {
   modalState.uid = uid;
   modalState.email = email || uid;
   modalState.viewKey = initialViewKey || "advisor";
   modalState.viewColumnsMap = viewColumnsMap || {};
+  modalState.editColumnsMap = editColumnsMap || {};
 
   if (modalUserLine) {
     modalUserLine.textContent = `User: ${modalState.email}  |  UID: ${uid}`;
@@ -169,6 +228,10 @@ function openColumnsModalForUser({ uid, email, initialViewKey, viewColumnsMap })
   renderColumnsGrid(modalState.viewKey);
 
   setModalMsg("Edit columns, then Save.", true);
+  if (modalSaveBtn) {
+    modalSaveBtn.disabled = true;
+    modalSaveBtn.style.opacity = "0.5";
+  }
   openModal();
 }
 
@@ -177,8 +240,11 @@ if (modalViewSelect) {
     modalState.viewKey = String(modalViewSelect.value || "advisor");
     renderColumnsGrid(modalState.viewKey);
     setModalMsg("");
+    enableModalSave();
   });
 }
+
+
 
 if (modalSaveBtn) {
   modalSaveBtn.onclick = async () => {
@@ -187,41 +253,72 @@ if (modalSaveBtn) {
       const viewKey = modalState.viewKey;
       if (!uid || !viewKey) return;
 
-      // collect checked keys in the same order as shown
       const checked = [];
       modalGrid
-        .querySelectorAll('input[type="checkbox"][data-col-key]')
+        .querySelectorAll('input[data-type="view"][data-col-key]')
         .forEach((cb) => {
           if (cb.checked) checked.push(cb.dataset.colKey);
         });
 
+      const editChecked = [];
+      modalGrid
+        .querySelectorAll('input[data-type="edit"][data-col-key]')
+        .forEach((cb) => {
+          if (cb.checked) editChecked.push(cb.dataset.colKey);
+        });
+
       const selectedKeys = normalizeKeys(checked);
+      const editKeys = normalizeKeys(editChecked);
       const defaultKeys = normalizeKeys(DEFAULT_COLUMNS_BY_VIEW[viewKey] || []);
 
-      // If user selection matches defaults, store nothing (keeps DB clean)
       const patch = {};
+
       if (arrayEq(selectedKeys, defaultKeys)) {
         patch[`viewColumns.${viewKey}`] = deleteField();
       } else {
         patch[`viewColumns.${viewKey}`] = selectedKeys;
       }
+
+      if (editKeys.length === 0) {
+        patch[`editColumns.${viewKey}`] = deleteField();
+      } else {
+        patch[`editColumns.${viewKey}`] = editKeys;
+      }
+
       patch.updatedAt = serverTimestamp();
 
       await updateDoc(doc(db, "users", uid), patch);
 
-      // update local modal state too
+      modalState.editColumnsMap = {
+        ...(modalState.editColumnsMap || {}),
+        [viewKey]: editKeys.length ? editKeys : undefined,
+      };
+
       modalState.viewColumnsMap = {
         ...(modalState.viewColumnsMap || {}),
         [viewKey]: arrayEq(selectedKeys, defaultKeys) ? undefined : selectedKeys,
       };
 
-      setModalMsg("Saved.", true);
+      setModalMsg("✅ Saved successfully", true);
+      if (modalSaveBtn) {
+        modalSaveBtn.disabled = true;
+        modalSaveBtn.style.opacity = "0.5";
+      }
+
+      await loadAllUsers();
+
+      setTimeout(() => {
+        closeModal();
+      }, 800);
+
     } catch (e) {
       console.error(e);
       setModalMsg(e?.message || "Save failed.", false);
     }
   };
 }
+
+
 
 // --------------------
 // Pending approvals
@@ -246,7 +343,6 @@ async function loadPending() {
     dealerInput.type = "number";
     dealerInput.value = Number(data.dealerId || 1);
 
-    // Default role when approving
     const sel = roleSelect("advisor");
 
     const approveBtn = document.createElement("button");
@@ -259,7 +355,6 @@ async function loadPending() {
         dealerId: Number(dealerInput.value) || 1,
         role: sel.value,
         active: true,
-        // default permissions for new users (safe)
         permissions: {
           canControlWashDay: false,
           canEditTickets: false,
@@ -276,12 +371,12 @@ async function loadPending() {
       await loadPending();
       await loadAllUsers();
 
-      // ✅ optional: open column modal right after approval
       openColumnsModalForUser({
         uid: docSnap.id,
         email: data.email || docSnap.id,
         initialViewKey: sel.value,
         viewColumnsMap: data.viewColumns || {},
+        editColumnsMap: data.editColumns || {},
       });
     };
 
@@ -296,8 +391,8 @@ async function loadPending() {
     tr.children[1].appendChild(nameInput);
     tr.children[2].appendChild(empInput);
     tr.children[3].appendChild(dealerInput);
-    tr.children[3].appendChild(sel);
-    tr.children[4].appendChild(approveBtn);
+    tr.children[4].appendChild(sel);
+    tr.children[5].appendChild(approveBtn);
 
     pendingTable.appendChild(tr);
   });
@@ -309,11 +404,9 @@ async function loadPending() {
 async function loadAllUsers() {
   usersTable.innerHTML = "";
 
-  // Try to fix the header labels if your admin.html has a header row
   const headerRow = usersTable.closest("table")?.querySelector("thead tr");
   if (headerRow) {
     const ths = headerRow.querySelectorAll("th");
-    // If your table already has ths, we only rename the known ones safely
     ths.forEach((th) => {
       const t = String(th.textContent || "").trim().toLowerCase();
       if (t === "active") th.textContent = "Active (Account)";
@@ -348,12 +441,10 @@ async function loadAllUsers() {
     activeCheckbox.type = "checkbox";
     activeCheckbox.checked = data.active !== false;
 
-    // Supervisor permission checkbox
     const supervisorCheckbox = document.createElement("input");
     supervisorCheckbox.type = "checkbox";
     supervisorCheckbox.checked = data.permissions?.canControlWashDay === true;
 
-    // ✅ Corrections permissions
     const canEditTicketsCb = document.createElement("input");
     canEditTicketsCb.type = "checkbox";
     canEditTicketsCb.checked = data.permissions?.canEditTickets === true;
@@ -374,7 +465,6 @@ async function loadAllUsers() {
     fixAdvCb.type = "checkbox";
     fixAdvCb.checked = data.permissions?.corrections?.advisorNumber === true;
 
-    // Disable per-field boxes when master is off (UI clarity)
     function syncCorrectionsDisabled() {
       const on = canEditTicketsCb.checked;
       fixTagCb.disabled = !on;
@@ -385,13 +475,11 @@ async function loadAllUsers() {
     canEditTicketsCb.addEventListener("change", syncCorrectionsDisabled);
     syncCorrectionsDisabled();
 
-    // ✅ REAL Columns button (opens modal)
     const columnsBtn = document.createElement("button");
     columnsBtn.textContent = "Columns";
     columnsBtn.style.marginRight = "8px";
 
     columnsBtn.onclick = async () => {
-      // use the user's CURRENT role as the default view selection
       const initialViewKey = String(sel.value || data.role || "advisor").toLowerCase();
 
       openColumnsModalForUser({
@@ -399,11 +487,31 @@ async function loadAllUsers() {
         email: data.email || uid,
         initialViewKey,
         viewColumnsMap: data.viewColumns || {},
+        editColumnsMap: data.editColumns || {},
       });
     };
 
     const saveBtn = document.createElement("button");
     saveBtn.textContent = "Save";
+    saveBtn.disabled = true;
+    saveBtn.style.opacity = "0.5";
+
+    function enableSave() {
+      saveBtn.disabled = false;
+      saveBtn.style.opacity = "1";
+    }
+
+    nameInput.addEventListener("input", enableSave);
+    empInput.addEventListener("input", enableSave);
+    dealerInput.addEventListener("input", enableSave);
+    sel.addEventListener("change", enableSave);
+    activeCheckbox.addEventListener("change", enableSave);
+    supervisorCheckbox.addEventListener("change", enableSave);
+    canEditTicketsCb.addEventListener("change", enableSave);
+    fixTagCb.addEventListener("change", enableSave);
+    fixRoCb.addEventListener("change", enableSave);
+    fixLocCb.addEventListener("change", enableSave);
+    fixAdvCb.addEventListener("change", enableSave);
 
     const deleteBtn = document.createElement("button");
     deleteBtn.textContent = "Delete";
@@ -425,18 +533,27 @@ async function loadAllUsers() {
         updatedAt: serverTimestamp(),
       };
 
-      // wash-day supervisor
       patch["permissions.canControlWashDay"] = supervisorCheckbox.checked;
-
-      // corrections permissions
       patch["permissions.canEditTickets"] = canEditTicketsCb.checked;
-
       patch["permissions.corrections.tag"] = canEditTicketsCb.checked ? fixTagCb.checked : false;
       patch["permissions.corrections.ro"] = canEditTicketsCb.checked ? fixRoCb.checked : false;
       patch["permissions.corrections.location"] = canEditTicketsCb.checked ? fixLocCb.checked : false;
       patch["permissions.corrections.advisorNumber"] = canEditTicketsCb.checked ? fixAdvCb.checked : false;
 
       await updateDoc(doc(db, "users", uid), patch);
+
+      const oldText = saveBtn.textContent;
+      saveBtn.textContent = "Saved ✓";
+      saveBtn.style.color = "#0a7a2a";
+      saveBtn.style.fontWeight = "bold";
+      saveBtn.disabled = true;
+      saveBtn.style.opacity = "0.5";
+
+      setTimeout(() => {
+        saveBtn.textContent = oldText;
+        saveBtn.style.color = "";
+        saveBtn.style.fontWeight = "";
+      }, 1200);
     };
 
     deleteBtn.onclick = async () => {
@@ -450,9 +567,6 @@ async function loadAllUsers() {
       await loadAllUsers();
     };
 
-    // NOTE:
-    // We now output 13 columns total to match:
-    // Email | Name | Employee ID | Dealer ID | Role | Active | Supervisor | Can Edit Tickets | Fix Tag | Fix RO | Fix Loc | Fix Adv | Actions
     tr.innerHTML = `
       <td>${data.email || ""}</td>
       <td></td>
@@ -475,13 +589,11 @@ async function loadAllUsers() {
     tr.children[4].appendChild(sel);
     tr.children[5].appendChild(activeCheckbox);
     tr.children[6].appendChild(supervisorCheckbox);
-
     tr.children[7].appendChild(canEditTicketsCb);
     tr.children[8].appendChild(fixTagCb);
     tr.children[9].appendChild(fixRoCb);
     tr.children[10].appendChild(fixLocCb);
     tr.children[11].appendChild(fixAdvCb);
-
     tr.children[12].appendChild(columnsBtn);
     tr.children[12].appendChild(saveBtn);
     tr.children[12].appendChild(deleteBtn);
