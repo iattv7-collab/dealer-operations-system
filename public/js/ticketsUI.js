@@ -67,7 +67,7 @@ export function mountTicketsUI({
   let lastRows = [];
   let rerender = null;
   let searchText = "";
-  let searchResultInfo = null; // { status, tabId }
+  let searchResultInfo = null; // { type, results: [{ status, tabId, tabLabel, ro, tag }] }
 
   // ✅ Listen system settings (so CLOSED means baysOpen = 0 everywhere)
   const unsubSys = listenSystemSettings((s) => {
@@ -92,6 +92,38 @@ export function mountTicketsUI({
       if (typeof rerender === "function") rerender();
     }
   );
+
+  function switchToTab(tabId) {
+    if (!tabId) return;
+    currentTab = tabId;
+
+    tabsEl?.querySelectorAll("button").forEach((x) =>
+      x.classList.remove("active")
+    );
+
+    tabsEl
+      ?.querySelector(`button[data-tab="${currentTab}"]`)
+      ?.classList.add("active");
+
+    rerender();
+  }
+
+  function buildFoundLink(label, onClick) {
+    const span = document.createElement("span");
+    span.textContent = label;
+    span.style.cursor = "pointer";
+    span.style.color = "#0a7a2a";
+    span.style.fontWeight = "bold";
+    span.style.textDecoration = "underline";
+    span.style.display = "inline-block";
+    span.style.padding = "2px 8px";
+    span.style.border = "1px solid #0a7a2a";
+    span.style.borderRadius = "999px";
+    span.style.margin = "2px 6px 2px 0";
+    span.style.background = "#eefaf0";
+    span.onclick = onClick;
+    return span;
+  }
 
   rerender = () => {
     const tabDef = TAB_DEFS.find((t) => t.id === currentTab) || TAB_DEFS[0];
@@ -129,24 +161,42 @@ export function mountTicketsUI({
         if (inCurrentTab.length) {
           rows = inCurrentTab;
         } else {
-          const found = allMatches[0];
-          const foundStatus = String(found.status || "").toLowerCase();
+          const mapped = allMatches.map((found) => {
+            const foundStatus = String(found.status || "").toLowerCase();
 
-          const foundTab = TAB_DEFS.find((tab) =>
-            Array.isArray(tab.statuses) &&
-            tab.statuses.map((s) => String(s).toLowerCase()).includes(foundStatus)
-          );
+            const foundTab = TAB_DEFS.find((tab) =>
+              Array.isArray(tab.statuses) &&
+              tab.statuses.map((s) => String(s).toLowerCase()).includes(foundStatus)
+            );
+
+            return {
+              status: foundStatus,
+              tabId: foundTab?.id || null,
+              tabLabel: foundTab?.label || foundStatus,
+              ro: found.ro || "",
+              tag: found.tag || "",
+            };
+          });
+
+          // de-dupe by tabId + status + ro + tag
+          const seen = new Set();
+          const results = mapped.filter((x) => {
+            const key = `${x.tabId}|${x.status}|${x.ro}|${x.tag}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
 
           searchResultInfo = {
-            status: foundStatus,
-            tabId: foundTab?.id || null,
+            type: "foundElsewhere",
+            results,
           };
 
           rows = [];
         }
       } else {
         rows = [];
-        searchResultInfo = { status: "notfound", tabId: null };
+        searchResultInfo = { type: "notfound", results: [] };
       }
     } else {
       searchResultInfo = null;
@@ -157,11 +207,9 @@ export function mountTicketsUI({
     if (currentTab === "active") {
       rows = rows.slice().sort(sortActiveQueue);
 
-      // ✅ PASS SETTINGS INTO scheduler
       const minutesPerCar = Number(sys?.washDurationMin) || 15;
       const bufferMin = Number(sys?.bufferMin) || 0;
 
-      // effectiveBays already accounts for autoStart + isOpen
       const baysOpen = Number.isFinite(sys?.effectiveBays)
         ? Math.floor(sys.effectiveBays)
         : 0;
@@ -180,29 +228,45 @@ export function mountTicketsUI({
       td.setAttribute("colspan", String(cols.length));
 
       if (searchText && searchResultInfo) {
-        if (searchResultInfo.status === "notfound") {
+        if (searchResultInfo.type === "notfound") {
           td.textContent = "No ticket found.";
-        } else if (searchResultInfo.tabId) {
-          td.innerHTML = `Found in: <span style="cursor:pointer; color:#0a7a2a; font-weight:bold;">${searchResultInfo.tabId}</span>`;
+        } else if (searchResultInfo.type === "foundElsewhere") {
+          const wrap = document.createElement("div");
 
-          const clickable = td.querySelector("span");
-          if (clickable) {
-            clickable.onclick = () => {
-              currentTab = searchResultInfo.tabId;
+          const intro = document.createElement("div");
+          intro.style.marginBottom = "8px";
+          intro.textContent =
+            searchResultInfo.results.length === 1
+              ? "Found in:"
+              : "Found in multiple places:";
+          wrap.appendChild(intro);
 
-              tabsEl?.querySelectorAll("button").forEach((x) =>
-                x.classList.remove("active")
+          searchResultInfo.results.forEach((r) => {
+            const label =
+              r.ro && r.tag
+                ? `${r.tabLabel} (RO ${r.ro} / Tag ${r.tag})`
+                : r.ro
+                ? `${r.tabLabel} (RO ${r.ro})`
+                : r.tag
+                ? `${r.tabLabel} (Tag ${r.tag})`
+                : r.tabLabel;
+
+            if (r.tabId) {
+              wrap.appendChild(
+                buildFoundLink(label, () => switchToTab(r.tabId))
               );
+            } else {
+              const plain = document.createElement("span");
+              plain.textContent = label;
+              plain.style.display = "inline-block";
+              plain.style.margin = "2px 6px 2px 0";
+              wrap.appendChild(plain);
+            }
+          });
 
-              tabsEl
-                ?.querySelector(`button[data-tab="${currentTab}"]`)
-                ?.classList.add("active");
-
-              rerender();
-            };
-          }
+          td.appendChild(wrap);
         } else {
-          td.textContent = `Found in: ${searchResultInfo.status}`;
+          td.textContent = "No tickets.";
         }
       } else {
         td.textContent = "No tickets.";
@@ -227,7 +291,6 @@ export function mountTicketsUI({
               t,
               role,
               tab: currentTab,
-              // ✅ IMPORTANT: pass full perms through, not just canEditTickets
               correctionsPerms: {
                 ...(correctionsPerms || {}),
                 canEditTickets: canEditTickets,
@@ -255,7 +318,6 @@ export function mountTicketsUI({
       tab: currentTab,
       lastRows,
       msgEl,
-      // ✅ keep passing perms for click handling
       correctionsPerms: {
         ...(correctionsPerms || {}),
         canEditTickets: canEditTickets,
@@ -265,7 +327,6 @@ export function mountTicketsUI({
 
   rerender?.();
 
-  // return combined unsubscribe (optional)
   return () => {
     try {
       unsub?.();
