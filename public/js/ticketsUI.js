@@ -67,6 +67,7 @@ export function mountTicketsUI({
   let lastRows = [];
   let rerender = null;
   let searchText = "";
+  let searchResultInfo = null; // { status, tabId }
 
   // ✅ Listen system settings (so CLOSED means baysOpen = 0 everywhere)
   const unsubSys = listenSystemSettings((s) => {
@@ -112,11 +113,43 @@ export function mountTicketsUI({
     );
 
     if (searchText) {
-      rows = rows.filter((t) => {
+      const allMatches = (lastRows || []).filter((t) => {
         const tag = String(t.tag || "").toLowerCase();
         const ro = String(t.ro || "").toLowerCase();
         return tag.includes(searchText) || ro.includes(searchText);
       });
+
+      searchResultInfo = null;
+
+      if (allMatches.length) {
+        const inCurrentTab = allMatches.filter((t) =>
+          set.has(String(t.status || "").toLowerCase())
+        );
+
+        if (inCurrentTab.length) {
+          rows = inCurrentTab;
+        } else {
+          const found = allMatches[0];
+          const foundStatus = String(found.status || "").toLowerCase();
+
+          const foundTab = TAB_DEFS.find((tab) =>
+            Array.isArray(tab.statuses) &&
+            tab.statuses.map((s) => String(s).toLowerCase()).includes(foundStatus)
+          );
+
+          searchResultInfo = {
+            status: foundStatus,
+            tabId: foundTab?.id || null,
+          };
+
+          rows = [];
+        }
+      } else {
+        rows = [];
+        searchResultInfo = { status: "notfound", tabId: null };
+      }
+    } else {
+      searchResultInfo = null;
     }
 
     let etaMap = null;
@@ -143,8 +176,38 @@ export function mountTicketsUI({
 
     if (!rows.length) {
       const tr = el("tr");
-      const td = el("td", { className: "muted", text: "No tickets." });
+      const td = el("td", { className: "muted" });
       td.setAttribute("colspan", String(cols.length));
+
+      if (searchText && searchResultInfo) {
+        if (searchResultInfo.status === "notfound") {
+          td.textContent = "No ticket found.";
+        } else if (searchResultInfo.tabId) {
+          td.innerHTML = `Found in: <span style="cursor:pointer; color:#0a7a2a; font-weight:bold;">${searchResultInfo.tabId}</span>`;
+
+          const clickable = td.querySelector("span");
+          if (clickable) {
+            clickable.onclick = () => {
+              currentTab = searchResultInfo.tabId;
+
+              tabsEl?.querySelectorAll("button").forEach((x) =>
+                x.classList.remove("active")
+              );
+
+              tabsEl
+                ?.querySelector(`button[data-tab="${currentTab}"]`)
+                ?.classList.add("active");
+
+              rerender();
+            };
+          }
+        } else {
+          td.textContent = `Found in: ${searchResultInfo.status}`;
+        }
+      } else {
+        td.textContent = "No tickets.";
+      }
+
       tr.appendChild(td);
       tbody.appendChild(tr);
       return;
