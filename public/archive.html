@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Master Archive</title>
+  <style>
+    body {
+      font-family: "Times New Roman", Times, serif;
+      margin: 16px;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+    }
+
+    .muted {
+      color: #666;
+    }
+
+    .card {
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 12px;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .toolbar input,
+    .toolbar select {
+      font-family: inherit;
+      font-size: 15px;
+      padding: 8px 10px;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      min-width: 1200px;
+    }
+
+    th,
+    td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      vertical-align: top;
+      white-space: nowrap;
+    }
+
+    th {
+      text-align: left;
+      background: #f7f7f7;
+    }
+
+    .smallbtn {
+      font-family: inherit;
+      font-size: 14px;
+      padding: 6px 10px;
+      border: 1px solid #aaa;
+      border-radius: 6px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        margin: 10px;
+      }
+
+      .toolbar {
+        display: block;
+      }
+
+      .toolbar > * {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        margin-bottom: 8px;
+      }
+
+      table {
+        min-width: 1100px;
+      }
+
+      th,
+      td {
+        font-size: 12px;
+        padding: 7px 6px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="nav"></div>
+
+  <h1>Master Archive</h1>
+  <div id="status" class="muted">Loading...</div>
+
+  <div class="card">
+    <div class="toolbar">
+      <input id="searchInput" type="text" placeholder="Search RO, tag, customer, phone..." />
+      <select id="sourceFilter">
+        <option value="">All Sources</option>
+        <option value="advisor">Advisor</option>
+        <option value="wash">Wash</option>
+        <option value="booker">Booker</option>
+        <option value="admin">Admin</option>
+        <option value="manager">Manager</option>
+      </select>
+    </div>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>RO</th>
+            <th>Tag</th>
+            <th>Customer</th>
+            <th>Phone</th>
+            <th>Model</th>
+            <th>Concern</th>
+            <th>Location</th>
+            <th>Archived From</th>
+            <th>Archived By Role</th>
+            <th>Archived At</th>
+            <th>Need By</th>
+            <th>Washed</th>
+            <th>Created</th>
+          </tr>
+        </thead>
+        <tbody id="archiveBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script type="module" src="/js/archiveList.js"></script>
+</body>
+
+</html>

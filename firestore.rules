@@ -487,6 +487,18 @@ service cloud.firestore {
     }
 
     /* ---------------------------------------
+        MASTER ARCHIVE
+    --------------------------------------- */
+
+    match /tickets_archive/{roId} {
+      allow read: if isEmployee();
+
+      allow create: if isAdmin() || isManager() || isAdvisor() || isBooker();
+
+      allow update, delete: if isAdmin() || isManager();
+    }
+
+    /* ---------------------------------------
        DEFAULT DENY
     --------------------------------------- */
 

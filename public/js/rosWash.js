@@ -267,7 +267,7 @@ export function listenTickets(options, callback) {
 
   const unsubAuth = onAuthStateChanged(auth, async (user) => {
     if (unsubSnap) {
-      try { unsubSnap(); } catch {}
+      try { unsubSnap(); } catch { }
       unsubSnap = null;
     }
 
@@ -295,12 +295,23 @@ export function listenTickets(options, callback) {
           return {
             id: d.id,
             ...data,
-            status: String(data.washStatus || "").toLowerCase(),
+
+            // Main source of truth comes from RO list / shared ros record
+            status: String(
+              data.washStatus ||
+              data.status ||
+              ""
+            ).toLowerCase(),
+
             waiter: !!data.customerWaiting,
-            notes: data.washNotes || "",
-            createdAtMs: typeof data.washQueuedAtMs === "number"
-              ? data.washQueuedAtMs
-              : (typeof data.createdAtMs === "number" ? data.createdAtMs : 0)
+
+            // Prefer main notes first, then wash notes if main notes empty
+            notes: data.notes || data.washNotes || "",
+
+            // Prefer main createdAtMs, fallback to wash queue timestamp
+            createdAtMs: typeof data.createdAtMs === "number"
+              ? data.createdAtMs
+              : (typeof data.washQueuedAtMs === "number" ? data.washQueuedAtMs : 0)
           };
         });
 
@@ -320,8 +331,8 @@ export function listenTickets(options, callback) {
   });
 
   return () => {
-    try { unsubSnap?.(); } catch {}
-    try { unsubAuth?.(); } catch {}
+    try { unsubSnap?.(); } catch { }
+    try { unsubAuth?.(); } catch { }
   };
 }
 

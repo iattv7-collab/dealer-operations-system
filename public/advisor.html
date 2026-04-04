@@ -1,14 +1,17 @@
-<!DOCTYPE html>Advisor Role
+<!DOCTYPE html>
 <html lang="en">
 
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Advisor</title>
+
   <style>
     body {
       font-family: "Times New Roman", Times, serif;
       margin: 16px;
+      max-width: 100%;
+      overflow-x: hidden;
     }
 
     button {
@@ -33,6 +36,7 @@
       border: 1px solid #ddd;
       padding: 8px;
       vertical-align: top;
+      white-space: nowrap;
     }
 
     th {
@@ -68,11 +72,209 @@
 
     .table-scroll {
       overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
     }
 
     .table-scroll table {
       width: max-content;
       min-width: 100%;
+    }
+
+    #nav>div {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    #nav a {
+      text-decoration: none;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      color: #000;
+      display: inline-block;
+    }
+
+    #searchInput {
+      padding: 8px 10px !important;
+      width: 240px !important;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+
+    .search-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 768px) {
+
+  body {
+    margin: 10px;
+  }
+
+  #nav>div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  #nav a {
+    flex: 0 1 auto;
+    text-align: center;
+    padding: 8px 10px;
+    font-size: 14px;
+    box-sizing: border-box;
+  }
+
+  .card {
+    padding: 12px 10px;
+    border-radius: 10px;
+  }
+
+  .advisor-grid {
+    display: block;
+  }
+
+  .left-col,
+  .right-col {
+    width: 100%;
+  }
+
+  h2 {
+    font-size: 18px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+  }
+
+  .muted {
+    font-size: 13px;
+  }
+
+  #searchInput {
+    width: 100% !important;
+    font-size: 16px;
+    min-height: 42px;
+  }
+
+  .search-row {
+    display: block;
+  }
+
+  .search-row label {
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-left: -2px;
+    margin-right: -2px;
+    padding-bottom: 4px;
+  }
+
+  .table-scroll::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .table-scroll::-webkit-scrollbar-thumb {
+    background: #bbb;
+    border-radius: 999px;
+  }
+
+  .table-scroll table {
+    min-width: 1400px;
+  }
+
+  th,
+  td {
+    font-size: 12px;
+    padding: 7px 6px;
+    white-space: nowrap;
+  }
+
+  button {
+    min-height: 40px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+}
+
+    .card {
+      padding: 12px 10px;
+      border-radius: 10px;
+    }
+
+    .advisor-grid {
+      display: block;
+    }
+
+    .left-col,
+    .right-col {
+      width: 100%;
+    }
+
+    h2 {
+      font-size: 18px;
+      margin-top: 10px;
+      margin-bottom: 10px;
+    }
+
+    .muted {
+      font-size: 13px;
+    }
+
+    #searchInput {
+      width: 100% !important;
+      font-size: 16px;
+      min-height: 42px;
+    }
+
+    .search-row {
+      display: block;
+    }
+
+    .search-row label {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    .table-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin-left: -2px;
+      margin-right: -2px;
+      padding-bottom: 4px;
+    }
+
+    .table-scroll::-webkit-scrollbar {
+      height: 8px;
+    }
+
+    .table-scroll::-webkit-scrollbar-thumb {
+      background: #bbb;
+      border-radius: 999px;
+    }
+
+    .table-scroll table {
+      min-width: 1400px;
+    }
+
+    th,
+    td {
+      font-size: 12px;
+      padding: 7px 6px;
+      white-space: nowrap;
+    }
+
+    button {
+      min-height: 40px;
+      padding-left: 10px;
+      padding-right: 10px;
     }
   </style>
 </head>
@@ -81,7 +283,6 @@
 
   <div id="nav"></div>
 
-  <!-- ✅ GLOBAL WASH OPEN / CLOSE PANEL -->
   <div id="manualControls" class="card" style="margin-bottom:16px; display:none;">
     <b>Wash Day Control:</b>
     <button id="openWashBtn">OPEN</button>
@@ -89,9 +290,9 @@
     <span id="settingsMsg" class="muted" style="margin-left:10px;"></span>
   </div>
 
-  <p id="status"></p>
+  <p id="status" class="muted" style="margin:6px 0 10px 0;"></p>
 
-  <h2>Advisor</h2>
+  <h2 style="margin-bottom:6px;">Advisor</h2>
 
   <div class="card">
 
@@ -99,15 +300,11 @@
 
       <div class="left-col">
 
-        <div class="muted">
-          Universal tabs + columns. Advisor actions are enabled by role.
-        </div>
-
         <div id="msg" class="muted" style="margin-top:10px;"></div>
 
-        <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+        <div class="search-row" style="margin-top:10px;">
           <label for="searchInput" class="muted">Search:</label>
-          <input id="searchInput" type="text" placeholder="Tag or RO..." style="padding:6px 8px; width:240px;" />
+          <input id="searchInput" type="text" placeholder="Tag or RO..." />
         </div>
 
         <div class="table-scroll" style="margin-top:10px;">
@@ -127,106 +324,71 @@
     import { mountTicketsUI } from "./js/ticketsUI.js";
     import { auth } from "./js/firebase.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-
-    /* ✅ ADD THESE */
     import { listenSystemSettings, setSystemSettings } from "./js/settings.js";
 
+    const navHTML = renderNav("ROLE");
 
-    document.getElementById("nav").innerHTML = `
-  <div style="display:flex; gap:10px; margin-bottom:12px;">
-    <a href="/home.html" style="text-decoration:none; padding:6px 10px; border:1px solid #ccc; border-radius:6px; color:#000;">Home</a>
-  </div>
-` + renderNav("ROLE");
+    // remove Advisor tab ONLY on this page
+    const cleanedNav = navHTML.replace(/>Advisor</g, '>Dashboard<');
+
+    document.getElementById("nav").innerHTML = cleanedNav;
 
     requireRole(["advisor", "manager", "admin", "booker", "qc"]);
-
 
     const openBtn = document.getElementById("openWashBtn");
     const closeBtn = document.getElementById("closeWashBtn");
     const msg = document.getElementById("settingsMsg");
     const panel = document.getElementById("manualControls");
 
-
     function setMsg(text, ok = true) {
-
       msg.textContent = text;
-
       msg.style.color = ok ? "green" : "crimson";
-
     }
-
 
     onAuthStateChanged(auth, async (user) => {
 
       if (!user) return;
 
-
       const profile = await getUserProfile(user);
-
       const role = String(profile?.role || "").toLowerCase();
-
-
-      /* ✅ SAME PERMISSION LOGIC */
+      const statusEl = document.getElementById("status");
+      statusEl.textContent = `${user.email} · ${role}`;
 
       const canControl =
-
         role === "admin" ||
-
         role === "manager" ||
-
         profile?.permissions?.canControlWashDay === true;
 
-
       panel.style.display = canControl ? "block" : "none";
-
 
       if (canControl) {
 
         openBtn.onclick = async () => {
-
           await setSystemSettings(user, { isOpen: true });
-
           setMsg("Wash OPEN");
-
         };
 
-
         closeBtn.onclick = async () => {
-
           await setSystemSettings(user, { isOpen: false });
-
           setMsg("Wash CLOSED");
-
         };
 
       }
 
-
       const realRole = role;
 
-
       mountTicketsUI({
-
         role: realRole,
-
         tableEl: document.getElementById("ticketsTable"),
-
         msgEl: document.getElementById("msg"),
-
         showTabs: true,
-
         searchEl: document.getElementById("searchInput"),
-
         viewColumnKeys: profile?.viewColumns?.[realRole] || [],
-
-        // ✅ NEW: permission-gated Corrections tab
         canEditTickets: profile?.permissions?.canEditTickets === true,
         correctionsPerms: profile?.permissions?.corrections || {}
-
       });
 
     });
-
 
   </script>
 

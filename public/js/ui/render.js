@@ -1,3 +1,6 @@
+// File: public/js/ui/render.js
+// Purpose: Renders one ticket row, including placeholder cells for split action columns
+
 // public/js/ui/render.js
 
 import { auth, db } from "../firebase.js";
