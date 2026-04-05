@@ -859,18 +859,24 @@ function cleanupName(name) {
   return cleanupSpacing(String(name || "").replace(/[^A-Za-z0-9.' -]/g, "").trim());
 }
 
-function looksLikePersonName(line) {
-  const text = cleanupSpacing(String(line || ""));
-  if (!text) return false;
-  if (text.length < 4 || text.length > 40) return false;
-  if (/\d{2,}/.test(text)) return false;
-  if (looksLikeAddress(text)) return false;
+function looksLikePersonName(s) {
+  if (!s) return false;
 
-  const words = text.split(" ").filter(Boolean);
-  if (words.length < 2 || words.length > 5) return false;
+  const clean = cleanupSpacing(s);
 
-  const goodWords = words.filter(w => /^[A-Za-z][A-Za-z.'-]*$/.test(w));
-  return goodWords.length >= 2;
+  // reject obvious junk
+  if (/^\d+$/.test(clean)) return false;
+  if (/^(YES|NO|Y|N)$/i.test(clean)) return false;
+  if (/^(RN|CMCMCU)$/i.test(clean)) return false;
+
+  // must have at least 2 words (first + last name)
+  const parts = clean.split(/\s+/).filter(Boolean);
+  if (parts.length < 2) return false;
+
+  // each word should be letters (basic check)
+  if (!parts.every(p => /^[A-Za-z.'-]+$/.test(p))) return false;
+
+  return true;
 }
 
 function looksLikeVIN(line) {
@@ -927,15 +933,30 @@ function extractRoNumber(lines, text) {
   return any.length ? any[0] : "";
 }
 
+
+
 function extractTagNumber(lines) {
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+    const line = cleanupSpacing(lines[i]);
 
     let m = line.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
     if (m) return m[1];
 
     if (/TAG\s*(?:NO|#)/i.test(line)) {
-      const joined = [line, lines[i + 1] || "", lines[i + 2] || ""].join(" ");
+      const next1 = cleanupSpacing(lines[i + 1] || "");
+      const next2 = cleanupSpacing(lines[i + 2] || "");
+      const next3 = cleanupSpacing(lines[i + 3] || "");
+
+      m = next1.match(/\b(\d{2,10})\b/);
+      if (m) return m[1];
+
+      m = next2.match(/\b(\d{2,10})\b/);
+      if (m) return m[1];
+
+      m = next3.match(/\b(\d{2,10})\b/);
+      if (m) return m[1];
+
+      const joined = [line, next1, next2, next3].join(" ");
       m = joined.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
       if (m) return m[1];
     }
@@ -943,13 +964,33 @@ function extractTagNumber(lines) {
 
   const vinBlock = getVinBlock(lines);
   if (vinBlock.length) {
-    const joined = vinBlock.join(" ");
-    const m = joined.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
-    if (m) return m[1];
+    for (let i = 0; i < vinBlock.length; i++) {
+      const line = cleanupSpacing(vinBlock[i]);
+
+      let m = line.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
+      if (m) return m[1];
+
+      if (/TAG\s*(?:NO|#)/i.test(line)) {
+        const next1 = cleanupSpacing(vinBlock[i + 1] || "");
+        const next2 = cleanupSpacing(vinBlock[i + 2] || "");
+
+        m = next1.match(/\b(\d{2,10})\b/);
+        if (m) return m[1];
+
+        m = next2.match(/\b(\d{2,10})\b/);
+        if (m) return m[1];
+
+        const joined = [line, next1, next2].join(" ");
+        m = joined.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
+        if (m) return m[1];
+      }
+    }
   }
 
   return "";
 }
+
+
 
 function extractCustomerName(lines) {
   const vinIdx = lines.findIndex(line => looksLikeVIN(line));
@@ -1179,17 +1220,34 @@ function extractPromiseDate(lines) {
   return "";
 }
 
-function extractAdvisor(lines) {
+function extractAdvisorNo(lines) {
   for (let i = 0; i < lines.length; i++) {
     const line = cleanupSpacing(lines[i]);
 
-    let m = line.match(/ADVISOR\s*[:.]?\s*([A-Za-z][A-Za-z.' -]{2,40})/i);
-    if (m) return cleanupSpacing(m[1]);
+    if (/^ADVISOR NO\.?$/i.test(line)) {
+      const nextLines = [
+        cleanupSpacing(lines[i + 1] || ""),
+        cleanupSpacing(lines[i + 2] || ""),
+        cleanupSpacing(lines[i + 3] || ""),
+        cleanupSpacing(lines[i + 4] || ""),
+        cleanupSpacing(lines[i + 5] || "")
+      ];
 
-    if (/^ADVISOR$/i.test(line) || /^ADVISOR NO\.?$/i.test(line)) {
-      const next = cleanupSpacing(lines[i + 1] || "");
-      if (looksLikePersonName(next)) return cleanupName(next);
+      for (const l of nextLines) {
+        // skip junk
+        if (!l) continue;
+        if (l.includes(",")) continue; // skip mileage like 36,736
+        if (!/^\d+$/.test(l)) continue;
+
+        // good candidate
+        if (l.length >= 2 && l.length <= 5) {
+          return l;
+        }
+      }
     }
+
+    let m = line.match(/^ADVISOR NO\.?\s*[:.]?\s*(\d{2,10})$/i);
+    if (m) return m[1];
   }
 
   return "";
@@ -1201,6 +1259,29 @@ function extractVin(lines) {
     if (m) return m[1];
   }
   return "";
+}
+
+async function decodeVin(vin) {
+  try {
+    const clean = String(vin || "").trim();
+    if (clean.length !== 17) return null;
+
+    const url = `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended/${clean}?format=json`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+
+    const json = await res.json();
+    const row = json?.Results?.[0];
+    if (!row) return null;
+
+    return {
+      year: row.ModelYear || "",
+      make: row.Make || "",
+      model: row.Model || ""
+    };
+  } catch {
+    return null;
+  }
 }
 
 // =====================================================
@@ -1231,6 +1312,15 @@ exports.scanRO = functions.https.onRequest((req, res) => {
         "";
 
       const parsed = parseReynoldsRO(rawText);
+      const vin = parsed?.data?.vin || "";
+
+      if (vin) {
+        const decoded = await decodeVin(vin);
+        if (decoded) {
+          parsed.data.yearModel =
+            `${decoded.year} ${decoded.make} ${decoded.model}`.trim();
+        }
+      }
 
       return res.json({
         ok: true,
@@ -1296,7 +1386,8 @@ function parseReynoldsRO(rawText) {
     concern: extractConcern(lines),
     roDate: extractRoDate(lines),
     promiseDate: extractPromiseDateOnly(lines),
-    advisor: extractAdvisor(lines),
+    advisorNo: "",
+    advisor: "",
     vin: extractVin(lines),
     confidenceHint: ""
   };
@@ -1667,22 +1758,6 @@ function extractPromiseDate(lines) {
       const d = normalizeDateToken(joined);
       const t = normalizeTimeToken(joined);
       if (d && t) return `${d} ${t}`;
-    }
-  }
-
-  return "";
-}
-
-function extractAdvisor(lines) {
-  for (let i = 0; i < lines.length; i++) {
-    const line = cleanupSpacing(lines[i]);
-
-    let m = line.match(/ADVISOR\s*[:.]?\s*([A-Za-z][A-Za-z.' -]{2,40})/i);
-    if (m) return cleanupSpacing(m[1]);
-
-    if (/^ADVISOR$/i.test(line) || /^ADVISOR NO\.?$/i.test(line)) {
-      const next = cleanupSpacing(lines[i + 1] || "");
-      if (looksLikePersonName(next)) return cleanupName(next);
     }
   }
 

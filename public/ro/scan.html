@@ -159,6 +159,10 @@
       <div>
         <label for="mModel">Model</label>
         <input id="mModel" type="text" />
+        <label for="mVin">VIN</label>
+        <input id="mVin" type="text" />
+
+
       </div>
 
       <div>
@@ -239,6 +243,7 @@
     const mModel = $("mModel");
     const mAdvisor = $("mAdvisor");
     const mConcern = $("mConcern");
+    const mVin = $("mVin");
 
     function setStatus(msg, good) {
       statusEl.textContent = msg;
@@ -335,6 +340,7 @@
         const roDate = clean(mRoDate.value);
         const promiseDate = clean(mPromiseDate.value);
         const model = clean(mModel.value);
+        const vin = clean(mVin.value);
         const advisor = clean(mAdvisor.value);
         const concern = clean(mConcern.value);
 
@@ -381,6 +387,7 @@
           promiseDate,
           model,
           concern,
+          vin,
 
           status: "",
           notes: "",

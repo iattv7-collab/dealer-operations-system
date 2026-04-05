@@ -197,6 +197,7 @@ function initScanner() {
       const mModel = $("mModel");
       const mAdvisor = $("mAdvisor");
       const mConcern = $("mConcern");
+      const mVin = $("mVin");
 
       if (!manualBox || !mRo) {
         throw new Error("Scanner verification form was not found on this page.");
@@ -215,6 +216,7 @@ function initScanner() {
       mModel.value = data.yearModel || "";
       mConcern.value = data.concern || "";
       mAdvisor.value = auth.currentUser?.displayName || data.advisor || "";
+      if (mVin) mVin.value = data.vin || "";
 
       alert("Scan complete. Please verify the data, then click Save Manual RO.");
 
