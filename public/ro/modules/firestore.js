@@ -14,7 +14,7 @@ import {
 import { fmtDateMMDDYYYY } from "./utils.js";
 
 const COL_ACTIVE = "ros";
-const COL_ARCHIVE = "followup";
+const COL_ARCHIVE = "tickets_archive";
 
 async function safeUpdate(roId, patch) {
   const ref = doc(db, COL_ACTIVE, roId);

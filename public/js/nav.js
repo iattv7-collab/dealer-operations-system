@@ -17,6 +17,8 @@ const NAV_ITEMS = [
 
   ["Master RO", "/master-ro.html", "masterro", ["admin", "manager", "advisor", "booker", "wash", "valet", "qc"]],
 
+  ["Archive", "/archive.html", "archive", ["admin", "manager"]],
+
   ["RO Tracker", "/ro/index.html", "rotracker", ["admin", "manager", "advisor", "booker"]],
   ["Scanner", "/ro/scan.html", "scanner", ["admin", "manager", "advisor", "booker"]],
 ];
