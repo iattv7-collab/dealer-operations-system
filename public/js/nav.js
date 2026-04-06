@@ -4,23 +4,23 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 import { getUserProfile } from "./guard.js";
 
 const NAV_ITEMS = [
-  ["Home", "/index.html", "home", ["admin", "manager", "advisor", "wash", "staff", "valet"]],
+  ["Home", "/index.html", "home", ["admin", "manager", "advisor", "wash", "staff", "valet", "booker", "qc"]],
   ["Advisor", "/advisor.html", "advisor", ["admin", "manager", "advisor"]],
   ["Valet", "/valet.html", "valet", ["admin", "manager", "valet"]],
   ["Wash", "/wash.html", "wash", ["admin", "manager", "wash"]],
   ["Manager", "/manager.html", "manager", ["admin", "manager"]],
   ["Admin", "/admin.html", "admin", ["admin"]],
-  ["Dropoff", "/dropoff.html", "dropoff", ["admin", "manager", "advisor", "wash", "staff", "valet"]],
+  ["Dropoff", "/dropoff.html", "dropoff", ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"]],
   ["Settings", "/settings.html", "settings", ["admin", "manager"]],
   ["Booker", "/booker.html", "booker", ["admin", "manager", "booker"]],
   ["QC", "/qc.html", "qc", ["admin", "manager", "qc"]],
 
   ["Master RO", "/master-ro.html", "masterro", ["admin", "manager", "advisor", "booker", "wash", "valet", "qc"]],
 
-  ["Archive", "/archive.html", "archive", ["admin", "manager"]],
+  ["Archive", "/archive.html", "archive", ["admin", "manager","advisor", "booker"]],
 
-  ["RO Tracker", "/ro/index.html", "rotracker", ["admin", "manager", "advisor", "booker"]],
-  ["Scanner", "/ro/scan.html", "scanner", ["admin", "manager", "advisor", "booker"]],
+  ["RO Tracker", "/ro/index.html", "rotracker", ["admin", "manager", "advisor"]],
+  ["Scanner", "/ro/scan.html", "scanner", ["admin", "manager", "advisor"]],
 ];
 
 function escapeHtml(s) {

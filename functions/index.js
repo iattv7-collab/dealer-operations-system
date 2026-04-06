@@ -18,6 +18,7 @@ const admin = require("firebase-admin");
 const cors = require("cors")({ origin: true });
 const Busboy = require("busboy");
 const vision = require("@google-cloud/vision");
+const sharp = require("sharp");
 
 admin.initializeApp();
 const visionClient = new vision.ImageAnnotatorClient();
@@ -736,7 +737,28 @@ exports.scanRO = functions.https.onRequest((req, res) => {
         (ocrResult.textAnnotations && ocrResult.textAnnotations[0]?.description) ||
         "";
 
-      const parsed = parseReynoldsRO(rawText);
+      // zone OCR for the center info box
+      const meta = await sharp(fileBuffer).metadata();
+
+      const zoneBuffer = await sharp(fileBuffer)
+        .extract({
+          left: Math.floor((meta.width || 0) * 0.18),
+          top: Math.floor((meta.height || 0) * 0.24),
+          width: Math.floor((meta.width || 0) * 0.52),
+          height: Math.floor((meta.height || 0) * 0.34),
+        })
+        .toBuffer();
+
+      const [zoneResult] = await visionClient.documentTextDetection({
+        image: { content: zoneBuffer }
+      });
+
+      const zoneText =
+        zoneResult.fullTextAnnotation?.text ||
+        (zoneResult.textAnnotations && zoneResult.textAnnotations[0]?.description) ||
+        "";
+
+      const parsed = parseReynoldsRO(rawText, zoneText);
 
       return res.json({
         ok: true,
@@ -754,6 +776,8 @@ exports.scanRO = functions.https.onRequest((req, res) => {
     }
   });
 });
+
+
 
 function readUpload(req) {
   return new Promise((resolve, reject) => {
@@ -786,9 +810,13 @@ function readUpload(req) {
   });
 }
 
-function parseReynoldsRO(rawText) {
+function parseReynoldsRO(rawText, zoneText = "") {
   const text = normalizeText(rawText);
   const lines = text
+    .split("\n")
+    .map(line => cleanupSpacing(line))
+    .filter(Boolean);
+  const zoneLines = normalizeText(zoneText)
     .split("\n")
     .map(line => cleanupSpacing(line))
     .filter(Boolean);
@@ -802,7 +830,7 @@ function parseReynoldsRO(rawText) {
     concern: extractConcern(lines),
     roDate: extractRoDate(lines),
     promiseDate: extractPromiseDateOnly(lines),
-    advisor: extractAdvisor(lines),
+    advisor: "",
     vin: extractVin(lines),
     confidenceHint: ""
   };
@@ -990,277 +1018,6 @@ function extractTagNumber(lines) {
   return "";
 }
 
-
-
-function extractCustomerName(lines) {
-  const vinIdx = lines.findIndex(line => looksLikeVIN(line));
-  if (vinIdx >= 0) {
-    for (let i = vinIdx + 1; i <= Math.min(vinIdx + 5, lines.length - 1); i++) {
-      const line = lines[i];
-      if (!line) continue;
-      if (looksLikeAddress(line)) continue;
-      if (looksLikePhoneLine(line)) continue;
-      if (/^(YEAR|MAKE|MODEL|CUSTOMER|COLOR|TURBO|MILEAGE|ADVISOR|RO DATE|TAG|CELL)/i.test(line)) continue;
-      if (looksLikePersonName(line)) return cleanupName(line);
-    }
-  }
-
-  const candidates = lines.filter(line => looksLikePersonName(line) && !looksLikeAddress(line));
-  return candidates.length ? cleanupName(candidates[0]) : "";
-}
-
-function extractCellPhone(lines) {
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/CELL\s*:/i.test(line) || /^CELL\b/i.test(line)) {
-      const sameLine = findPhone(line);
-      if (sameLine) return sameLine;
-
-      const next1 = findPhone(lines[i + 1] || "");
-      if (next1) return next1;
-
-      const next2 = findPhone(lines[i + 2] || "");
-      if (next2) return next2;
-    }
-  }
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (/RESIDENCE\s+PHONE/i.test(line)) {
-      const sameLine = findPhone(line);
-      if (sameLine) return sameLine;
-
-      const next1 = findPhone(lines[i + 1] || "");
-      if (next1) return next1;
-    }
-  }
-
-  return "";
-}
-
-function extractYearModel(lines) {
-  const vinBlock = getVinBlock(lines);
-
-  for (const line of vinBlock) {
-    if (/\bPORSCHE\b/i.test(line) && /\b\d{2}\/PORSCHE\//i.test(line)) {
-      return line.replace(/^[A-HJ-NPR-Z0-9]{17}\s+/, "").trim();
-    }
-  }
-
-  for (const line of lines) {
-    if (/PORSCHE/i.test(line)) {
-      if (/PORSCHE WEST BROWARD/i.test(line)) continue;
-      if (/YEAR|MAKE|MODEL/i.test(line)) continue;
-      if (!/\b\d{2}\/PORSCHE\//i.test(line)) continue;
-      return line.replace(/^[A-HJ-NPR-Z0-9]{17}\s+/, "").trim();
-    }
-  }
-
-  return "";
-}
-
-function extractConcern(lines) {
-  const BAD_LINES = [
-    /^PORSCHE WEST BROWARD$/i,
-    /^RECOMMENDED SERVICES$/i,
-    /^SERVICE HISTORY$/i,
-    /^ORIGINAL CUSTOMER ESTIMATE:?$/i,
-    /^NOTE TO CONSUMER/i,
-    /^ON EITHER BACK SIDE OR LAST PAGE HEREOF$/i,
-    /^Marlon Vargas$/i,
-    /^QUICK SERVICE$/i,
-    /^MULTIPOINT INSPECT$/i,
-    /^WashCarService$/i,
-    /^QUALITY CONTROL$/i,
-    /^TOTAL$/i,
-    /^PRIORITY$/i,
-    /^LABOR RATE$/i,
-    /^JOB$/i,
-    /^SERVICE$/i,
-    /^NONE$/i,
-    /^OPERATION$/i,
-    /^OPERATION DESCRIPTION$/i,
-    /^MO\/MI$/i,
-    /^DATE$/i,
-    /^REPAIR ORDER$/i,
-    /^MILEAGE$/i,
-    /^ADVISOR$/i,
-    /^TECHNICIAN$/i,
-    /^TYPE$/i,
-    /^CUSTOMER NO\.?$/i,
-    /^COLOR$/i,
-    /^SERVICE CONTRACT$/i,
-    /^PRODUCTION DATE$/i,
-    /^STOCK NO\.?$/i,
-    /^LICENSE NO\.?$/i,
-    /^R\.?O\.? NO\.?$/i,
-    /^R\.?O\.? DATE$/i,
-    /^TAG NO\.?$/i,
-    /^TURBO$/i,
-    /^M\/MC$/i,
-    /^AIR COND\.?$/i,
-    /^P\.? ?S\.?$/i,
-    /^TRANS$/i,
-    /^ADVISOR NO\.?$/i,
-    /^APPOINTMENT$/i,
-    /^TIME RECEIVED$/i,
-    /^DATE\/TIME PROMISED$/i
-  ];
-
-  function isBadConcernLine(s) {
-    const text = cleanupSpacing(s || "");
-    if (!text) return true;
-    if (BAD_LINES.some(rx => rx.test(text))) return true;
-    if (looksLikePhoneLine(text)) return true;
-    if (looksLikeAddress(text)) return true;
-    if (looksLikeVIN(text)) return true;
-
-    if (/^(CELL|RESIDENCE PHONE|BUSINESS PHONE|ADVISOR|ADVISOR NO\.?|DATE|SIGNED|PAGE \d)/i.test(text)) return true;
-    if (/\b(Customer agrees|NOTE TO CONSUMER|ON EITHER BACK SIDE|I hereby authorize|created\s+\d{4}-\d{2}-\d{2})\b/i.test(text)) return true;
-
-    if (/^\d{2}\/\d{2}\/\d{2,4}$/.test(text)) return true;
-    if (/^\d{1,2}:\d{2}\s*[ap]m$/i.test(text)) return true;
-
-    if (/^\*?\s*[A-Z0-9]{4,10}$/.test(text)) return true;
-    if (/^[A-Z][A-Z ]+$/.test(text) && text.split(/\s+/).length <= 4) return true;
-
-    return false;
-  }
-
-  function looksLikeRealConcern(text) {
-    const t = cleanupSpacing(text || "");
-    if (!t || isBadConcernLine(t)) return false;
-
-    if (/\b(CUSTOMER STATES|C\/S|REQUEST|CONCERN|CORRECTION|LEAK|NOISE|VIBRATION|CHECK|WARNING|LIGHT|ISSUE|PROBLEM)\b/i.test(t)) {
-      return true;
-    }
-
-    if (/^(M&B|ALIGNMENT|TRIM CONCERN|SHUTTLE TRANSPORT|MULTIPOINT INSPECT|QUALITY CONTROL|WASHCARSERVICE)/i.test(t)) {
-      return false;
-    }
-
-    const words = t.split(/\s+/).filter(Boolean);
-    if (words.length < 2 || words.length > 8) return false;
-    if (!/^[A-Za-z0-9/&().,' -]+$/.test(t)) return false;
-
-    return true;
-  }
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = cleanupSpacing(lines[i]);
-    if (/CUSTOMER\s+STATES/i.test(line)) {
-      const sameLine = cleanupSpacing(line.replace(/.*CUSTOMER\s+STATES[:\-]?\s*/i, ""));
-      if (looksLikeRealConcern(sameLine)) return sameLine;
-
-      for (let j = i + 1; j < Math.min(lines.length, i + 4); j++) {
-        const next = cleanupSpacing(lines[j]);
-        if (looksLikeRealConcern(next)) return next;
-      }
-      return "";
-    }
-  }
-
-  const estIdx = lines.findIndex(line => /^ORIGINAL CUSTOMER ESTIMATE:?$/i.test(cleanupSpacing(line)));
-  if (estIdx >= 0) {
-    for (let i = estIdx + 1; i < Math.min(lines.length, estIdx + 8); i++) {
-      const line = cleanupSpacing(lines[i]);
-      if (looksLikeRealConcern(line)) return line;
-    }
-  }
-
-  const commentsIdx = lines.findIndex(line => /^COMMENTS\s*:?/i.test(cleanupSpacing(line)));
-  if (commentsIdx >= 0) {
-    for (let i = commentsIdx + 1; i < Math.min(lines.length, commentsIdx + 5); i++) {
-      const line = cleanupSpacing(lines[i]);
-      if (looksLikeRealConcern(line)) return line;
-    }
-  }
-
-  return "";
-}
-
-function extractRoDate(lines) {
-  for (let i = 0; i < lines.length; i++) {
-    const line = cleanupSpacing(lines[i]);
-
-    if (/R\.?\s*O\.?\s*DATE/i.test(line)) {
-      const joined = [line, lines[i + 1] || "", lines[i + 2] || ""].join(" ");
-      const m = joined.match(/R\.?\s*O\.?\s*DATE\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})/i);
-      if (m) return m[1];
-
-      const d = joined.match(/\b\d{2}\/\d{2}\/\d{2,4}\b/);
-      if (d) return d[0];
-    }
-  }
-
-  const vinBlock = getVinBlock(lines);
-  if (vinBlock.length) {
-    const joined = vinBlock.join(" ");
-    const m = joined.match(/R\.?\s*O\.?\s*DATE\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})/i);
-    if (m) return m[1];
-  }
-
-  return "";
-}
-
-function extractPromiseDate(lines) {
-  for (let i = 0; i < lines.length; i++) {
-    if (/DATE\/?TIME\s+PROMISED/i.test(lines[i])) {
-      const joined = [lines[i], lines[i + 1] || "", lines[i + 2] || ""].join(" ");
-
-      let m = joined.match(/DATE\/?TIME\s+PROMISED\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})\s+(\d{1,2}:\d{2}\s*[ap]m)/i);
-      if (m) return `${m[1]} ${cleanupSpacing(m[2]).replace(/\s+/g, "")}`;
-
-      const d = normalizeDateToken(joined);
-      const t = normalizeTimeToken(joined);
-      if (d && t) return `${d} ${t}`;
-    }
-  }
-
-  return "";
-}
-
-function extractAdvisorNo(lines) {
-  for (let i = 0; i < lines.length; i++) {
-    const line = cleanupSpacing(lines[i]);
-
-    if (/^ADVISOR NO\.?$/i.test(line)) {
-      const nextLines = [
-        cleanupSpacing(lines[i + 1] || ""),
-        cleanupSpacing(lines[i + 2] || ""),
-        cleanupSpacing(lines[i + 3] || ""),
-        cleanupSpacing(lines[i + 4] || ""),
-        cleanupSpacing(lines[i + 5] || "")
-      ];
-
-      for (const l of nextLines) {
-        // skip junk
-        if (!l) continue;
-        if (l.includes(",")) continue; // skip mileage like 36,736
-        if (!/^\d+$/.test(l)) continue;
-
-        // good candidate
-        if (l.length >= 2 && l.length <= 5) {
-          return l;
-        }
-      }
-    }
-
-    let m = line.match(/^ADVISOR NO\.?\s*[:.]?\s*(\d{2,10})$/i);
-    if (m) return m[1];
-  }
-
-  return "";
-}
-
-function extractVin(lines) {
-  for (const line of lines) {
-    const m = String(line || "").match(/\b([A-HJ-NPR-Z0-9]{17})\b/);
-    if (m) return m[1];
-  }
-  return "";
-}
-
 async function decodeVin(vin) {
   try {
     const clean = String(vin || "").trim();
@@ -1386,7 +1143,7 @@ function parseReynoldsRO(rawText) {
     concern: extractConcern(lines),
     roDate: extractRoDate(lines),
     promiseDate: extractPromiseDateOnly(lines),
-    advisorNo: "",
+    advisorNo: extractAdvisorNo(zoneLines) || extractAdvisorNo(lines),
     advisor: "",
     vin: extractVin(lines),
     confidenceHint: ""
