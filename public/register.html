@@ -1,80 +1,86 @@
+<!-- FILE: /public/register.html -->
+
 <!doctype html>
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Dealer Wash System – Register</title>
+  <title>ArrowFlow – Register</title>
+  <link rel="stylesheet" href="/css/arrowflow.css">
 </head>
 <body>
 
-<h2>Dealer Wash System</h2>
-<h3>Create account</h3>
+  <div class="page" style="max-width: 560px; margin: 40px auto;">
+    <div class="card">
+      <h2 style="margin-top:0;">ArrowFlow</h2>
+      <h3>Create account</h3>
 
-<form id="regForm">
-  <div>
-    <input type="text" id="name" placeholder="Full name" required />
+      <form id="regForm">
+        <div style="margin-bottom:12px;">
+          <input type="text" id="name" placeholder="Full name" required style="width:100%; padding:8px 10px;" />
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <input type="text" id="employeeId" placeholder="Employee ID" required style="width:100%; padding:8px 10px;" />
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <input type="email" id="email" placeholder="Email" required style="width:100%; padding:8px 10px;" />
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <input type="password" id="password" placeholder="Password" required style="width:100%; padding:8px 10px;" />
+        </div>
+
+        <button type="submit">Register</button>
+      </form>
+
+      <p id="msg" class="muted" style="margin-top:14px;"></p>
+      <p style="margin-top:16px;"><a href="/login.html">Back to login</a></p>
+    </div>
   </div>
 
-  <div>
-    <input type="text" id="employeeId" placeholder="Employee ID" required />
-  </div>
+  <script type="module">
+    import { auth, db } from "./js/firebase.js";
+    import { createUserWithEmailAndPassword } from
+      "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import { doc, setDoc, serverTimestamp } from
+      "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-  <div>
-    <input type="email" id="email" placeholder="Email" required />
-  </div>
+    const form = document.getElementById("regForm");
+    const msg = document.getElementById("msg");
 
-  <div>
-    <input type="password" id="password" placeholder="Password" required />
-  </div>
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      msg.textContent = "";
 
-  <button type="submit">Register</button>
-</form>
+      const name = document.getElementById("name").value.trim();
+      const employeeId = document.getElementById("employeeId").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
 
-<p id="msg"></p>
-<p><a href="/login.html">Back to login</a></p>
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, email, password);
 
-<script type="module">
-  import { auth, db } from "./js/firebase.js";
-  import { createUserWithEmailAndPassword } from
-    "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-  import { doc, setDoc, serverTimestamp } from
-    "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+        await setDoc(doc(db, "users", cred.user.uid), {
+          name,
+          employeeId,
+          email,
+          role: "pending",
+          active: true,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
 
-  const form = document.getElementById("regForm");
-  const msg = document.getElementById("msg");
+        msg.innerHTML =
+          "<b>Account created.</b> Now sign in. (Admin approval required.)";
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    msg.textContent = "";
+        form.reset();
 
-    const name = document.getElementById("name").value.trim();
-    const employeeId = document.getElementById("employeeId").value.trim();
-    const email = document.getElementById("email").value.trim();
-    const password = document.getElementById("password").value;
-
-    try {
-      const cred = await createUserWithEmailAndPassword(auth, email, password);
-
-      // Create Firestore profile for admin approval
-      await setDoc(doc(db, "users", cred.user.uid), {
-        name,
-        employeeId,
-        email,
-        role: "pending",
-        active: true,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-
-      msg.innerHTML =
-        "<b>Account created.</b> Now sign in. (Admin approval required.)";
-
-      form.reset();
-
-    } catch (err) {
-      msg.textContent = err.message;
-    }
-  });
-</script>
+      } catch (err) {
+        msg.textContent = err.message;
+      }
+    });
+  </script>
 
 </body>
 </html>

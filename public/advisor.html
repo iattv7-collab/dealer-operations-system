@@ -6,10 +6,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Advisor</title>
 
+
+
   <style>
+    :root {
+      --blue: #0b3d91;
+      --teal: #00a8c6;
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --grid: #c9c9c9;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --danger: #b42318;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
     body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
       font-family: "Times New Roman", Times, serif;
-      margin: 16px;
+      background:
+        linear-gradient(135deg, rgba(11, 61, 145, 0.08), rgba(0, 168, 198, 0.08)),
+        var(--bg);
+      color: var(--text);
+    }
+
+    body {
       max-width: 100%;
       overflow-x: hidden;
     }
@@ -20,15 +47,18 @@
     }
 
     .card {
-      border: 1px solid #ccc;
-      padding: 12px;
-      border-radius: 8px;
+      background: var(--card);
+      border: 1px solid var(--grid);
+      padding: 14px;
+      border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
     }
 
     table {
       border-collapse: collapse;
       width: 100%;
       margin-top: 10px;
+      background: #fff;
     }
 
     th,
@@ -41,10 +71,11 @@
 
     th {
       text-align: left;
+      background: #f7fafc;
     }
 
     .muted {
-      color: #666;
+      color: var(--muted);
     }
 
     .ok {
@@ -52,7 +83,7 @@
     }
 
     .err {
-      color: #b00;
+      color: var(--danger);
     }
 
     .advisor-grid {
@@ -80,20 +111,40 @@
       min-width: 100%;
     }
 
+    #nav {
+      background: var(--blue);
+      color: #fff;
+      padding: 14px 18px 10px;
+      border-bottom: 4px solid var(--teal);
+      margin-bottom: 16px;
+    }
+
     #nav>div {
       display: flex;
       gap: 10px;
-      margin-bottom: 12px;
+      margin-bottom: 0;
       flex-wrap: wrap;
     }
 
     #nav a {
       text-decoration: none;
       padding: 8px 10px;
-      border: 1px solid #ccc;
+      border: 1px solid rgba(255, 255, 255, 0.35);
       border-radius: 6px;
-      color: #000;
+      color: #fff;
+      background: rgba(255, 255, 255, 0.08);
       display: inline-block;
+    }
+
+    #nav a.active {
+      background: #ffffff;
+      color: var(--blue);
+      border: 2px solid var(--teal);
+      font-weight: bold;
+    }
+
+    #nav a:hover {
+      background: rgba(255, 255, 255, 0.16);
     }
 
     #searchInput {
@@ -101,6 +152,11 @@
       width: 240px !important;
       max-width: 100%;
       box-sizing: border-box;
+      border: 1px solid #b9c1cc;
+      border-radius: 8px;
+      background: #fff;
+      font-family: inherit;
+      font-size: 16px;
     }
 
     .search-row {
@@ -110,174 +166,141 @@
       flex-wrap: wrap;
     }
 
-    @media (max-width: 768px) {
-
-  body {
-    margin: 10px;
-  }
-
-  #nav>div {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  #nav a {
-    flex: 0 1 auto;
-    text-align: center;
-    padding: 8px 10px;
-    font-size: 14px;
-    box-sizing: border-box;
-  }
-
-  .card {
-    padding: 12px 10px;
-    border-radius: 10px;
-  }
-
-  .advisor-grid {
-    display: block;
-  }
-
-  .left-col,
-  .right-col {
-    width: 100%;
-  }
-
-  h2 {
-    font-size: 18px;
-    margin-top: 10px;
-    margin-bottom: 10px;
-  }
-
-  .muted {
-    font-size: 13px;
-  }
-
-  #searchInput {
-    width: 100% !important;
-    font-size: 16px;
-    min-height: 42px;
-  }
-
-  .search-row {
-    display: block;
-  }
-
-  .search-row label {
-    display: block;
-    margin-bottom: 6px;
-  }
-
-  .table-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    margin-left: -2px;
-    margin-right: -2px;
-    padding-bottom: 4px;
-  }
-
-  .table-scroll::-webkit-scrollbar {
-    height: 8px;
-  }
-
-  .table-scroll::-webkit-scrollbar-thumb {
-    background: #bbb;
-    border-radius: 999px;
-  }
-
-  .table-scroll table {
-    min-width: 1400px;
-  }
-
-  th,
-  td {
-    font-size: 12px;
-    padding: 7px 6px;
-    white-space: nowrap;
-  }
-
-  button {
-    min-height: 40px;
-    padding-left: 10px;
-    padding-right: 10px;
-  }
-}
-
-    .card {
-      padding: 12px 10px;
-      border-radius: 10px;
-    }
-
-    .advisor-grid {
-      display: block;
-    }
-
-    .left-col,
-    .right-col {
-      width: 100%;
-    }
-
     h2 {
-      font-size: 18px;
-      margin-top: 10px;
-      margin-bottom: 10px;
+      color: var(--blue);
+      margin-top: 0;
     }
 
-    .muted {
-      font-size: 13px;
+    #manualControls {
+      background: #fff;
+      border: 1px solid var(--grid);
+      border-radius: 12px;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
     }
 
-    #searchInput {
-      width: 100% !important;
-      font-size: 16px;
-      min-height: 42px;
+    #status {
+      margin: 6px 16px 10px 16px !important;
     }
 
-    .search-row {
-      display: block;
+    body>h2,
+    body>.card,
+    body>p:not(#status),
+    body>div:not(#nav):not(#manualControls) {
+      margin-left: 16px;
+      margin-right: 16px;
     }
 
-    .search-row label {
-      display: block;
-      margin-bottom: 6px;
-    }
+    @media (max-width: 768px) {
+      body {
+        margin: 0;
+      }
 
-    .table-scroll {
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      margin-left: -2px;
-      margin-right: -2px;
-      padding-bottom: 4px;
-    }
+      #nav {
+        padding: 14px 12px 10px;
+      }
 
-    .table-scroll::-webkit-scrollbar {
-      height: 8px;
-    }
+      #nav>div {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
 
-    .table-scroll::-webkit-scrollbar-thumb {
-      background: #bbb;
-      border-radius: 999px;
-    }
+      #nav a {
+        flex: 0 1 auto;
+        text-align: center;
+        padding: 8px 10px;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
 
-    .table-scroll table {
-      min-width: 1400px;
-    }
+      .card {
+        padding: 12px 10px;
+        border-radius: 10px;
+      }
 
-    th,
-    td {
-      font-size: 12px;
-      padding: 7px 6px;
-      white-space: nowrap;
-    }
+      .advisor-grid {
+        display: block;
+      }
 
-    button {
-      min-height: 40px;
-      padding-left: 10px;
-      padding-right: 10px;
+      .left-col,
+      .right-col {
+        width: 100%;
+      }
+
+      h2 {
+        font-size: 20px;
+        margin-top: 10px;
+        margin-bottom: 10px;
+      }
+
+      .muted {
+        font-size: 13px;
+      }
+
+      #searchInput {
+        width: 100% !important;
+        font-size: 16px;
+        min-height: 42px;
+      }
+
+      .search-row {
+        display: block;
+      }
+
+      .search-row label {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .table-scroll {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        margin-left: -2px;
+        margin-right: -2px;
+        padding-bottom: 4px;
+      }
+
+      .table-scroll::-webkit-scrollbar {
+        height: 8px;
+      }
+
+      .table-scroll::-webkit-scrollbar-thumb {
+        background: #bbb;
+        border-radius: 999px;
+      }
+
+      .table-scroll table {
+        min-width: 1400px;
+      }
+
+      th,
+      td {
+        font-size: 12px;
+        padding: 7px 6px;
+        white-space: nowrap;
+      }
+
+      button {
+        min-height: 40px;
+        padding-left: 10px;
+        padding-right: 10px;
+      }
+
+      body>h2,
+      body>.card,
+      body>p:not(#status),
+      body>div:not(#nav):not(#manualControls) {
+        margin-left: 12px;
+        margin-right: 12px;
+      }
+
+      #status {
+        margin: 6px 12px 10px 12px !important;
+      }
     }
   </style>
-</head>
+
+
 
 <body>
 
@@ -386,6 +409,17 @@
         viewColumnKeys: profile?.viewColumns?.[realRole] || [],
         canEditTickets: profile?.permissions?.canEditTickets === true,
         correctionsPerms: profile?.permissions?.corrections || {}
+      }
+      );
+
+      const path = window.location.pathname.split("/").pop();
+
+      document.querySelectorAll("#nav a").forEach(link => {
+        const href = link.getAttribute("href");
+        if (href && path === href.split("/").pop()) {
+          link.classList.add("active");
+        }
+
       });
 
     });

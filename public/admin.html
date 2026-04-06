@@ -3,38 +3,10 @@
 
 <head>
   <meta charset="utf-8">
-  <title>Admin – Dealer Wash System</title>
+  <title>ArrowFlow – Admin</title>
+  <link rel="stylesheet" href="/css/arrowflow.css">
   <style>
-    body {
-      font-family: "Times New Roman", Times, serif;
-      margin: 16px;
-    }
-
-    button,
-    select,
-    input {
-      font-family: inherit;
-      font-size: 16px;
-    }
-
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-top: 10px;
-    }
-
-    th,
-    td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      vertical-align: top;
-    }
-
-    th {
-      text-align: left;
-    }
-
-    /* --- Columns modal --- */
+    /* --- Columns modal only --- */
     #columnsModalBackdrop {
       display: none;
       position: fixed;
@@ -52,6 +24,8 @@
       overflow: auto;
       border: 1px solid #ccc;
       padding: 14px;
+      border-radius: 12px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
     }
 
     #columnsModalHeader {
@@ -76,6 +50,7 @@
       align-items: center;
       gap: 10px;
       margin-bottom: 10px;
+      flex-wrap: wrap;
     }
 
     #columnsModalGrid {
@@ -92,6 +67,7 @@
       display: flex;
       gap: 10px;
       justify-content: flex-end;
+      flex-wrap: wrap;
     }
 
     #columnsModalMsg.ok {
@@ -110,61 +86,55 @@
 
 <body>
 
-  <!-- Shared nav (same as manager/advisor/wash) -->
   <div id="nav"></div>
+
+  <p id="status" class="muted">Loading...</p>
 
   <h2>Admin / User Management</h2>
 
+  <div class="card">
+    <h3 style="margin-top:0;">Pending approvals</h3>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Name</th>
+          <th>Employee ID</th>
+          <th>Dealer ID</th>
+          <th>Set role</th>
+          <th>Approve</th>
+        </tr>
+      </thead>
+      <tbody id="pendingTable"></tbody>
+    </table>
   </div>
 
-  <div id="status">Loading...</div>
+  <div class="card" style="margin-top:16px;">
+    <h3 style="margin-top:0;">All users</h3>
 
-  <hr>
+    <table>
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Name</th>
+          <th>Employee ID</th>
+          <th>Dealer ID</th>
+          <th>Role</th>
+          <th>Active (Account)</th>
+          <th>Supervisor (Wash Day)</th>
+          <th>Corrections Tab</th>
+          <th>Fix Tag</th>
+          <th>Fix RO</th>
+          <th>Fix Location</th>
+          <th>Fix Advisor #</th>
+          <th>Actions (Admin)</th>
+        </tr>
+      </thead>
+      <tbody id="usersTable"></tbody>
+    </table>
+  </div>
 
-  <h3>Pending approvals</h3>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Email</th>
-        <th>Name</th>
-        <th>Employee ID</th>
-        <th>Dealer ID</th>
-        <th>Set role</th>
-        <th>Approve</th>
-      </tr>
-    </thead>
-    <tbody id="pendingTable"></tbody>
-  </table>
-
-  <hr>
-
-  <h3>All users</h3>
-
-  <table>
-    <thead>
-      <tr>
-        <th>Email</th>
-        <th>Name</th>
-        <th>Employee ID</th>
-        <th>Dealer ID</th>
-        <th>Role</th>
-        <th>Active (Account)</th>
-        <th>Supervisor (Wash Day)</th>
-
-        <th>Corrections Tab</th>
-        <th>Fix Tag</th>
-        <th>Fix RO</th>
-        <th>Fix Location</th>
-        <th>Fix Advisor #</th>
-
-        <th>Actions (Admin)</th>
-      </tr>
-    </thead>
-    <tbody id="usersTable"></tbody>
-  </table>
-
-  <!-- ✅ Columns Modal (required for the Columns button in admin.js) -->
   <div id="columnsModalBackdrop" aria-hidden="true">
     <div id="columnsModal" role="dialog" aria-modal="true" aria-label="Configure Columns">
       <div id="columnsModalHeader">
@@ -191,16 +161,39 @@
   </div>
 
   <script type="module">
+    import { auth } from "./js/firebase.js";
+    import { signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    const url = new URL(window.location.href);
+    const reauth = url.searchParams.get("reauth");
+
+    if (!reauth) {
+      await signOut(auth);
+      window.location.href = "/login.html?next=" + encodeURIComponent("/admin.html?reauth=1");
+    }
+  </script>
+
+  <script type="module">
     import { requireRole } from "./js/guard.js";
     import { renderNav } from "./js/nav.js";
     import "./js/admin.js";
 
     document.getElementById("nav").innerHTML = `
-  <div style="display:flex; gap:10px; margin-bottom:12px;">
-    <a href="/home.html" style="text-decoration:none; padding:6px 10px; border:1px solid #ccc; border-radius:6px; color:#000;">Home</a>
-  </div>
-` + renderNav("admin");
+      <div>
+        <a href="/home.html">Home</a>
+      </div>
+    ` + renderNav("admin");
+
     requireRole(["admin"]);
+
+    const path = window.location.pathname.split("/").pop();
+
+    document.querySelectorAll("#nav a").forEach(link => {
+      const href = link.getAttribute("href");
+      if (href && path === href.split("/").pop()) {
+        link.classList.add("active");
+      }
+    });
   </script>
 
 </body>

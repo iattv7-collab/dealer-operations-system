@@ -1,3 +1,5 @@
+<!-- FILE: /public/wash.html -->
+
 <!DOCTYPE html>
 <html lang="en">
 
@@ -6,85 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Wash</title>
 
-  <style>
-    body {
-      font-family: "Times New Roman", Times, serif;
-      margin: 16px;
-    }
-
-    input,
-    textarea,
-    button,
-    select {
-      font-family: inherit;
-      font-size: 16px;
-    }
-
-    .card {
-      border: 1px solid #ccc;
-      padding: 12px;
-      border-radius: 8px;
-    }
-
-    table {
-      border-collapse: collapse;
-      width: 100%;
-    }
-
-    th,
-    td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      vertical-align: top;
-    }
-
-    th {
-      text-align: left;
-    }
-
-    .muted {
-      color: #666;
-    }
-
-    .ok {
-      color: #0a6;
-    }
-
-    .err {
-      color: #b00;
-    }
-
-    .row-actions {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-
-    .table-scroll {
-      overflow-x: auto;
-    }
-
-    .table-scroll table {
-      width: max-content;
-      min-width: 100%;
-    }
-
-    .section {
-      border: 1px solid #ddd;
-      padding: 12px;
-      border-radius: 10px;
-      margin-bottom: 16px;
-    }
-
-    .pill {
-      padding: 4px 10px;
-      border-radius: 20px;
-      border: 1px solid #aaa;
-      background: #eee;
-      font-weight: bold;
-    }
-  </style>
+  <link rel="stylesheet" href="/css/arrowflow.css">
 </head>
 
 <body>
@@ -93,7 +17,6 @@
 
   <p id="status"></p>
 
-  <!-- ✅ GLOBAL WASH DAY CONTROL -->
   <div id="manualControls" class="section">
     <div style="font-weight:bold;margin-bottom:8px;">
       Wash Day Control
@@ -144,12 +67,11 @@
       from "./js/settings.js";
 
     document.getElementById("nav").innerHTML = `
-  <div style="display:flex; gap:10px; margin-bottom:12px;">
-    <a href="/home.html" style="text-decoration:none; padding:6px 10px; border:1px solid #ccc; border-radius:6px; color:#000;">Home</a>
-  </div>
-` + renderNav("ROLE");
+      <div>
+        <a href="/home.html">Home</a>
+      </div>
+    ` + renderNav("ROLE");
 
-    // allow wash + manager + admin
     requireRole(["wash", "manager", "admin"]);
 
     const msgEl = document.getElementById("msg");
@@ -159,12 +81,12 @@
     const closeBtn = document.getElementById("closeWashBtn");
     const badge = document.getElementById("isOpenBadge");
 
-    // badge always updates
+    const statusEl = document.getElementById("status");
+
     listenSystemSettings((s) => {
       badge.textContent = s?.isOpen ? "OPEN" : "CLOSED";
     });
 
-    // auth status msg
     onAuthStateChanged(auth, (u) => {
       if (!u) {
         msgEl.className = "err";
@@ -175,39 +97,24 @@
       }
     });
 
-    // enable/disable open/close buttons by permission
     onAuthStateChanged(auth, async (user) => {
       if (!user) return;
 
       const profile = await getUserProfile(user);
+      const role = profile?.role || "wash";
+
+      statusEl.textContent = `${user.email} · ${role}`;
 
       const canControl =
         profile?.permissions?.canControlWashDay === true ||
-        profile?.role === "admin" ||
-        profile?.role === "manager";
+        role === "admin" ||
+        role === "manager";
 
       openBtn.disabled = !canControl;
       closeBtn.disabled = !canControl;
-    });
-
-    openBtn.onclick = async () => {
-      await setSystemSettings(auth.currentUser, { isOpen: true });
-    };
-
-    closeBtn.onclick = async () => {
-      await setSystemSettings(auth.currentUser, { isOpen: false });
-    };
-
-    // ✅ mount UI AFTER we load profile, so we can pass perms + view columns
-    onAuthStateChanged(auth, async (user) => {
-      if (!user) return;
-
-      const profile = await getUserProfile(user);
 
       const canEditTickets = profile?.permissions?.canEditTickets === true;
       const correctionsPerms = profile?.permissions?.corrections || {};
-
-      // optional: respect per-role viewColumns if present
       const viewColumnKeys = profile?.viewColumns?.wash || [];
 
       mountTicketsUI({
@@ -219,7 +126,26 @@
         canEditTickets,
         correctionsPerms
       });
+
+      // ✅ highlight active tab
+      const path = window.location.pathname.split("/").pop();
+
+      document.querySelectorAll("#nav a").forEach(link => {
+        const href = link.getAttribute("href");
+        if (href && path === href.split("/").pop()) {
+          link.classList.add("active");
+        }
+      });
     });
+
+    openBtn.onclick = async () => {
+      await setSystemSettings(auth.currentUser, { isOpen: true });
+    };
+
+    closeBtn.onclick = async () => {
+      await setSystemSettings(auth.currentUser, { isOpen: false });
+    };
+
   </script>
 
 </body>

@@ -1,74 +1,29 @@
+<!-- FILE: /public/settings.html -->
+
 <!DOCTYPE html>
 <html>
 
 <head>
   <meta charset="UTF-8" />
   <title>DOS Settings</title>
-  <style>
-    body {
-      font-family: "Times New Roman", Times, serif;
-      margin: 16px;
-    }
 
-    button,
-    input {
-      font-family: inherit;
-      font-size: 16px;
-    }
-
-    .grid {
-      display: grid;
-      gap: 12px;
-      max-width: 720px;
-    }
-
-    .row {
-      display: grid;
-      grid-template-columns: 220px 1fr;
-      gap: 12px;
-      align-items: center;
-    }
-
-    .row label {
-      font-weight: bold;
-    }
-
-    .hint {
-      font-size: 13px;
-      opacity: 0.85;
-      margin-top: 4px;
-    }
-
-    .section {
-      margin-top: 18px;
-    }
-
-    .pill {
-      display: inline-block;
-      padding: 2px 10px;
-      border-radius: 999px;
-      background: #eee;
-      font-weight: bold;
-    }
-  </style>
+  <link rel="stylesheet" href="/css/arrowflow.css">
 </head>
 
 <body>
 
-  <!-- Shared nav (gives you exit links) -->
   <div id="nav"></div>
 
   <h2>Dealer Operations System — Settings</h2>
   <div id="saveState" class="pill" style="margin:10px 0;">Loaded</div>
 
-  <div id="currentSettings" style="border:1px solid #ddd; padding:12px; border-radius:10px; max-width:720px;">
+  <div class="card" style="max-width:720px;">
     <div style="font-weight:bold; margin-bottom:8px;">Current (saved)</div>
-    <div id="currentSettingsText" style="white-space:pre-wrap; font-size:14px;"></div>
+    <div id="currentSettingsText" class="muted" style="white-space:pre-wrap;"></div>
   </div>
 
   <hr style="margin: 20px 0;" />
 
-  <!-- Pickup Feature Toggle -->
   <h3>Features</h3>
 
   <label style="display:flex; align-items:center; gap:10px; margin-bottom:8px;">
@@ -76,11 +31,10 @@
     Enable Pickup Workflow
   </label>
 
-  <div id="settingsMsg" style="margin-top:10px; font-size:14px;"></div>
+  <div id="settingsMsg" class="muted" style="margin-top:10px;"></div>
 
   <hr style="margin: 24px 0;" />
 
-  <!-- Wash Configuration -->
   <h3>Wash Configuration</h3>
 
   <div class="grid">
@@ -88,32 +42,30 @@
     <div class="row">
       <label for="washDurationMin">Wash Duration (minutes)</label>
       <div>
-        <input type="number" id="washDurationMin" min="1" max="120" style="width:120px; padding:6px;" />
-        <div class="hint">This is the base wash time used by the scheduler.</div>
+        <input type="number" id="washDurationMin" min="1" max="120" style="width:120px;" />
+        <div class="hint">Base wash time.</div>
       </div>
     </div>
 
     <div class="row">
       <label for="bufferMin">Buffer (minutes)</label>
       <div>
-        <input type="number" id="bufferMin" min="0" max="60" style="width:120px; padding:6px;" />
-        <div class="hint">Extra time added per car (handoff, move time, etc.).</div>
+        <input type="number" id="bufferMin" min="0" max="60" style="width:120px;" />
+        <div class="hint">Extra time per car.</div>
       </div>
     </div>
 
     <div class="row">
-      <label for="openBays">Bays Override (today only)</label>
+      <label for="openBays">Bays Override</label>
       <div>
-        <input type="number" id="openBays" min="0" max="50" style="width:120px; padding:6px;" />
-        <div class="hint">Optional. If set > 0, it overrides MF/Sat/Sun bays for today.</div>
+        <input type="number" id="openBays" min="0" max="50" style="width:120px;" />
       </div>
     </div>
 
     <div class="row">
-      <label>Effective Bays (auto)</label>
+      <label>Effective Bays</label>
       <div>
         <span id="effectiveBays" class="pill"></span>
-        <div class="hint">This is what the scheduler will use right now.</div>
       </div>
     </div>
 
@@ -121,92 +73,85 @@
 
   <hr style="margin: 24px 0;" />
 
-  <!-- Operating Schedule -->
   <h3>Operating Schedule</h3>
 
   <div class="grid">
 
     <div class="row">
       <label for="autoStart">Auto-start</label>
-      <div style="display:flex; align-items:center; gap:10px;">
+      <div>
         <input type="checkbox" id="autoStart" />
-        <span>Schedule runs automatically based on hours below</span>
       </div>
     </div>
 
-    <div id="manualControls" style="border:1px solid #ddd; padding:12px; border-radius:10px;">
-      <div style="font-weight:bold; margin-bottom:8px;">Manual Mode Controls</div>
-      <div class="hint" style="margin-bottom:10px;">
-        Only used when Auto-start is OFF. Supervisor can open/close the wash day.
-      </div>
+    <div class="card">
+      <div style="font-weight:bold; margin-bottom:8px;">Manual Mode</div>
 
-      <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-        <button id="openWashBtn" style="padding:6px 12px;">Open Wash Day</button>
-        <button id="closeWashBtn" style="padding:6px 12px;">Close Wash Day</button>
+      <div style="display:flex; gap:12px; flex-wrap:wrap;">
+        <button id="openWashBtn">Open Wash Day</button>
+        <button id="closeWashBtn">Close Wash Day</button>
         <span>Current: <span id="isOpenBadge" class="pill"></span></span>
       </div>
     </div>
 
-    <div class="section" style="border:1px solid #ddd; padding:12px; border-radius:10px;">
+    <div class="card">
       <div style="font-weight:bold; margin-bottom:10px;">Bays by Day</div>
 
       <div class="row">
-        <label for="mfBays">Mon–Fri Bays</label>
-        <input type="number" id="mfBays" min="0" max="50" style="width:120px; padding:6px;" />
+        <label>Mon–Fri</label>
+        <input type="number" id="mfBays" />
       </div>
 
       <div class="row">
-        <label for="satBays">Saturday Bays</label>
-        <input type="number" id="satBays" min="0" max="50" style="width:120px; padding:6px;" />
+        <label>Saturday</label>
+        <input type="number" id="satBays" />
       </div>
 
       <div class="row">
-        <label for="sunBays">Sunday Bays</label>
-        <input type="number" id="sunBays" min="0" max="50" style="width:120px; padding:6px;" />
+        <label>Sunday</label>
+        <input type="number" id="sunBays" />
       </div>
     </div>
 
-    <div class="section" style="border:1px solid #ddd; padding:12px; border-radius:10px;">
-      <div style="font-weight:bold; margin-bottom:10px;">Hours (HH:MM)</div>
+    <div class="card">
+      <div style="font-weight:bold; margin-bottom:10px;">Hours</div>
 
       <div class="row">
-        <label>Mon–Fri Open / Close</label>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <input id="mfOpen" placeholder="07:30" style="width:120px; padding:6px;" />
-          <span>to</span>
-          <input id="mfClose" placeholder="19:00" style="width:120px; padding:6px;" />
+        <label>Mon–Fri</label>
+        <div>
+          <input id="mfOpen" placeholder="07:30" />
+          to
+          <input id="mfClose" placeholder="19:00" />
         </div>
       </div>
 
       <div class="row">
-        <label>Saturday Open / Close</label>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <input id="satOpen" placeholder="08:00" style="width:120px; padding:6px;" />
-          <span>to</span>
-          <input id="satClose" placeholder="15:00" style="width:120px; padding:6px;" />
+        <label>Saturday</label>
+        <div>
+          <input id="satOpen" />
+          to
+          <input id="satClose" />
         </div>
       </div>
 
       <div class="row">
-        <label>Sunday Open / Close</label>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <input id="sunOpen" placeholder="00:00" style="width:120px; padding:6px;" />
-          <span>to</span>
-          <input id="sunClose" placeholder="00:00" style="width:120px; padding:6px;" />
+        <label>Sunday</label>
+        <div>
+          <input id="sunOpen" />
+          to
+          <input id="sunClose" />
         </div>
       </div>
-
-      <div class="hint">Tip: Set bays to 0 (or hours 00:00–00:00) to effectively close that day.</div>
     </div>
 
     <div>
-      <button id="saveSystemSettingsBtn" style="padding:6px 12px; width:140px;">Save</button>
-      <span id="systemSettingsMsg" style="margin-left:10px; font-size:14px;"></span>
+      <button id="saveSystemSettingsBtn">Save</button>
+      <span id="systemSettingsMsg" class="muted"></span>
     </div>
 
   </div>
 
-  <!-- FORCE RE-LOGIN ON SETTINGS -->
+  <!-- FORCE LOGIN -->
   <script type="module">
     import { auth } from "./js/firebase.js";
     import { signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
@@ -216,20 +161,34 @@
 
     if (!reauth) {
       await signOut(auth);
-      window.location.href = "/login.html?next=/settings.html?reauth=1";
+      window.location.href = "/login.html?next=" + encodeURIComponent("/settings.html?reauth=1");
     }
   </script>
 
-  <!-- Nav + role guard -->
+  <!-- NAV -->
   <script type="module">
     import { requireRole } from "./js/guard.js";
     import { renderNav } from "./js/nav.js";
 
-    document.getElementById("nav").innerHTML = renderNav("settings");
+    document.getElementById("nav").innerHTML = `
+      <div>
+        <a href="/home.html">Home</a>
+      </div>
+    ` + renderNav("settings");
+
     requireRole(["admin", "manager", "wash", "staff", "advisor", "booker", "qc", "dropoff"]);
+
+    // active tab
+    const path = window.location.pathname.split("/").pop();
+    document.querySelectorAll("#nav a").forEach(link => {
+      const href = link.getAttribute("href");
+      if (href && path === href.split("/").pop()) {
+        link.classList.add("active");
+      }
+    });
   </script>
 
-  <!-- Page logic -->
+  <!-- LOGIC -->
   <script type="module" src="./js/settingsPage.js"></script>
 
 </body>

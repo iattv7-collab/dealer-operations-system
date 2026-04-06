@@ -5,79 +5,13 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Booker</title>
-  <style>
-    body {
-      font-family: "Times New Roman", Times, serif;
-      margin: 16px;
-    }
-
-    button {
-      font-family: inherit;
-      font-size: 16px;
-    }
-
-    .card {
-      border: 1px solid #ccc;
-      padding: 12px;
-      border-radius: 8px;
-    }
-
-    table {
-      border-collapse: collapse;
-      width: 100%;
-      margin-top: 10px;
-    }
-
-    th,
-    td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      vertical-align: top;
-    }
-
-    th {
-      text-align: left;
-    }
-
-    .muted {
-      color: #666;
-    }
-
-    .ok {
-      color: #0a6;
-    }
-
-    .err {
-      color: #b00;
-    }
-
-    .grid {
-      display: flex;
-      gap: 16px;
-      align-items: flex-start;
-    }
-
-    .left-col {
-      flex: 1 1 auto;
-      min-width: 0;
-    }
-
-    .table-scroll {
-      overflow-x: auto;
-    }
-
-    .table-scroll table {
-      width: max-content;
-      min-width: 100%;
-    }
-  </style>
+  <link rel="stylesheet" href="/css/arrowflow.css">
 </head>
 
 <body>
 
   <div id="nav"></div>
 
-  <!-- ✅ GLOBAL WASH CONTROL -->
   <div id="manualControls" class="card" style="margin-bottom:16px; display:none;">
     <b>Wash Day Control:</b>
     <button id="openWashBtn">OPEN</button>
@@ -112,59 +46,49 @@
     </div>
   </div>
 
-
   <script type="module">
-
     import { requireRole, getUserProfile } from "./js/guard.js";
     import { renderNav } from "./js/nav.js";
     import { mountTicketsUI } from "./js/ticketsUI.js";
     import { auth } from "./js/firebase.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-
-    import { listenSystemSettings, setSystemSettings } from "./js/settings.js";
-
+    import { setSystemSettings } from "./js/settings.js";
 
     document.getElementById("nav").innerHTML = `
-  <div style="display:flex; gap:10px; margin-bottom:12px;">
-    <a href="/home.html" style="text-decoration:none; padding:6px 10px; border:1px solid #ccc; border-radius:6px; color:#000;">Home</a>
-  </div>
-` + renderNav("ROLE");
+      <div>
+        <a href="/home.html">Home</a>
+      </div>
+    ` + renderNav("ROLE");
 
     requireRole(["booker", "manager", "admin"]);
-
 
     const openBtn = document.getElementById("openWashBtn");
     const closeBtn = document.getElementById("closeWashBtn");
     const msg = document.getElementById("settingsMsg");
     const panel = document.getElementById("manualControls");
 
-
     function setMsg(text, ok = true) {
       msg.textContent = text;
       msg.style.color = ok ? "green" : "crimson";
     }
 
-
     onAuthStateChanged(auth, async (user) => {
-
       if (!user) return;
 
       const profile = await getUserProfile(user);
-
       const role = String(profile?.role || "").toLowerCase();
 
+      const statusEl = document.getElementById("status");
+      statusEl.textContent = `${user.email} · ${role}`;
 
       const canControl =
         role === "admin" ||
         role === "manager" ||
         profile?.permissions?.canControlWashDay === true;
 
-
       panel.style.display = canControl ? "block" : "none";
 
-
       if (canControl) {
-
         openBtn.onclick = async () => {
           await setSystemSettings(user, { isOpen: true });
           setMsg("Wash OPEN");
@@ -174,9 +98,7 @@
           await setSystemSettings(user, { isOpen: false });
           setMsg("Wash CLOSED");
         };
-
       }
-
 
       mountTicketsUI({
         role: role,
@@ -185,15 +107,19 @@
         showTabs: true,
         searchEl: document.getElementById("searchInput"),
         viewColumnKeys: profile?.viewColumns?.[role] || [],
-
-        // ✅ NEW: permission-gated Corrections tab
         canEditTickets: profile?.permissions?.canEditTickets === true,
         correctionsPerms: profile?.permissions?.corrections || {}
-
       });
 
-    });
+      const path = window.location.pathname.split("/").pop();
 
+      document.querySelectorAll("#nav a").forEach(link => {
+        const href = link.getAttribute("href");
+        if (href && path === href.split("/").pop()) {
+          link.classList.add("active");
+        }
+      });
+    });
   </script>
 
 </body>
