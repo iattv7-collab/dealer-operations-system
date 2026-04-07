@@ -1143,7 +1143,7 @@ function parseReynoldsRO(rawText) {
     concern: extractConcern(lines),
     roDate: extractRoDate(lines),
     promiseDate: extractPromiseDateOnly(lines),
-    advisorNo: extractAdvisorNo(zoneLines) || extractAdvisorNo(lines),
+    advisorNo: "",
     advisor: "",
     vin: extractVin(lines),
     confidenceHint: ""

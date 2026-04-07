@@ -144,6 +144,7 @@
       <div>
         <label for="mTag">Tag #</label>
         <input id="mTag" type="text" />
+        <div id="mTagWarn" class="bad" style="margin-top:4px; font-weight:bold;"></div>
       </div>
 
       <div>
@@ -157,8 +158,12 @@
       </div>
 
       <div>
+        <label for="mBrand">Brand</label>
+        <input id="mBrand" type="text" />
+
         <label for="mModel">Model</label>
         <input id="mModel" type="text" />
+
         <label for="mVin">VIN</label>
         <input id="mVin" type="text" />
 
@@ -238,9 +243,11 @@
     const mPhone = $("mPhone");
     const mRo = $("mRo");
     const mTag = $("mTag");
+    const mTagWarn = $("mTagWarn");
     const mRoDate = $("mRoDate");
     const mPromiseDate = $("mPromiseDate");
     const mModel = $("mModel");
+    const mBrand = $("mBrand");
     const mAdvisor = $("mAdvisor");
     const mConcern = $("mConcern");
     const mVin = $("mVin");
@@ -271,6 +278,8 @@
       btnShowManual.style.display = "inline-block";
       btnHideManual.style.display = "none";
       setManualMsg("");
+      if (mTagWarn) mTagWarn.textContent = "";
+      if (mTag) mTag.style.borderColor = "";
     }
 
     function clean(v) {
@@ -329,6 +338,11 @@
 
     btnHideManual.addEventListener("click", hideManual);
 
+    mTag.addEventListener("input", () => {
+      if (mTagWarn) mTagWarn.textContent = "";
+      mTag.style.borderColor = "";
+    });
+
     btnSaveManual.addEventListener("click", async () => {
       try {
         setManualMsg("Saving...", null);
@@ -386,6 +400,7 @@
           roDate,
           promiseDate,
           model,
+          brand: clean(mBrand.value),
           concern,
           vin,
 
@@ -416,8 +431,12 @@
         mRoDate.value = "";
         mPromiseDate.value = "";
         mModel.value = "";
+        mBrand.value = "";
         mConcern.value = "";
         mAdvisor.value = "";
+        mVin.value = "";
+        if (mTagWarn) mTagWarn.textContent = "";
+        if (mTag) mTag.style.borderColor = "";
 
       } catch (e) {
         const msg = e.message || String(e);
@@ -515,11 +534,10 @@
           throw new Error(`RO # ${ro} already exists.`);
         }
 
+        let tagAlreadyExists = false;
+
         if (tag) {
-          const tagExists = await existsByField("tag", tag);
-          if (tagExists) {
-            throw new Error(`Tag # ${tag} already exists.`);
-          }
+          tagAlreadyExists = await existsByField("tag", tag);
         }
 
         showManual();
@@ -533,6 +551,42 @@
         mModel.value = model;
         mAdvisor.value = advisor || await getCurrentUserName();
         mConcern.value = concern;
+
+        if (tagAlreadyExists) {
+          if (mTagWarn) {
+            mTagWarn.textContent = `Tag # ${tag} is already in use. Please choose another tag.`;
+          }
+          if (mTag) {
+            mTag.style.borderColor = "#b00020";
+          }
+        } else {
+          if (mTagWarn) mTagWarn.textContent = "";
+          if (mTag) mTag.style.borderColor = "";
+        }
+
+        // 🔥 VIN + decode (THIS WAS MISSING)
+        const vin = clean(data.vin || "");
+        mVin.value = vin;
+
+        if (vin) {
+          const url = `https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvaluesextended/${vin}?format=json`;
+
+          fetch(url)
+            .then(res => res.json())
+            .then(json => {
+              const d = json?.Results?.[0];
+              if (!d) return;
+
+              if (d.Make) {
+                mBrand.value = d.Make;
+              }
+
+              if (d.ModelYear || d.Model) {
+                mModel.value = `${d.ModelYear || ""} ${d.Model || ""}`.trim();
+              }
+            })
+            .catch(() => { });
+        }
 
         setManualMsg("");
         setStatus("Scan complete. Verify and click Save Manual RO.", true);

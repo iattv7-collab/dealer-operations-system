@@ -126,6 +126,28 @@ function buildPreview(out) {
   ).slice(0, 1800);
 }
 
+async function decodeVIN_API(vin) {
+  try {
+    const url = `https://vpic.nhtsa.dot.gov/api/vehicles/decodevinvaluesextended/${vin}?format=json`;
+
+    const res = await fetch(url);
+    const json = await res.json();
+
+    const data = json?.Results?.[0];
+    if (!data) return null;
+
+    return {
+      brand: data.Make || "",
+      model: data.Model || "",
+      year: data.ModelYear || ""
+    };
+
+  } catch (err) {
+    console.error("VIN decode failed:", err);
+    return null;
+  }
+}
+
 function initScanner() {
   const scanBtn = $("btnScan");
   const scanInput = $("scanInput");
@@ -216,7 +238,27 @@ function initScanner() {
       mModel.value = data.yearModel || "";
       mConcern.value = data.concern || "";
       mAdvisor.value = auth.currentUser?.displayName || data.advisor || "";
-      if (mVin) mVin.value = data.vin || "";
+      const vin = data.vin || "";
+
+      if (mVin) mVin.value = vin;
+
+      if (vin) {
+        const mBrand = $("mBrand");
+
+        decodeVIN_API(vin).then((vinData) => {
+          if (!vinData) return;
+
+          // Set Brand
+          if (mBrand && vinData.brand) {
+            mBrand.value = vinData.brand;
+          }
+
+          // Set Model (Year + Model)
+          if (vinData.year || vinData.model) {
+            mModel.value = `${vinData.year || ""} ${vinData.model || ""}`.trim();
+          }
+        });
+      }
 
       alert("Scan complete. Please verify the data, then click Save Manual RO.");
 

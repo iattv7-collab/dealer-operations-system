@@ -62,6 +62,8 @@ function renderReadRow(docSnap) {
     <td>${escapeHtml(r.customerName || "")}</td>
     <td>${escapeHtml(r.phone || "")}</td>
     <td>${escapeHtml(r.tag || "")}</td>
+    <td>${escapeHtml(r.vin || "")}</td>
+    <td>${escapeHtml(r.advisorNo || "")}</td>
     <td>${escapeHtml(r.model || "")}</td>
     <td>${escapeHtml(r.concern || "")}</td>
     <td>
@@ -84,8 +86,10 @@ function renderEditRow(tr, docSnap) {
     <td><input type="text" class="edit-customer" value="${escapeHtml(r.customerName || "")}"></td>
     <td><input type="text" class="edit-phone" value="${escapeHtml(r.phone || "")}"></td>
     <td><input type="text" class="edit-tag" value="${escapeHtml(r.tag || "")}"></td>
+    <td><input type="text" value="${escapeHtml(r.vin || "")}" disabled></td>
+    <td><input type="text" value="${escapeHtml(r.advisorNo || "")}" disabled></td>
     <td><input type="text" class="edit-model" value="${escapeHtml(r.model || "")}"></td>
-    <td><textarea class="edit-concern" rows="3" style="width:100%; box-sizing:border-box;">${escapeHtml(r.concern || "")}</textarea></td>
+    <td><textarea class="edit-concern"
     <td>
       <button type="button" class="btn-save">Save</button>
       <button type="button" class="btn-cancel">Cancel</button>
