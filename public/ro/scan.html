@@ -383,6 +383,7 @@
 
         const profile = await getUserProfile(user);
         const dealerId = Number(profile?.dealerId || 0);
+        const advisorNo = clean(profile?.advisorNo || "");
 
         if (!dealerId) {
           throw new Error("Missing dealerId on user profile.");
@@ -414,6 +415,7 @@
           hasLoaner: false,
 
           advisor,
+          advisorNo,
           advisorId,
           advisorName,
           source: "manual-scanner",

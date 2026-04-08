@@ -12,7 +12,8 @@ import {
   getDoc,
   setDoc,
   deleteDoc,
-  serverTimestamp
+  serverTimestamp,
+  getDocs
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 document.getElementById("nav").innerHTML = renderNav("masterro");
@@ -20,6 +21,12 @@ document.getElementById("nav").innerHTML = renderNav("masterro");
 requireRole(["admin", "manager", "advisor", "booker", "wash", "valet", "qc"]);
 
 const tbody = document.getElementById("ro-body");
+const advisorFilter = document.getElementById("advisor-filter");
+const advisorSearch = document.getElementById("advisor-search");
+const advisorClear = document.getElementById("advisor-clear");
+
+let allDocs = [];
+let advisorProfiles = [];
 
 function clean(v) {
   return String(v || "").trim();
@@ -31,6 +38,105 @@ function escapeHtml(v) {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+function advisorLabel(r) {
+  const no = clean(r.advisorNo || "");
+  const name = clean(r.advisorName || r.advisor || "");
+  if (no && name) return `${no} - ${name}`;
+  if (no) return no;
+  if (name) return name;
+  return "";
+}
+
+function populateAdvisorFilter() {
+  if (!advisorFilter) return;
+
+  advisorFilter.innerHTML = `<option value="">All Advisors</option>`;
+
+  const items = [...advisorProfiles].sort((a, b) => {
+    const A = `${clean(a.advisorNo || "")} - ${clean(a.name || a.email || "")}`.trim();
+    const B = `${clean(b.advisorNo || "")} - ${clean(b.name || b.email || "")}`.trim();
+    return A.localeCompare(B);
+  });
+
+  items.forEach((u) => {
+    const opt = document.createElement("option");
+    opt.value = clean(u.uid || "");
+    opt.textContent = `${clean(u.advisorNo || "")} - ${clean(u.name || u.email || "")}`.replace(/^ - /, "");
+    advisorFilter.appendChild(opt);
+  });
+}
+
+function matchesAdvisorFilter(docSnap) {
+  const r = docSnap.data() || {};
+  const selectedUid = clean(advisorFilter?.value || "");
+  const search = clean(advisorSearch?.value || "").toLowerCase();
+
+  const advisorId = clean(r.advisorId || "");
+  const advisorNo = clean(r.advisorNo || "").toLowerCase();
+  const advisorName = clean(r.advisorName || r.advisor || "").toLowerCase();
+
+  let matchesDropdown = true;
+
+  if (selectedUid) {
+    const selectedAdvisor = advisorProfiles.find((u) => clean(u.uid) === selectedUid);
+
+    if (!selectedAdvisor) {
+      matchesDropdown = false;
+    } else {
+      const selectedNo = clean(selectedAdvisor.advisorNo || "").toLowerCase();
+      const selectedName = clean(selectedAdvisor.name || selectedAdvisor.email || "").toLowerCase();
+
+      matchesDropdown =
+        advisorId === selectedUid ||
+        (!!selectedNo && advisorNo === selectedNo) ||
+        (!!selectedName && advisorName === selectedName);
+    }
+  }
+
+  const matchesSearch =
+    !search ||
+    advisorNo.includes(search) ||
+    advisorName.includes(search);
+
+  return matchesDropdown && matchesSearch;
+}
+
+function renderTable() {
+  tbody.innerHTML = "";
+
+  const filtered = allDocs.filter(matchesAdvisorFilter);
+
+  filtered.sort((a, b) => {
+    const A = advisorLabel(a.data() || {});
+    const B = advisorLabel(b.data() || {});
+    return A.localeCompare(B);
+  });
+
+  filtered.forEach((docSnap) => {
+    tbody.appendChild(renderReadRow(docSnap));
+  });
+}
+
+async function loadAdvisorProfiles(dealerId) {
+  const qy = query(
+    collection(db, "users"),
+    where("dealerId", "==", dealerId),
+    where("role", "==", "advisor")
+  );
+
+  const snap = await getDocs(qy);
+
+  advisorProfiles = [];
+  snap.forEach((docSnap) => {
+    advisorProfiles.push({
+      uid: docSnap.id,
+      ...(docSnap.data() || {})
+    });
+  });
+
+  populateAdvisorFilter();
 }
 
 async function tagExistsElsewhere(tag, currentDocId) {
@@ -63,7 +169,7 @@ function renderReadRow(docSnap) {
     <td>${escapeHtml(r.phone || "")}</td>
     <td>${escapeHtml(r.tag || "")}</td>
     <td>${escapeHtml(r.vin || "")}</td>
-    <td>${escapeHtml(r.advisorNo || "")}</td>
+    <td>${escapeHtml(r.advisorNo || r.advisorName || r.advisor || "")}</td>
     <td>${escapeHtml(r.model || "")}</td>
     <td>${escapeHtml(r.concern || "")}</td>
     <td>
@@ -78,6 +184,23 @@ function renderReadRow(docSnap) {
   return tr;
 }
 
+if (advisorFilter) {
+  advisorFilter.addEventListener("change", renderTable);
+}
+
+if (advisorSearch) {
+  advisorSearch.addEventListener("input", renderTable);
+}
+
+if (advisorClear) {
+  advisorClear.addEventListener("click", () => {
+    advisorFilter.value = "";
+    advisorSearch.value = "";
+    renderTable();
+  });
+}
+
+
 function renderEditRow(tr, docSnap) {
   const r = docSnap.data();
 
@@ -87,9 +210,9 @@ function renderEditRow(tr, docSnap) {
     <td><input type="text" class="edit-phone" value="${escapeHtml(r.phone || "")}"></td>
     <td><input type="text" class="edit-tag" value="${escapeHtml(r.tag || "")}"></td>
     <td><input type="text" value="${escapeHtml(r.vin || "")}" disabled></td>
-    <td><input type="text" value="${escapeHtml(r.advisorNo || "")}" disabled></td>
+    <td><input type="text" value="${escapeHtml(r.advisorNo || r.advisorName || r.advisor || "")}" disabled></td>
     <td><input type="text" class="edit-model" value="${escapeHtml(r.model || "")}"></td>
-    <td><textarea class="edit-concern"
+    <td><textarea class="edit-concern" rows="3" style="width:100%; box-sizing:border-box;">${escapeHtml(r.concern || "")}</textarea></td>
     <td>
       <button type="button" class="btn-save">Save</button>
       <button type="button" class="btn-cancel">Cancel</button>
@@ -181,15 +304,19 @@ onAuthStateChanged(auth, async (user) => {
 
   const dealerId = await getUserDealerId(user);
 
+  await loadAdvisorProfiles(dealerId);
+
   const q = query(
     collection(db, "ros"),
     where("dealerId", "==", dealerId)
   );
 
   onSnapshot(q, (snap) => {
-    tbody.innerHTML = "";
+    allDocs = [];
     snap.forEach((docSnap) => {
-      tbody.appendChild(renderReadRow(docSnap));
+      allDocs.push(docSnap);
     });
+
+    renderTable();
   });
 });

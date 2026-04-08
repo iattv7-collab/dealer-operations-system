@@ -17,6 +17,25 @@
     <h2>Master RO List</h2>
 
     <div class="card">
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:12px;">
+        <div>
+          <label for="advisor-filter" style="display:block; font-weight:bold; margin-bottom:4px;">Advisor</label>
+          <select id="advisor-filter" style="min-width:220px;">
+            <option value="">All Advisors</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="advisor-search" style="display:block; font-weight:bold; margin-bottom:4px;">Search Advisor # or
+            Name</label>
+          <input id="advisor-search" type="text" style="min-width:260px;" placeholder="Type advisor # or name">
+        </div>
+
+        <div>
+          <button id="advisor-clear" type="button">Clear</button>
+        </div>
+      </div>
+
       <div class="table-scroll">
         <table>
           <thead>
