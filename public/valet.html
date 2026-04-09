@@ -59,11 +59,7 @@
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
     import { setSystemSettings } from "./js/settings.js";
 
-    document.getElementById("nav").innerHTML = `
-      <div>
-        <a href="/home.html">Home</a>
-      </div>
-    ` + renderNav("ROLE");
+   document.getElementById("nav").innerHTML = renderNav("ROLE");
 
     requireRole(["valet", "manager", "admin"]);
 

@@ -116,11 +116,7 @@
     import { renderNav } from "./js/nav.js";
     import { createWashTicket, listenTickets, fmtTime } from "./js/rosWash.js";
 
-    document.getElementById("nav").innerHTML = `
-      <div>
-        <a href="/home.html">Home</a>
-      </div>
-    ` + renderNav("ROLE");
+    document.getElementById("nav").innerHTML = renderNav("ROLE");
 
     requireRole(["staff", "advisor", "wash", "manager", "admin"]);
 

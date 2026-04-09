@@ -929,41 +929,61 @@ function getVinBlock(lines) {
 
 function extractRoNumber(lines, text) {
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    let m = line.match(/R\.?O\.?\s*(?:NO|#|NUMBER)\s*[:.]?\s*(\d{5,8})/i);
+    const line = cleanupSpacing(lines[i]);
+
+    let m = line.match(/R\.?\s*O\.?\s*(?:NO|#|NUMBER)\.?\s*[:.]?\s*(\d{5,8})/i);
     if (m) return m[1];
 
-    if (/R\.?O\.?\s*(?:NO|#|NUMBER)/i.test(line)) {
-      const joined = [line, lines[i + 1] || ""].join(" ");
-      m = joined.match(/R\.?O\.?\s*(?:NO|#|NUMBER)\s*[:.]?\s*(\d{5,8})/i);
+    if (/R\.?\s*O\.?\s*(?:NO|#|NUMBER)\.?/i.test(line)) {
+      for (let j = 1; j <= 4; j++) {
+        const next = cleanupSpacing(lines[i + j] || "");
+        if (!next) continue;
+
+        m = next.match(/\b(\d{5,8})\b/);
+        if (m) return m[1];
+      }
+
+      const joined = [line, lines[i + 1] || "", lines[i + 2] || "", lines[i + 3] || ""].join(" ");
+      m = joined.match(/R\.?\s*O\.?\s*(?:NO|#|NUMBER)\.?\s*[:.]?\s*(\d{5,8})/i);
       if (m) return m[1];
     }
   }
 
   const vinBlock = getVinBlock(lines);
   if (vinBlock.length) {
-    const joined = vinBlock.join(" ");
-    const m = joined.match(/R\.?O\.?\s*(?:NO|#)?\s*[:.]?\s*(\d{5,8})/i);
-    if (m) return m[1];
+    for (let i = 0; i < vinBlock.length; i++) {
+      const line = cleanupSpacing(vinBlock[i]);
+
+      let m = line.match(/R\.?\s*O\.?\s*(?:NO|#|NUMBER)\.?\s*[:.]?\s*(\d{5,8})/i);
+      if (m) return m[1];
+
+      if (/R\.?\s*O\.?\s*(?:NO|#|NUMBER)\.?/i.test(line)) {
+        for (let j = 1; j <= 4; j++) {
+          const next = cleanupSpacing(vinBlock[i + j] || "");
+          if (!next) continue;
+
+          m = next.match(/\b(\d{5,8})\b/);
+          if (m) return m[1];
+        }
+      }
+    }
   }
 
-  const topChunk = lines.slice(0, 25).join(" ");
-  const nums = topChunk.match(/\b\d{5,8}\b/g) || [];
-  if (nums.length) {
-    const counts = {};
-    nums.forEach(n => { counts[n] = (counts[n] || 0) + 1; });
-    const repeated = Object.keys(counts)
-      .sort((a, b) => counts[b] - counts[a] || b.length - a.length);
-    if (repeated.length) return repeated[0];
-  }
-
-  const any = text.match(/\b\d{5,8}\b/g) || [];
-  return any.length ? any[0] : "";
+  const allMatches = text.match(/\b\d{5,8}\b/g) || [];
+  return allMatches.length ? allMatches[0] : "";
 }
 
 
 
 function extractTagNumber(lines) {
+  function isGoodTagCandidate(s) {
+    const t = cleanupSpacing(s || "");
+    if (!/^\d{3,6}$/.test(t)) return false;
+    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(t)) return false;
+    if (t.includes(",")) return false;
+    return true;
+  }
+
   for (let i = 0; i < lines.length; i++) {
     const line = cleanupSpacing(lines[i]);
 
@@ -971,22 +991,17 @@ function extractTagNumber(lines) {
     if (m) return m[1];
 
     if (/TAG\s*(?:NO|#)/i.test(line)) {
-      const next1 = cleanupSpacing(lines[i + 1] || "");
-      const next2 = cleanupSpacing(lines[i + 2] || "");
-      const next3 = cleanupSpacing(lines[i + 3] || "");
+      for (let j = 1; j <= 8; j++) {
+        const next = cleanupSpacing(lines[i + j] || "");
+        if (!next) continue;
 
-      m = next1.match(/\b(\d{2,10})\b/);
-      if (m) return m[1];
+        if (isGoodTagCandidate(next)) return next;
 
-      m = next2.match(/\b(\d{2,10})\b/);
-      if (m) return m[1];
+        m = next.match(/\b(\d{3,6})\b/);
+        if (m && isGoodTagCandidate(m[1])) return m[1];
 
-      m = next3.match(/\b(\d{2,10})\b/);
-      if (m) return m[1];
-
-      const joined = [line, next1, next2, next3].join(" ");
-      m = joined.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
-      if (m) return m[1];
+        if (/ADVISOR\s*NO|ADVISOR/i.test(next)) break;
+      }
     }
   }
 
@@ -999,18 +1014,17 @@ function extractTagNumber(lines) {
       if (m) return m[1];
 
       if (/TAG\s*(?:NO|#)/i.test(line)) {
-        const next1 = cleanupSpacing(vinBlock[i + 1] || "");
-        const next2 = cleanupSpacing(vinBlock[i + 2] || "");
+        for (let j = 1; j <= 8; j++) {
+          const next = cleanupSpacing(vinBlock[i + j] || "");
+          if (!next) continue;
 
-        m = next1.match(/\b(\d{2,10})\b/);
-        if (m) return m[1];
+          if (isGoodTagCandidate(next)) return next;
 
-        m = next2.match(/\b(\d{2,10})\b/);
-        if (m) return m[1];
+          m = next.match(/\b(\d{3,6})\b/);
+          if (m && isGoodTagCandidate(m[1])) return m[1];
 
-        const joined = [line, next1, next2].join(" ");
-        m = joined.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
-        if (m) return m[1];
+          if (/ADVISOR\s*NO|ADVISOR/i.test(next)) break;
+        }
       }
     }
   }
@@ -1143,8 +1157,8 @@ function parseReynoldsRO(rawText) {
     concern: extractConcern(lines),
     roDate: extractRoDate(lines),
     promiseDate: extractPromiseDateOnly(lines),
-    advisorNo: "",
-    advisor: "",
+    advisorNo: extractAdvisorNo(lines),
+    advisor: extractAdvisor(lines),
     vin: extractVin(lines),
     confidenceHint: ""
   };
@@ -1292,6 +1306,75 @@ function extractTagNumber(lines) {
 
   return "";
 }
+
+function extractAdvisorNo(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = cleanupSpacing(lines[i]);
+
+    let m = line.match(/ADVISOR\s*NO\.?\s*[:.]?\s*(\d{1,6})/i);
+    if (m) return m[1];
+
+    if (/ADVISOR\s*NO\.?/i.test(line)) {
+      for (let j = 1; j <= 8; j++) {
+        const next = cleanupSpacing(lines[i + j] || "");
+        if (!next) continue;
+
+        if (/^\d{1,6}$/.test(next)) return next;
+
+        m = next.match(/\b(\d{1,6})\b/);
+        if (m) return m[1];
+
+        if (/^ADVISOR$/i.test(next)) continue;
+      }
+    }
+  }
+
+  return "";
+}
+
+function extractAdvisor(lines) {
+  const BAD = new Set([
+    "ADVISOR",
+    "ADVISOR NO",
+    "ADVISOR NO.",
+    "TECHNICIAN",
+    "TYPE",
+    "TECHNICIAN TYPE",
+    "MILEAGE",
+    "TRANS",
+    "POZZ",
+    "AIR COND. P. S.",
+    "TURBO M/MC"
+  ]);
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = cleanupSpacing(lines[i]);
+
+    let m = line.match(/ADVISOR\s*[:.]?\s*([A-Za-z][A-Za-z.' -]{2,40})$/i);
+    if (m) {
+      const candidate = cleanupName(m[1]);
+      if (!BAD.has(candidate.toUpperCase()) && looksLikePersonName(candidate)) {
+        return candidate;
+      }
+    }
+
+    if (/^ADVISOR$/i.test(line) || /^ADVISOR\s*NO\.?/i.test(line)) {
+      for (let j = 1; j <= 8; j++) {
+        const next = cleanupSpacing(lines[i + j] || "");
+        if (!next) continue;
+
+        const upper = next.toUpperCase();
+        if (BAD.has(upper)) continue;
+        if (/^\d{1,6}$/.test(next)) continue;
+
+        if (looksLikePersonName(next)) return cleanupName(next);
+      }
+    }
+  }
+
+  return "";
+}
+
 
 function extractCustomerName(lines) {
   const vinIdx = lines.findIndex(line => looksLikeVIN(line));

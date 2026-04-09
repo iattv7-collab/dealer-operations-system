@@ -178,11 +178,7 @@
     import { renderNav } from "./js/nav.js";
     import "./js/admin.js";
 
-    document.getElementById("nav").innerHTML = `
-      <div>
-        <a href="/home.html">Home</a>
-      </div>
-    ` + renderNav("admin");
+    document.getElementById("nav").innerHTML = renderNav("admin");
 
     requireRole(["admin"]);
 

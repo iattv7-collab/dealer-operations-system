@@ -66,11 +66,7 @@
     import { listenSystemSettings, setSystemSettings }
       from "./js/settings.js";
 
-    document.getElementById("nav").innerHTML = `
-      <div>
-        <a href="/home.html">Home</a>
-      </div>
-    ` + renderNav("ROLE");
+    document.getElementById("nav").innerHTML = renderNav("ROLE");
 
     requireRole(["wash", "manager", "admin"]);
 
