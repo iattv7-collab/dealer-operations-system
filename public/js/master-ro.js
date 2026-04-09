@@ -169,7 +169,9 @@ function renderReadRow(docSnap) {
     <td>${escapeHtml(r.phone || "")}</td>
     <td>${escapeHtml(r.tag || "")}</td>
     <td>${escapeHtml(r.vin || "")}</td>
-    <td>${escapeHtml(r.advisorNo || r.advisorName || r.advisor || "")}</td>
+    <td title="${escapeHtml(r.advisorName || r.advisor || "")}">
+      ${escapeHtml(r.advisorNo || "")}
+    </td>
     <td>${escapeHtml(r.model || "")}</td>
     <td>${escapeHtml(r.concern || "")}</td>
     <td>
@@ -200,7 +202,6 @@ if (advisorClear) {
   });
 }
 
-
 function renderEditRow(tr, docSnap) {
   const r = docSnap.data();
 
@@ -210,7 +211,7 @@ function renderEditRow(tr, docSnap) {
     <td><input type="text" class="edit-phone" value="${escapeHtml(r.phone || "")}"></td>
     <td><input type="text" class="edit-tag" value="${escapeHtml(r.tag || "")}"></td>
     <td><input type="text" value="${escapeHtml(r.vin || "")}" disabled></td>
-    <td><input type="text" value="${escapeHtml(r.advisorNo || r.advisorName || r.advisor || "")}" disabled></td>
+    <td><input type="text" value="${escapeHtml(r.advisorNo || "")}" disabled title="${escapeHtml(r.advisorName || r.advisor || "")}"></td>
     <td><input type="text" class="edit-model" value="${escapeHtml(r.model || "")}"></td>
     <td><textarea class="edit-concern" rows="3" style="width:100%; box-sizing:border-box;">${escapeHtml(r.concern || "")}</textarea></td>
     <td>

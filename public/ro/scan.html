@@ -139,6 +139,7 @@
       <div>
         <label for="mRo">RO #</label>
         <input id="mRo" type="text" />
+        <div id="mRoWarn" class="bad" style="margin-top:4px; font-weight:bold;"></div>
       </div>
 
       <div>
@@ -182,7 +183,7 @@
     </div>
 
     <div class="actions" style="margin-top:14px;">
-      <button id="btnSaveManual" type="button">Save Manual RO</button>
+      <button id="btnSaveManual" type="button">Save RO</button>
     </div>
 
     <div id="manualMsg"></div>
@@ -242,7 +243,8 @@
     const mCustomer = $("mCustomer");
     const mPhone = $("mPhone");
     const mRo = $("mRo");
-    const mTag = $("mTag");
+    const mRoWarn = $("mRoWarn");
+    const mTag = $("mTag");;
     const mTagWarn = $("mTagWarn");
     const mRoDate = $("mRoDate");
     const mPromiseDate = $("mPromiseDate");
@@ -338,9 +340,38 @@
 
     btnHideManual.addEventListener("click", hideManual);
 
-    mTag.addEventListener("input", () => {
-      if (mTagWarn) mTagWarn.textContent = "";
-      mTag.style.borderColor = "";
+    mRo.addEventListener("input", async () => {
+      const ro = clean(mRo.value);
+      if (!ro) return;
+
+      const exists = (await getDoc(doc(db, "ros", ro))).exists();
+
+      if (exists) {
+        if (mRoWarn) mRoWarn.textContent = `Duplicate RO # ${ro}`;
+        mRo.style.borderColor = "#b00020";
+      } else {
+        if (mRoWarn) mRoWarn.textContent = "";
+        mRo.style.borderColor = "";
+      }
+
+      btnSaveManual.disabled = exists;
+    });
+
+    mTag.addEventListener("input", async () => {
+      const tag = clean(mTag.value);
+      if (!tag) return;
+
+      const exists = await existsByField("tag", tag);
+
+      if (exists) {
+        if (mTagWarn) mTagWarn.textContent = `Duplicate Tag # ${tag}`;
+        mTag.style.borderColor = "#b00020";
+      } else {
+        if (mTagWarn) mTagWarn.textContent = "";
+        mTag.style.borderColor = "";
+      }
+
+      btnSaveManual.disabled = exists;
     });
 
     btnSaveManual.addEventListener("click", async () => {
@@ -383,14 +414,55 @@
 
         const profile = await getUserProfile(user);
         const dealerId = Number(profile?.dealerId || 0);
-        const advisorNo = clean(profile?.advisorNo || "");
 
         if (!dealerId) {
           throw new Error("Missing dealerId on user profile.");
         }
 
-        const advisorId = user.uid;
-        const advisorName = clean(profile?.name) || clean(user.email) || advisor;
+        const inputAdvisor = clean(mAdvisor.value);
+
+        if (!inputAdvisor) {
+          throw new Error("Advisor is required.");
+        }
+
+        // 🔥 get all advisors for this dealer
+        const qy = query(
+          collection(db, "users"),
+          where("dealerId", "==", dealerId),
+          where("role", "==", "advisor")
+        );
+
+        const snap = await getDocs(qy);
+
+        let matchedUser = null;
+
+        // 1️⃣ try match by advisor number
+        snap.forEach(docSnap => {
+          const u = docSnap.data();
+          if (clean(u.advisorNo) === inputAdvisor) {
+            matchedUser = { id: docSnap.id, ...u };
+          }
+        });
+
+        // 2️⃣ if not found → match by name
+        if (!matchedUser) {
+          snap.forEach(docSnap => {
+            const u = docSnap.data();
+            if (clean(u.name).toLowerCase() === inputAdvisor.toLowerCase()) {
+              matchedUser = { id: docSnap.id, ...u };
+            }
+          });
+        }
+
+        // ❌ no match → reject
+        if (!matchedUser) {
+          throw new Error("Advisor not found. Enter valid advisor name or number.");
+        }
+
+        // ✅ matched advisor
+        const advisorId = matchedUser.id;
+        const advisorNo = clean(matchedUser.employeeId || "");
+        const advisorName = clean(matchedUser.name || "");
 
         await setDoc(roRef, {
           dealerId,
@@ -532,9 +604,7 @@
 
         const roRef = doc(db, "ros", ro);
         const existingRo = await getDoc(roRef);
-        if (existingRo.exists()) {
-          throw new Error(`RO # ${ro} already exists.`);
-        }
+        const roAlreadyExists = existingRo.exists();
 
         let tagAlreadyExists = false;
 
@@ -554,17 +624,27 @@
         mAdvisor.value = advisor || await getCurrentUserName();
         mConcern.value = concern;
 
-        if (tagAlreadyExists) {
-          if (mTagWarn) {
-            mTagWarn.textContent = `Tag # ${tag} is already in use. Please choose another tag.`;
-          }
-          if (mTag) {
-            mTag.style.borderColor = "#b00020";
-          }
-        } else {
-          if (mTagWarn) mTagWarn.textContent = "";
-          if (mTag) mTag.style.borderColor = "";
+        // clear previous
+        if (mRoWarn) mRoWarn.textContent = "";
+        if (mTagWarn) mTagWarn.textContent = "";
+        if (mRo) mRo.style.borderColor = "";
+        if (mTag) mTag.style.borderColor = "";
+
+        // RO duplicate
+        if (roAlreadyExists) {
+          if (mRoWarn) mRoWarn.textContent = `Duplicate RO # ${ro}`;
+          if (mRo) mRo.style.borderColor = "#b00020";
         }
+
+        // TAG duplicate
+        if (tagAlreadyExists) {
+          if (mTagWarn) mTagWarn.textContent = `Duplicate Tag # ${tag}`;
+          if (mTag) mTag.style.borderColor = "#b00020";
+        }
+
+        // disable save if any duplicate
+        btnSaveManual.disabled = roAlreadyExists || tagAlreadyExists;
+        btnSaveManual.style.opacity = (roAlreadyExists || tagAlreadyExists) ? "0.6" : "1";
 
         // 🔥 VIN + decode (THIS WAS MISSING)
         const vin = clean(data.vin || "");
@@ -591,7 +671,7 @@
         }
 
         setManualMsg("");
-        setStatus("Scan complete. Verify and click Save Manual RO.", true);
+        setStatus("Scan complete. Verify and click Save RO.", true);
         window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
 
       } catch (e) {
