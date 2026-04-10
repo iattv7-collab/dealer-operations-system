@@ -277,26 +277,44 @@ export function mountTicketsUI({
       return;
     }
 
-    const hasActions = cols.some((c) => c.key === "_actions");
+        const splitActionKeys = new Set([
+      "requestRewash",
+      "setNeedByAction",
+      "startWash",
+      "markComplete",
+      "cpBookedAction",
+      "wtyBookedAction",
+      "requestQc",
+      "noQc",
+      "qcDoneAction",
+      "archiveAction",
+    ]);
+
+    const hasSplitActions = cols.some((c) => splitActionKeys.has(c.key));
 
     rows.forEach((t) => {
       const tr = renderRow(t, role, cols, etaMap);
 
-      if (hasActions) {
-        const actionsTd = tr.querySelector('td[data-actions-cell="1"]');
-        if (actionsTd) {
-          actionsTd.innerHTML = "";
-          actionsTd.appendChild(
-            buildActionsCell({
-              t,
-              role,
-              tab: currentTab,
-              correctionsPerms: {
-                ...(correctionsPerms || {}),
-                canEditTickets: canEditTickets,
-              },
-            })
-          );
+      if (hasSplitActions) {
+        const actionMap = buildActionsCell({
+          t,
+          role,
+          tab: currentTab,
+          correctionsPerms: {
+            ...(correctionsPerms || {}),
+            canEditTickets: canEditTickets,
+          },
+          splitMode: true,
+        });
+
+        if (actionMap && typeof actionMap === "object") {
+          Object.entries(actionMap).forEach(([key, node]) => {
+            const td = tr.querySelector(`td[data-action-key="${key}"]`);
+            if (td && node) {
+              td.innerHTML = "";
+              td.appendChild(node);
+            }
+          });
         }
       }
 

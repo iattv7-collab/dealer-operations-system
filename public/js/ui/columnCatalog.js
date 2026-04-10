@@ -175,13 +175,86 @@ export const COLUMN_CATALOG = {
     editRoles: ["qc", "manager", "admin"],
   },
 
-  // ✅ Your actual Actions key is _actions (not "actions")
-  _actions: {
-    key: "_actions",
-    label: "Actions",
+  // 🔥 SPLIT ACTION COLUMNS
+
+  requestRewash: {
+    key: "requestRewash",
+    label: "Rewash",
     field: null,
-    type: "actions",
-    editRoles: [], // buttons are handled elsewhere
+    type: "action",
+    editRoles: [],
+  },
+
+  setNeedByAction: {
+    key: "setNeedByAction",
+    label: "Need By",
+    field: null,
+    type: "action",
+    editRoles: [],
+  },
+
+  startWash: {
+    key: "startWash",
+    label: "Start",
+    field: null,
+    type: "action",
+    editRoles: [],
+  },
+
+  markComplete: {
+    key: "markComplete",
+    label: "Done",
+    field: null,
+    type: "action",
+    editRoles: [],
+  },
+
+  cpBookedAction: {
+    key: "cpBookedAction",
+    label: "CP",
+    field: null,
+    type: "action",
+    editRoles: [],
+  },
+
+  wtyBookedAction: {
+    key: "wtyBookedAction",
+    label: "WTY",
+    field: null,
+    type: "action",
+    editRoles: [],
+  },
+
+  requestQc: {
+    key: "requestQc",
+    label: "QC Req",
+    field: null,
+    type: "action",
+    editRoles: [],
+  },
+
+  noQc: {
+    key: "noQc",
+    label: "No QC",
+    field: null,
+    type: "action",
+    editRoles: [],
+  },
+
+  qcDoneAction: {
+    key: "qcDoneAction",
+    label: "QC Done",
+    field: null,
+    type: "action",
+    editRoles: [],
+  },
+
+  archiveAction: {
+    key: "archiveAction",
+    label: "Archive",
+    field: null,
+    type: "action",
+    editRoles: [],
   },
 
   // Add more columns later safely without touching views.
@@ -201,7 +274,16 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "notes",
     "washed",   // ✅ moved early so it's not stuck far right
     "updatedAt",
-    "_actions",
+    "requestRewash",
+    "setNeedByAction",
+    "startWash",
+    "markComplete",
+    "cpBookedAction",
+    "wtyBookedAction",
+    "requestQc",
+    "noQc",
+    "qcDoneAction",
+    "archiveAction",
   ],
 
   manager: [
@@ -216,7 +298,16 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "notes",
     "washed",
     "updatedAt",
-    "_actions",
+    "requestRewash",
+    "setNeedByAction",
+    "startWash",
+    "markComplete",
+    "cpBookedAction",
+    "wtyBookedAction",
+    "requestQc",
+    "noQc",
+    "qcDoneAction",
+    "archiveAction",
   ],
 
   advisor: [
@@ -230,7 +321,16 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "priority",
     "notes",
     "washed",
-    "_actions",
+    "requestRewash",
+    "setNeedByAction",
+    "startWash",
+    "markComplete",
+    "cpBookedAction",
+    "wtyBookedAction",
+    "requestQc",
+    "noQc",
+    "qcDoneAction",
+    "archiveAction",
   ],
 
   wash: [
@@ -244,7 +344,16 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "priority",
     "notes",
     "washed",
-    "_actions",
+    "requestRewash",
+    "setNeedByAction",
+    "startWash",
+    "markComplete",
+    "cpBookedAction",
+    "wtyBookedAction",
+    "requestQc",
+    "noQc",
+    "qcDoneAction",
+    "archiveAction",
   ],
 
   staff: [
@@ -257,7 +366,16 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "priority",
     "notes",
     "washed",
-    "_actions",
+    "requestRewash",
+    "setNeedByAction",
+    "startWash",
+    "markComplete",
+    "cpBookedAction",
+    "wtyBookedAction",
+    "requestQc",
+    "noQc",
+    "qcDoneAction",
+    "archiveAction",
   ],
 
   valet: [
@@ -270,10 +388,19 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "priority",
     "notes",
     "washed",
-    "_actions",
+    "requestRewash",
+    "setNeedByAction",
+    "startWash",
+    "markComplete",
+    "cpBookedAction",
+    "wtyBookedAction",
+    "requestQc",
+    "noQc",
+    "qcDoneAction",
+    "archiveAction",
   ],
 
-    booker: [
+  booker: [
     "tag",
     "ro",
     "advisor",
@@ -289,7 +416,16 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "notes",
     "washed",
     "updatedAt",
-    "_actions",
+    "requestRewash",
+    "setNeedByAction",
+    "startWash",
+    "markComplete",
+    "cpBookedAction",
+    "wtyBookedAction",
+    "requestQc",
+    "noQc",
+    "qcDoneAction",
+    "archiveAction",
   ],
 
   qc: [
@@ -305,7 +441,16 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
 
     "notes",
     "updatedAt",
-    "_actions",
+    "requestRewash",
+    "setNeedByAction",
+    "startWash",
+    "markComplete",
+    "cpBookedAction",
+    "wtyBookedAction",
+    "requestQc",
+    "noQc",
+    "qcDoneAction",
+    "archiveAction",
   ],
 };
 

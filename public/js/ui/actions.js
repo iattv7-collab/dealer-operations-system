@@ -84,7 +84,7 @@ export function setRowButtonsDisabled(tr, disabled) {
   });
 }
 
-export function buildActionsCell({ t, role, tab = "", correctionsPerms = {} }) {
+export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, splitMode = false }) {
   const caps = capsFor(role);
 
   const td = el("td");
@@ -171,6 +171,23 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {} }) {
     }
   }
 
+  if (splitMode) {
+    const actionMap = {};
+
+    if (wrap.contains(bRewash)) actionMap.requestRewash = bRewash;
+    if (wrap.contains(bNeedBy)) actionMap.setNeedByAction = bNeedBy;
+    if (wrap.contains(bWashing)) actionMap.startWash = bWashing;
+    if (wrap.contains(bWashed)) actionMap.markComplete = bWashed;
+    if (wrap.contains(bCpBooked)) actionMap.cpBookedAction = bCpBooked;
+    if (wrap.contains(bWtyBooked)) actionMap.wtyBookedAction = bWtyBooked;
+    if (wrap.contains(bRequestQc)) actionMap.requestQc = bRequestQc;
+    if (wrap.contains(bNoQc)) actionMap.noQc = bNoQc;
+    if (wrap.contains(bQcDone)) actionMap.qcDoneAction = bQcDone;
+    if (wrap.contains(bArchive)) actionMap.archiveAction = bArchive;
+
+    return actionMap;
+  }
+
   td.appendChild(wrap);
   return td;
 }
@@ -218,7 +235,7 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
         return;
       }
 
-           if (btn.classList.contains("btn-fix-ro")) {
+      if (btn.classList.contains("btn-fix-ro")) {
         if (!canFixField(correctionsPerms, "ro")) return;
 
         const next = await promptNonEmpty("Correct RO:", tRow.ro || "");

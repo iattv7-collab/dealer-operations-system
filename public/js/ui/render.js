@@ -20,11 +20,22 @@ export function renderRow(t, role, cols, etaMap) {
 
   cols.forEach((c) => {
 
-    // ✅ Actions placeholder in the correct column spot
-    if (c.key === "_actions") {
+       // ✅ Split action placeholders (presentation only, no logic change)
+    if (
+      c.key === "requestRewash" ||
+      c.key === "setNeedByAction" ||
+      c.key === "startWash" ||
+      c.key === "markComplete" ||
+      c.key === "cpBookedAction" ||
+      c.key === "wtyBookedAction" ||
+      c.key === "requestQc" ||
+      c.key === "noQc" ||
+      c.key === "qcDoneAction" ||
+      c.key === "archiveAction"
+    ) {
       const td = el("td");
-      td.dataset.col = "actions";
-      td.setAttribute("data-actions-cell", "1");
+      td.dataset.col = c.key;
+      td.setAttribute("data-action-key", c.key);
       tr.appendChild(td);
       return;
     }

@@ -34,6 +34,7 @@ const modalSaveBtn = document.getElementById("columnsModalSaveBtn");
 const modalUserLine = document.getElementById("columnsModalUserLine");
 const modalMsg = document.getElementById("columnsModalMsg");
 const modalViewSelect = document.getElementById("columnsModalViewSelect");
+const modalSearchInput = document.getElementById("columnsModalSearch");
 const modalGrid = document.getElementById("columnsModalGrid");
 
 let modalState = {
@@ -42,6 +43,7 @@ let modalState = {
   viewKey: "advisor",
   viewColumnsMap: {},
   editColumnsMap: {},
+  searchText: "",
 };
 
 function setModalMsg(text, ok = true) {
@@ -60,6 +62,8 @@ function closeModal() {
   if (!modalBackdrop) return;
   modalBackdrop.style.display = "none";
   modalBackdrop.setAttribute("aria-hidden", "true");
+  modalState.searchText = "";
+  if (modalSearchInput) modalSearchInput.value = "";
   setModalMsg("");
 }
 
@@ -122,30 +126,49 @@ function getEffectiveKeysForView(viewKey) {
   return normalizeKeys(DEFAULT_COLUMNS_BY_VIEW[viewKey] || []);
 }
 
+
+
 function renderColumnsGrid(viewKey) {
   if (!modalGrid) return;
 
   const effectiveView = new Set(getEffectiveKeysForView(viewKey));
   const editMap = modalState.editColumnsMap || {};
   const effectiveEdit = new Set(normalizeKeys(editMap[viewKey] || []));
-  const keys = allColumnKeys().slice().sort();
+  const search = String(modalState.searchText || "").trim().toLowerCase();
+
+  const keys = allColumnKeys()
+    .slice()
+    .sort((a, b) => a.localeCompare(b))
+    .filter((k) => !search || k.toLowerCase().includes(search));
 
   modalGrid.innerHTML = "";
 
-  keys.forEach((k) => {
+  keys.forEach((k, idx) => {
     const row = document.createElement("div");
     row.style.display = "grid";
-    row.style.gridTemplateColumns = "1fr auto auto";
+    row.style.gridTemplateColumns = "minmax(0, 1fr) 90px 90px";
     row.style.alignItems = "center";
-    row.style.gap = "10px";
+    row.style.gap = "8px";
+    row.style.padding = "2px 0";
+    row.style.borderBottom = "1px solid #f2f2f2";
+    row.classList.toggle("row-even", idx % 2 === 1);
+
+    row.addEventListener("click", () => {
+      modalGrid.querySelectorAll(".row-selected").forEach((el) => {
+        el.classList.remove("row-selected");
+      });
+      row.classList.add("row-selected");
+    });
 
     const left = document.createElement("span");
     left.textContent = k;
+    left.style.wordBreak = "break-word";
 
     const viewWrap = document.createElement("label");
     viewWrap.style.display = "flex";
     viewWrap.style.alignItems = "center";
     viewWrap.style.gap = "6px";
+    viewWrap.style.whiteSpace = "nowrap";
 
     const viewCb = document.createElement("input");
     viewCb.type = "checkbox";
@@ -163,6 +186,7 @@ function renderColumnsGrid(viewKey) {
     editWrap.style.display = "flex";
     editWrap.style.alignItems = "center";
     editWrap.style.gap = "6px";
+    editWrap.style.whiteSpace = "nowrap";
 
     const editCb = document.createElement("input");
     editCb.type = "checkbox";
@@ -184,7 +208,7 @@ function renderColumnsGrid(viewKey) {
       } else {
         editCb.disabled = false;
       }
-      enableModalSave(); // ✅ THIS WAS MISSING
+      enableModalSave();
     });
 
     editCb.addEventListener("change", () => {
@@ -198,6 +222,9 @@ function renderColumnsGrid(viewKey) {
     modalGrid.appendChild(row);
   });
 }
+
+
+
 
 function fillViewSelect(selectedViewKey) {
   if (!modalViewSelect) return;
@@ -224,6 +251,9 @@ function openColumnsModalForUser({ uid, email, initialViewKey, viewColumnsMap, e
     modalUserLine.textContent = `User: ${modalState.email}  |  UID: ${uid}`;
   }
 
+  modalState.searchText = "";
+  if (modalSearchInput) modalSearchInput.value = "";
+
   fillViewSelect(modalState.viewKey);
   renderColumnsGrid(modalState.viewKey);
 
@@ -241,6 +271,13 @@ if (modalViewSelect) {
     renderColumnsGrid(modalState.viewKey);
     setModalMsg("");
     enableModalSave();
+  });
+}
+
+if (modalSearchInput) {
+  modalSearchInput.addEventListener("input", () => {
+    modalState.searchText = String(modalSearchInput.value || "");
+    renderColumnsGrid(modalState.viewKey);
   });
 }
 
