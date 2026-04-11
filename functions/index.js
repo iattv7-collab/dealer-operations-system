@@ -1,3 +1,5 @@
+// force deploy
+
 "use strict";
 
 /**
@@ -374,7 +376,6 @@ function pickSecondMinValue(arr) {
   return min2;
 }
 
-// Get parts for America/New_York reliably (server can run in UTC)
 function nyPartsFromMs(ms) {
   const fmt = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
@@ -400,7 +401,6 @@ function nyPartsFromMs(ms) {
   };
 }
 
-// Convert NY local Y-M-D HH:MM into epoch ms
 function nyLocalToMs({ year, month, day, hh, mm }) {
   const utcGuess = Date.UTC(year, month - 1, day, hh, mm, 0);
   const nyAtUtcGuess = nyPartsFromMs(utcGuess);
@@ -677,7 +677,6 @@ async function recomputeScheduleV1(reason = "unknown") {
   });
 }
 
-// Trigger 1: washTickets changes
 exports.onWashTicketWrite = functions.firestore
   .document("washTickets/{ticketId}")
   .onWrite(async (change, context) => {
@@ -702,7 +701,6 @@ exports.onWashTicketWrite = functions.firestore
     return null;
   });
 
-// Trigger 2: settings/system changes
 exports.onSettingsSystemWrite = functions.firestore
   .document("settings/system")
   .onWrite(async () => {
@@ -737,7 +735,6 @@ exports.scanRO = functions.https.onRequest((req, res) => {
         (ocrResult.textAnnotations && ocrResult.textAnnotations[0]?.description) ||
         "";
 
-      // zone OCR for the center info box
       const meta = await sharp(fileBuffer).metadata();
 
       const zoneBuffer = await sharp(fileBuffer)
@@ -760,6 +757,22 @@ exports.scanRO = functions.https.onRequest((req, res) => {
 
       const parsed = parseReynoldsRO(rawText, zoneText);
 
+      const matchedAdvisor = await findAdvisorByDoubleMatch(rawText);
+
+      if (matchedAdvisor) {
+        parsed.data.advisorNo = matchedAdvisor.advisorNo || parsed.data.advisorNo || "";
+        parsed.data.advisor = matchedAdvisor.advisorName || parsed.data.advisor || "";
+      }
+
+      const vin = parsed?.data?.vin || "";
+
+      if (vin) {
+        const decoded = await decodeVin(vin);
+        if (decoded) {
+          parsed.data.yearModel = `${decoded.year} ${decoded.make} ${decoded.model}`.trim();
+        }
+      }
+
       return res.json({
         ok: true,
         pass: parsed.missingRequired.length === 0,
@@ -776,8 +789,6 @@ exports.scanRO = functions.https.onRequest((req, res) => {
     }
   });
 });
-
-
 
 function readUpload(req) {
   return new Promise((resolve, reject) => {
@@ -820,346 +831,19 @@ function parseReynoldsRO(rawText, zoneText = "") {
     .split("\n")
     .map(line => cleanupSpacing(line))
     .filter(Boolean);
-
+  const roDateExtracted = extractRoDate(lines);
   const data = {
     roNumber: extractRoNumber(lines, text),
     tagNumber: extractTagNumber(lines),
-    customerName: extractCustomerName(lines),
-    cellPhone: extractCellPhone(lines),
+    customerName: extractCustomerName(lines, zoneLines),
+    cellPhone: extractCellPhone(lines, zoneLines),
     yearModel: extractYearModel(lines),
-    concern: extractConcern(lines),
-    roDate: extractRoDate(lines),
+    concern: "",
+    roDate: roDateExtracted || getToday(),
     promiseDate: extractPromiseDateOnly(lines),
-    advisor: "",
-    vin: extractVin(lines),
-    confidenceHint: ""
-  };
-
-  function extractPromiseDateOnly(linesArg) {
-    const full = extractPromiseDate(linesArg);
-    const d = normalizeDateToken(full);
-    return d || "";
-  }
-
-  const missingRequired = [];
-  if (!data.roNumber) missingRequired.push("roNumber");
-  if (!data.tagNumber) missingRequired.push("tagNumber");
-  if (!data.customerName) missingRequired.push("customerName");
-
-  return { data, missingRequired };
-}
-
-function normalizeText(text) {
-  return String(text || "")
-    .replace(/\r/g, "")
-    .replace(/[ \t]+/g, " ")
-    .replace(/[|]/g, "I")
-    .replace(/[“”]/g, '"')
-    .replace(/[‘’]/g, "'")
-    .trim();
-}
-
-function cleanupSpacing(text) {
-  return String(text || "").replace(/\s+/g, " ").trim();
-}
-
-function digitsOnly(value) {
-  return String(value || "").replace(/\D/g, "");
-}
-
-function findPhone(text) {
-  const m = String(text || "").match(/\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/);
-  if (!m) return "";
-  return digitsOnly(m[0]);
-}
-
-function looksLikePhoneLine(line) {
-  return /\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/.test(String(line || ""));
-}
-
-function looksLikeAddress(line) {
-  const text = String(line || "");
-  return /\b(ST|AVE|AVENUE|ROAD|RD|DR|DRIVE|BLVD|COURT|CT|LANE|LN|WAY|FL|DAVIE|MIAMI|APT|UNIT)\b/i.test(text) ||
-    /\b\d{3,6}\b/.test(text);
-}
-
-function cleanupName(name) {
-  return cleanupSpacing(String(name || "").replace(/[^A-Za-z0-9.' -]/g, "").trim());
-}
-
-function looksLikePersonName(s) {
-  if (!s) return false;
-
-  const clean = cleanupSpacing(s);
-
-  // reject obvious junk
-  if (/^\d+$/.test(clean)) return false;
-  if (/^(YES|NO|Y|N)$/i.test(clean)) return false;
-  if (/^(RN|CMCMCU)$/i.test(clean)) return false;
-
-  // must have at least 2 words (first + last name)
-  const parts = clean.split(/\s+/).filter(Boolean);
-  if (parts.length < 2) return false;
-
-  // each word should be letters (basic check)
-  if (!parts.every(p => /^[A-Za-z.'-]+$/.test(p))) return false;
-
-  return true;
-}
-
-function looksLikeVIN(line) {
-  return /\b[A-HJ-NPR-Z0-9]{17}\b/.test(String(line || ""));
-}
-
-function normalizeDateToken(value) {
-  const m = String(value || "").match(/\b(\d{2})\/(\d{2})\/(\d{2,4})\b/);
-  return m ? m[0] : "";
-}
-
-function normalizeTimeToken(value) {
-  const m = String(value || "").match(/\b\d{1,2}:\d{2}\s*[ap]m\b/i);
-  return m ? cleanupSpacing(m[0]).replace(/\s+/g, "") : "";
-}
-
-function getVinBlock(lines) {
-  const vinIdx = lines.findIndex(line => looksLikeVIN(line));
-  if (vinIdx < 0) return [];
-  return lines.slice(vinIdx, Math.min(lines.length, vinIdx + 18));
-}
-
-function extractRoNumber(lines, text) {
-  for (let i = 0; i < lines.length; i++) {
-    const line = cleanupSpacing(lines[i]);
-
-    let m = line.match(/R\.?\s*O\.?\s*(?:NO|#|NUMBER)\.?\s*[:.]?\s*(\d{5,8})/i);
-    if (m) return m[1];
-
-    if (/R\.?\s*O\.?\s*(?:NO|#|NUMBER)\.?/i.test(line)) {
-      for (let j = 1; j <= 4; j++) {
-        const next = cleanupSpacing(lines[i + j] || "");
-        if (!next) continue;
-
-        m = next.match(/\b(\d{5,8})\b/);
-        if (m) return m[1];
-      }
-
-      const joined = [line, lines[i + 1] || "", lines[i + 2] || "", lines[i + 3] || ""].join(" ");
-      m = joined.match(/R\.?\s*O\.?\s*(?:NO|#|NUMBER)\.?\s*[:.]?\s*(\d{5,8})/i);
-      if (m) return m[1];
-    }
-  }
-
-  const vinBlock = getVinBlock(lines);
-  if (vinBlock.length) {
-    for (let i = 0; i < vinBlock.length; i++) {
-      const line = cleanupSpacing(vinBlock[i]);
-
-      let m = line.match(/R\.?\s*O\.?\s*(?:NO|#|NUMBER)\.?\s*[:.]?\s*(\d{5,8})/i);
-      if (m) return m[1];
-
-      if (/R\.?\s*O\.?\s*(?:NO|#|NUMBER)\.?/i.test(line)) {
-        for (let j = 1; j <= 4; j++) {
-          const next = cleanupSpacing(vinBlock[i + j] || "");
-          if (!next) continue;
-
-          m = next.match(/\b(\d{5,8})\b/);
-          if (m) return m[1];
-        }
-      }
-    }
-  }
-
-  const allMatches = text.match(/\b\d{5,8}\b/g) || [];
-  return allMatches.length ? allMatches[0] : "";
-}
-
-
-
-function extractTagNumber(lines) {
-  function isGoodTagCandidate(s) {
-    const t = cleanupSpacing(s || "");
-    if (!/^\d{3,6}$/.test(t)) return false;
-    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(t)) return false;
-    if (t.includes(",")) return false;
-    return true;
-  }
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = cleanupSpacing(lines[i]);
-
-    let m = line.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
-    if (m) return m[1];
-
-    if (/TAG\s*(?:NO|#)/i.test(line)) {
-      for (let j = 1; j <= 8; j++) {
-        const next = cleanupSpacing(lines[i + j] || "");
-        if (!next) continue;
-
-        if (isGoodTagCandidate(next)) return next;
-
-        m = next.match(/\b(\d{3,6})\b/);
-        if (m && isGoodTagCandidate(m[1])) return m[1];
-
-        if (/ADVISOR\s*NO|ADVISOR/i.test(next)) break;
-      }
-    }
-  }
-
-  const vinBlock = getVinBlock(lines);
-  if (vinBlock.length) {
-    for (let i = 0; i < vinBlock.length; i++) {
-      const line = cleanupSpacing(vinBlock[i]);
-
-      let m = line.match(/TAG\s*(?:NO|#)\s*[:.]?\s*(\d{2,10})/i);
-      if (m) return m[1];
-
-      if (/TAG\s*(?:NO|#)/i.test(line)) {
-        for (let j = 1; j <= 8; j++) {
-          const next = cleanupSpacing(vinBlock[i + j] || "");
-          if (!next) continue;
-
-          if (isGoodTagCandidate(next)) return next;
-
-          m = next.match(/\b(\d{3,6})\b/);
-          if (m && isGoodTagCandidate(m[1])) return m[1];
-
-          if (/ADVISOR\s*NO|ADVISOR/i.test(next)) break;
-        }
-      }
-    }
-  }
-
-  return "";
-}
-
-async function decodeVin(vin) {
-  try {
-    const clean = String(vin || "").trim();
-    if (clean.length !== 17) return null;
-
-    const url = `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended/${clean}?format=json`;
-    const res = await fetch(url);
-    if (!res.ok) return null;
-
-    const json = await res.json();
-    const row = json?.Results?.[0];
-    if (!row) return null;
-
-    return {
-      year: row.ModelYear || "",
-      make: row.Make || "",
-      model: row.Model || ""
-    };
-  } catch {
-    return null;
-  }
-}
-
-// =====================================================
-// SCAN RO
-// =====================================================
-
-exports.scanRO = functions.https.onRequest((req, res) => {
-  cors(req, res, async () => {
-    if (req.method === "OPTIONS") return res.status(204).send("");
-    if (req.method !== "POST") {
-      return res.status(405).json({ ok: false, error: "Use POST" });
-    }
-
-    try {
-      const fileBuffer = await readUpload(req);
-
-      if (!fileBuffer || !fileBuffer.length) {
-        return res.status(400).json({ ok: false, error: "Missing file" });
-      }
-
-      const [ocrResult] = await visionClient.documentTextDetection({
-        image: { content: fileBuffer }
-      });
-
-      const rawText =
-        ocrResult.fullTextAnnotation?.text ||
-        (ocrResult.textAnnotations && ocrResult.textAnnotations[0]?.description) ||
-        "";
-
-      const parsed = parseReynoldsRO(rawText);
-      const vin = parsed?.data?.vin || "";
-
-      if (vin) {
-        const decoded = await decodeVin(vin);
-        if (decoded) {
-          parsed.data.yearModel =
-            `${decoded.year} ${decoded.make} ${decoded.model}`.trim();
-        }
-      }
-
-      return res.json({
-        ok: true,
-        pass: parsed.missingRequired.length === 0,
-        rawText,
-        data: parsed.data,
-        missingRequired: parsed.missingRequired
-      });
-    } catch (err) {
-      console.error("scanRO error:", err);
-      return res.status(500).json({
-        ok: false,
-        error: err.message || "Server error"
-      });
-    }
-  });
-});
-
-function readUpload(req) {
-  return new Promise((resolve, reject) => {
-    try {
-      const busboy = Busboy({ headers: req.headers });
-      const chunks = [];
-      let fileFound = false;
-
-      busboy.on("file", (_fieldname, file) => {
-        fileFound = true;
-        file.on("data", chunk => chunks.push(chunk));
-        file.on("end", () => { });
-      });
-
-      busboy.on("finish", () => {
-        if (!fileFound) return resolve(null);
-        resolve(Buffer.concat(chunks));
-      });
-
-      busboy.on("error", reject);
-
-      if (req.rawBody) {
-        busboy.end(req.rawBody);
-      } else {
-        req.pipe(busboy);
-      }
-    } catch (err) {
-      reject(err);
-    }
-  });
-}
-
-function parseReynoldsRO(rawText) {
-  const text = normalizeText(rawText);
-  const lines = text
-    .split("\n")
-    .map(line => cleanupSpacing(line))
-    .filter(Boolean);
-
-  const data = {
-    roNumber: extractRoNumber(lines, text),
-    tagNumber: extractTagNumber(lines),
-    customerName: extractCustomerName(lines),
-    cellPhone: extractCellPhone(lines),
-    yearModel: extractYearModel(lines),
-    concern: extractConcern(lines),
-    roDate: extractRoDate(lines),
-    promiseDate: extractPromiseDateOnly(lines),
-    advisorNo: extractAdvisorNo(lines),
-    advisor: extractAdvisor(lines),
-    vin: extractVin(lines),
+    advisorNo: extractAdvisorNo(lines, zoneLines),
+    advisor: extractAdvisor(lines, zoneLines),
+    vin: extractVin(lines, zoneLines),
     confidenceHint: ""
   };
 
@@ -1287,7 +971,7 @@ function extractRoNumber(lines, text) {
     }
   }
 
-  return "";
+  return (text.match(/\b\d{5,8}\b/g) || [])[0] || "";
 }
 
 function extractTagNumber(lines) {
@@ -1334,7 +1018,120 @@ function extractTagNumber(lines) {
   return "";
 }
 
-function extractAdvisorNo(lines) {
+async function decodeVin(vin) {
+  try {
+    const clean = String(vin || "").trim();
+    if (clean.length !== 17) return null;
+
+    const url = `https://vpic.nhtsa.dot.gov/api/vehicles/DecodeVinValuesExtended/${clean}?format=json`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+
+    const json = await res.json();
+    const row = json?.Results?.[0];
+    if (!row) return null;
+
+    return {
+      year: row.ModelYear || "",
+      make: row.Make || "",
+      model: row.Model || ""
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function findAdvisorByDoubleMatch(rawText) {
+  const text = normalizeForProfileMatch(rawText);
+  if (!text) return null;
+
+  const snap = await admin.firestore().collection("users").get();
+  if (snap.empty) return null;
+
+  const candidates = [];
+
+  for (const doc of snap.docs) {
+    const d = doc.data() || {};
+
+    // adjust these field names if your user docs use different ones
+    const advisorNo =
+      String(
+        d.employeeId ??
+        d.advisorNo ??
+        d.advisorNumber ??
+        d.number ??
+        ""
+      ).trim();
+
+    const advisorName = cleanupSpacing(
+      String(
+        d.displayName ??
+        d.name ??
+        d.fullName ??
+        d.advisorName ??
+        ""
+      )
+    );
+
+    const role = String(d.role || "").toLowerCase();
+
+    // only consider advisor profiles
+    if (role !== "advisor") continue;
+    if (!advisorNo || !advisorName) continue;
+
+    const noMatch = hasExactAdvisorNumber(text, advisorNo);
+    const nameMatch = hasExactAdvisorName(text, advisorName);
+
+    if (noMatch && nameMatch) {
+      candidates.push({
+        uid: doc.id,
+        advisorNo,
+        advisorName
+      });
+    }
+  }
+
+  if (candidates.length === 1) return candidates[0];
+
+  // if more than one somehow matches, do not guess
+  return null;
+}
+
+function normalizeForProfileMatch(text) {
+  return String(text || "")
+    .toUpperCase()
+    .replace(/\r/g, "\n")
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hasExactAdvisorNumber(normalizedText, advisorNo) {
+  const n = String(advisorNo || "").trim();
+  if (!n) return false;
+
+  const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rx = new RegExp(`(^|\\s)${escaped}(\\s|$)`);
+  return rx.test(normalizedText);
+}
+
+function hasExactAdvisorName(normalizedText, advisorName) {
+  const name = String(advisorName || "")
+    .toUpperCase()
+    .replace(/[^\w\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!name) return false;
+
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const rx = new RegExp(`(^|\\s)${escaped}(\\s|$)`);
+  return rx.test(normalizedText);
+}
+
+function extractAdvisorNo(lines, zoneLines = []) {
+  const allLines = [...zoneLines, ...lines];
+
   function isGoodAdvisorNo(s) {
     const t = cleanupSpacing(s || "");
     if (!/^\d{2,4}$/.test(t)) return false;
@@ -1342,15 +1139,15 @@ function extractAdvisorNo(lines) {
     return true;
   }
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = cleanupSpacing(lines[i]);
+  for (let i = 0; i < allLines.length; i++) {
+    const line = cleanupSpacing(allLines[i]);
 
     let m = line.match(/ADVISOR\s*NO\.?\s*[:.]?\s*(\d{2,4})/i);
     if (m) return m[1];
 
     if (/ADVISOR\s*NO\.?/i.test(line)) {
       for (let j = 1; j <= 8; j++) {
-        const next = cleanupSpacing(lines[i + j] || "");
+        const next = cleanupSpacing(allLines[i + j] || "");
         if (!next) continue;
 
         if (/^[A-Z]$/i.test(next)) continue;
@@ -1368,55 +1165,19 @@ function extractAdvisorNo(lines) {
   return "";
 }
 
+
+
 function extractAdvisor(lines) {
-  const BAD = new Set([
-    "ADVISOR",
-    "ADVISOR NO",
-    "ADVISOR NO.",
-    "TECHNICIAN",
-    "TYPE",
-    "TECHNICIAN TYPE",
-    "MILEAGE",
-    "TRANS",
-    "POZZ",
-    "AIR COND. P. S.",
-    "TURBO M/MC",
-    "TAG NO",
-    "TAG NO."
-  ]);
-
-  for (let i = 0; i < lines.length; i++) {
-    const line = cleanupSpacing(lines[i]);
-
-    let m = line.match(/ADVISOR\s*[:.]?\s*([A-Za-z][A-Za-z.' -]{2,40})$/i);
-    if (m) {
-      const candidate = cleanupName(m[1]);
-      if (!BAD.has(candidate.toUpperCase()) && looksLikePersonName(candidate)) {
-        return candidate;
-      }
-    }
-
-    if (/^ADVISOR$/i.test(line) || /^ADVISOR\s*NO\.?/i.test(line)) {
-      for (let j = 1; j <= 10; j++) {
-        const next = cleanupSpacing(lines[i + j] || "");
-        if (!next) continue;
-
-        const upper = next.toUpperCase();
-        if (BAD.has(upper)) continue;
-        if (/^\d{1,6}$/.test(next)) continue;
-        if (next.includes(",")) continue;
-
-        if (looksLikePersonName(next)) return cleanupName(next);
-      }
-    }
-  }
-
   return "";
 }
 
 
-function extractCustomerName(lines) {
+
+function extractCustomerName(lines, zoneLines = []) {
+  const allLines = [...zoneLines, ...lines];
+
   const BAD_NAME_FRAGMENTS = [
+    "CREDIT CD",
     "VEHICLE",
     "I.D.",
     "ID",
@@ -1426,7 +1187,6 @@ function extractCustomerName(lines) {
     "SERVICE CONTRACT",
     "CASH",
     "CHECK",
-    "CREDIT",
     "SAVE PARTS",
     "YES NO",
     "PHONE",
@@ -1440,7 +1200,10 @@ function extractCustomerName(lines) {
     "TRANS",
     "MILEAGE",
     "ADVISOR",
-    "ADVISOR NO"
+    "ADVISOR NO",
+    "LABOR RATES",
+    "DATE/TIME PROMISED",
+    "R. O. NO."
   ];
 
   function isBadNameLine(s) {
@@ -1454,22 +1217,38 @@ function extractCustomerName(lines) {
     return false;
   }
 
-  const vinIdx = lines.findIndex(line => looksLikeVIN(line));
+  for (let i = 0; i < allLines.length; i++) {
+    const line = cleanupSpacing(allLines[i]);
+    const m = line.match(/^CREDIT\s+CD\s+(.+)$/i);
+    if (m) {
+      const tail = cleanupName(m[1]);
+      if (tail && !/^CREDIT\s*CD$/i.test(tail) && !isBadNameLine(tail) && looksLikePersonName(tail)) {
+        return tail;
+      }
+
+      const next = cleanupSpacing(allLines[i + 1] || "");
+      if (next && !/^CREDIT\s*CD$/i.test(next) && !isBadNameLine(next) && looksLikePersonName(next)) {
+        return cleanupName(next);
+      }
+    }
+  }
+  
+  const vinIdx = allLines.findIndex(line => looksLikeVIN(line));
   if (vinIdx >= 0) {
-    for (let i = vinIdx + 1; i <= Math.min(vinIdx + 10, lines.length - 1); i++) {
-      const line = cleanupSpacing(lines[i]);
+    for (let i = vinIdx + 1; i <= Math.min(vinIdx + 10, allLines.length - 1); i++) {
+      const line = cleanupSpacing(allLines[i]);
       if (!line) continue;
       if (isBadNameLine(line)) continue;
       if (looksLikePersonName(line)) return cleanupName(line);
     }
   }
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = cleanupSpacing(lines[i]).toUpperCase();
+  for (let i = 0; i < allLines.length; i++) {
+    const line = cleanupSpacing(allLines[i]).toUpperCase();
 
     if (line.includes("CREDIT") || line.includes("CUSTOMER")) {
-      for (let j = i; j < i + 8 && j < lines.length; j++) {
-        const candidate = cleanupSpacing(lines[j]);
+      for (let j = i; j < i + 8 && j < allLines.length; j++) {
+        const candidate = cleanupSpacing(allLines[j]);
         if (!candidate) continue;
         if (isBadNameLine(candidate)) continue;
         if (looksLikePersonName(candidate)) return cleanupName(candidate);
@@ -1477,32 +1256,34 @@ function extractCustomerName(lines) {
     }
   }
 
-  const candidates = lines.filter(line => looksLikePersonName(line) && !isBadNameLine(line));
+  const candidates = allLines.filter(line => looksLikePersonName(line) && !isBadNameLine(line));
   return candidates.length ? cleanupName(candidates[0]) : "";
 }
 
-function extractCellPhone(lines) {
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+function extractCellPhone(lines, zoneLines = []) {
+  const allLines = [...zoneLines, ...lines];
+
+  for (let i = 0; i < allLines.length; i++) {
+    const line = allLines[i];
     if (/CELL\s*:/i.test(line) || /^CELL\b/i.test(line)) {
       const sameLine = findPhone(line);
       if (sameLine) return sameLine;
 
-      const next1 = findPhone(lines[i + 1] || "");
+      const next1 = findPhone(allLines[i + 1] || "");
       if (next1) return next1;
 
-      const next2 = findPhone(lines[i + 2] || "");
+      const next2 = findPhone(allLines[i + 2] || "");
       if (next2) return next2;
     }
   }
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
+  for (let i = 0; i < allLines.length; i++) {
+    const line = allLines[i];
     if (/RESIDENCE\s+PHONE/i.test(line)) {
       const sameLine = findPhone(line);
       if (sameLine) return sameLine;
 
-      const next1 = findPhone(lines[i + 1] || "");
+      const next1 = findPhone(allLines[i + 1] || "");
       if (next1) return next1;
     }
   }
@@ -1531,6 +1312,8 @@ function extractYearModel(lines) {
   return "";
 }
 
+
+
 function extractConcern(lines) {
   const BAD_LINES = [
     /^PORSCHE WEST BROWARD$/i,
@@ -1543,6 +1326,7 @@ function extractConcern(lines) {
     /^QUICK SERVICE$/i,
     /^MULTIPOINT INSPECT$/i,
     /^WashCarService$/i,
+    /^TOUCHLESS SERVICE$/i,
     /^QUALITY CONTROL$/i,
     /^TOTAL$/i,
     /^PRIORITY$/i,
@@ -1562,6 +1346,9 @@ function extractConcern(lines) {
     /^CUSTOMER NO\.?$/i,
     /^COLOR$/i,
     /^SERVICE CONTRACT$/i,
+    /^SALESPERSON NO\.?$/i,
+    /^VEHICLE I\.?D\.? NO\.?$/i,
+    /^YEAR\/MAKE\/MODEL$/i,
     /^PRODUCTION DATE$/i,
     /^STOCK NO\.?$/i,
     /^LICENSE NO\.?$/i,
@@ -1599,25 +1386,120 @@ function extractConcern(lines) {
     return false;
   }
 
+  function isJobStart(text) {
+    const t = cleanupSpacing(text || "").toUpperCase();
+
+    return (
+      /^[WIC]\s*[0-9A-Z]{4,}/.test(t) ||   // normal
+      /^\d+\s*[0-9A-Z]{4,}/.test(t) ||     // OCR shifted
+      /POZ\d+/i.test(t) ||                 // strongest signal
+      /70POZ/i.test(t)
+    );
+  }
+
   function looksLikeRealConcern(text) {
     const t = cleanupSpacing(text || "");
     if (!t || isBadConcernLine(t)) return false;
 
-    if (/\b(CUSTOMER STATES|C\/S|REQUEST|CONCERN|CORRECTION|LEAK|NOISE|VIBRATION|CHECK|WARNING|LIGHT|ISSUE|PROBLEM)\b/i.test(t)) {
+    const upper = t.toUpperCase();
+
+    if (
+      upper.includes("SALESPERSON") ||
+      upper.includes("AUTHORIZED") ||
+      upper.includes("VEHICLE") ||
+      upper.includes("CUSTOMER NO") ||
+      upper.includes("SERVICE CONTRACT") ||
+      upper.includes("LABOR RATE") ||
+      upper.includes("PRIORITY") ||
+      upper.includes("PHONE") ||
+      upper.includes("DATE") ||
+      upper.includes("TIME")
+    ) {
+      return false;
+    }
+
+    if (/\b(CUSTOMER STATES|C\/S|REQUEST|CONCERN|CORRECTION|LEAK|NOISE|VIBRATION|CHECK|WARNING|LIGHT|ISSUE|PROBLEM|SCREEN|LINE|RE-PROGRAMMING|PROGRAMMING)\b/i.test(t)) {
       return true;
     }
 
-    if (/^(M&B|ALIGNMENT|TRIM CONCERN|SHUTTLE TRANSPORT|MULTIPOINT INSPECT|QUALITY CONTROL|WASHCARSERVICE)/i.test(t)) {
+    if (/^(MULTIPOINT INSPECT|QUALITY CONTROL|WASHCARSERVICE|TOUCHLESS SERVICE)$/i.test(t)) {
       return false;
     }
 
     const words = t.split(/\s+/).filter(Boolean);
-    if (words.length < 2 || words.length > 8) return false;
-    if (!/^[A-Za-z0-9/&().,' -]+$/.test(t)) return false;
+    if (words.length < 2 || words.length > 16) return false;
+    if (!/^[A-Za-z0-9/&().,'+\- ]+$/.test(t)) return false;
 
     return true;
   }
 
+  function joinContinuation(base, next) {
+    const a = cleanupSpacing(base || "");
+    const b = cleanupSpacing(next || "");
+    if (!a || !b) return a;
+    if (isBadConcernLine(b)) return a;
+    if (isJobStart(b)) return a;
+    return `${a} ${b}`.trim();
+  }
+
+  // 1) Best path: anchor on W/C/I + POZ...
+  for (let i = 0; i < lines.length; i++) {
+    const line = cleanupSpacing(lines[i]);
+    if (!isJobStart(line)) continue;
+
+    const candidates = [];
+    for (let j = i + 1; j <= Math.min(i + 5, lines.length - 1); j++) {
+      const next = cleanupSpacing(lines[j]);
+      if (!next) continue;
+      if (isJobStart(next)) break;
+
+      if (isBadConcernLine(next)) continue;
+
+      const upper = next.toUpperCase();
+      if (
+        upper.includes("SALESPERSON") ||
+        upper.includes("AUTHORIZED") ||
+        upper.includes("VEHICLE") ||
+        upper.includes("CUSTOMER NO") ||
+        upper.includes("SERVICE CONTRACT") ||
+        upper.includes("LABOR RATE") ||
+        upper.includes("PRIORITY") ||
+        upper.includes("PHONE") ||
+        upper.includes("DATE") ||
+        upper.includes("TIME")
+      ) {
+        continue;
+      }
+
+      candidates.push(next);
+    }
+
+    if (!candidates.length) continue;
+
+    for (let k = 0; k < candidates.length; k++) {
+      const c = candidates[k];
+      if (/^C\/S\b/i.test(c) || /CUSTOMER STATES/i.test(c)) {
+        let result = c;
+        if (k + 1 < candidates.length) {
+          result = joinContinuation(result, candidates[k + 1]);
+        }
+        return result;
+      }
+    }
+
+    for (let k = 0; k < candidates.length; k++) {
+      const c = candidates[k];
+      if (!looksLikeRealConcern(c)) continue;
+
+      let result = c;
+      if (k + 1 < candidates.length) {
+        result = joinContinuation(result, candidates[k + 1]);
+      }
+      return result;
+    }
+  }
+
+  // 2) Fallback: CUSTOMER STATES anywhere
   for (let i = 0; i < lines.length; i++) {
     const line = cleanupSpacing(lines[i]);
     if (/CUSTOMER\s+STATES/i.test(line)) {
@@ -1632,22 +1514,33 @@ function extractConcern(lines) {
     }
   }
 
-  const estIdx = lines.findIndex(line => /^ORIGINAL CUSTOMER ESTIMATE:?$/i.test(cleanupSpacing(line)));
-  if (estIdx >= 0) {
-    for (let i = estIdx + 1; i < Math.min(lines.length, estIdx + 8); i++) {
-      const line = cleanupSpacing(lines[i]);
-      if (looksLikeRealConcern(line)) return line;
+  return "";
+}
+
+function extractPromiseDate(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].includes("DATE/TIME PROMISED")) {
+      const line1 = lines[i + 1] || "";
+      const line2 = lines[i + 2] || "";
+
+      const dateMatch = line1.match(/\d{2}\/\d{2}\/\d{2}/);
+      const timeMatch = line2.match(/\d{1,2}:\d{2}(am|pm)/i);
+
+      if (dateMatch && timeMatch) {
+        return `${dateMatch[0]} ${timeMatch[0]}`;
+      }
     }
   }
 
-  const commentsIdx = lines.findIndex(line => /^COMMENTS\s*:?/i.test(cleanupSpacing(line)));
-  if (commentsIdx >= 0) {
-    for (let i = commentsIdx + 1; i < Math.min(lines.length, commentsIdx + 5); i++) {
-      const line = cleanupSpacing(lines[i]);
-      if (looksLikeRealConcern(line)) return line;
-    }
-  }
+  return "";
+}
 
+function extractVin(lines, zoneLines = []) {
+  const allLines = [...zoneLines, ...lines];
+  for (const line of allLines) {
+    const m = String(line || "").match(/\b([A-HJ-NPR-Z0-9]{17})\b/);
+    if (m) return m[1];
+  }
   return "";
 }
 
@@ -1655,47 +1548,25 @@ function extractRoDate(lines) {
   for (let i = 0; i < lines.length; i++) {
     const line = cleanupSpacing(lines[i]);
 
+    let m = line.match(/R\.?\s*O\.?\s*DATE\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})/i);
+    if (m) return m[1];
+
     if (/R\.?\s*O\.?\s*DATE/i.test(line)) {
-      const joined = [line, lines[i + 1] || "", lines[i + 2] || ""].join(" ");
-      const m = joined.match(/R\.?\s*O\.?\s*DATE\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})/i);
-      if (m) return m[1];
-
-      const d = joined.match(/\b\d{2}\/\d{2}\/\d{2,4}\b/);
-      if (d) return d[0];
+      for (let j = 1; j <= 4; j++) {
+        const next = cleanupSpacing(lines[i + j] || "");
+        const d = normalizeDateToken(next);
+        if (d) return d;
+      }
     }
   }
-
-  const vinBlock = getVinBlock(lines);
-  if (vinBlock.length) {
-    const joined = vinBlock.join(" ");
-    const m = joined.match(/R\.?\s*O\.?\s*DATE\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})/i);
-    if (m) return m[1];
-  }
-
   return "";
 }
 
-function extractPromiseDate(lines) {
-  for (let i = 0; i < lines.length; i++) {
-    if (/DATE\/?TIME\s+PROMISED/i.test(lines[i])) {
-      const joined = [lines[i], lines[i + 1] || "", lines[i + 2] || ""].join(" ");
 
-      let m = joined.match(/DATE\/?TIME\s+PROMISED\s*[:.]?\s*(\d{2}\/\d{2}\/\d{2,4})\s+(\d{1,2}:\d{2}\s*[ap]m)/i);
-      if (m) return `${m[1]} ${cleanupSpacing(m[2]).replace(/\s+/g, "")}`;
-
-      const d = normalizeDateToken(joined);
-      const t = normalizeTimeToken(joined);
-      if (d && t) return `${d} ${t}`;
-    }
-  }
-
-  return "";
-}
-
-function extractVin(lines) {
-  for (const line of lines) {
-    const m = String(line || "").match(/\b([A-HJ-NPR-Z0-9]{17})\b/);
-    if (m) return m[1];
-  }
-  return "";
+function getToday() {
+  const d = new Date();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${mm}/${dd}/${yy}`;
 }
