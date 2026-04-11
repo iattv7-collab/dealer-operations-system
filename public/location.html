@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Location</title>
+  <link rel="stylesheet" href="/css/arrowflow.css">
+</head>
+
+<body>
+
+  <div id="nav"></div>
+
+  <p id="status"></p>
+
+  <h2>Location</h2>
+
+  <div class="card">
+    <h3 style="margin-top:0;">Find Vehicle / Move Vehicle</h3>
+
+    <div class="muted" style="margin-bottom:10px;">
+      Search by RO or Tag, start the move, then save the final location when the vehicle arrives.
+    </div>
+
+    <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
+      <div>
+        <label for="searchInput" class="muted">Search by RO or Tag</label>
+        <input id="searchInput" type="text" placeholder="Enter RO # or Tag #" style="padding:6px 8px; width:220px;" />
+      </div>
+
+      <div>
+        <button id="searchBtn" type="button">Find Vehicle</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3 style="margin-top:0;">Vehicle Preview</h3>
+
+    <div id="msg" class="muted" style="margin-bottom:10px;"></div>
+
+    <table style="width:100%;">
+      <tbody>
+        <tr>
+          <td style="width:180px;"><b>RO:</b></td>
+          <td id="locRo"></td>
+        </tr>
+        <tr>
+          <td><b>Tag:</b></td>
+          <td id="locTag"></td>
+        </tr>
+        <tr>
+          <td><b>Customer:</b></td>
+          <td id="locCustomer"></td>
+        </tr>
+        <tr>
+          <td><b>Model:</b></td>
+          <td id="locModel"></td>
+        </tr>
+        <tr>
+          <td><b>Advisor:</b></td>
+          <td id="locAdvisor"></td>
+        </tr>
+        <tr>
+          <td><b>Current Location:</b></td>
+          <td id="locCurrentLocation"></td>
+        </tr>
+        <tr>
+          <td><b>Move Status:</b></td>
+          <td id="locMoveStatus"></td>
+        </tr>
+        <tr>
+          <td><b>Move Started By:</b></td>
+          <td id="locMoveStartedBy"></td>
+        </tr>
+        <tr>
+          <td><b>Move Started At:</b></td>
+          <td id="locMoveStartedAt"></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3 style="margin-top:0;">Move Vehicle</h3>
+
+    <div id="moveIdleSection">
+      <div class="muted" style="margin-bottom:10px;">
+        When the vehicle physically starts moving, mark it as moving.
+      </div>
+      <button id="startMoveBtn" type="button">Start Move</button>
+    </div>
+
+    <div id="moveActiveSection" style="display:none;">
+      <div class="muted" style="margin-bottom:10px;">
+        Save the final location only when the vehicle has arrived.
+      </div>
+
+      <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
+        <div>
+          <label for="finalLocationSelect" class="muted">Final Location</label>
+          <select id="finalLocationSelect" style="padding:6px 8px; min-width:220px;">
+            <option value="">Select...</option>
+            <option value="Service Lane">Service Lane</option>
+            <option value="Wash">Wash</option>
+            <option value="QC">QC</option>
+            <option value="Front">Front</option>
+            <option value="Delivery">Delivery</option>
+            <option value="Lot 1">Lot 1</option>
+            <option value="Lot 2">Lot 2</option>
+            <option value="Lot 3">Lot 3</option>
+            <option value="Back Lot">Back Lot</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="customLocationInput" class="muted">Custom / Spot / Detail</label>
+          <input id="customLocationInput" type="text" placeholder="Example: A12 or custom location" style="padding:6px 8px; width:240px;" />
+        </div>
+
+        <div>
+          <button id="saveFinalLocationBtn" type="button">Save Final Location</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3 style="margin-top:0;">Vehicles Currently Moving</h3>
+
+    <div class="muted" style="margin-bottom:10px;">
+      Live list of vehicles that have been marked as moving and are waiting for final location.
+    </div>
+
+    <div class="table-scroll">
+      <table id="movingTable">
+        <thead>
+          <tr>
+            <th>Tag</th>
+            <th>RO</th>
+            <th>Customer</th>
+            <th>Current Location</th>
+            <th>Started By</th>
+            <th>Started At</th>
+          </tr>
+        </thead>
+        <tbody id="movingTableBody">
+          <tr>
+            <td colspan="6" class="muted">No moving vehicles.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script type="module" src="/js/location.js"></script>
+
+</body>
+
+</html>

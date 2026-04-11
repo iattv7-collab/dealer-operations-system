@@ -123,7 +123,16 @@ export function formatCell({ key, t, etaMap, fmtCreated, fmtTs, fmtTime }) {
     return b ? String(b) : "";
   }
 
-  if (key === "location") return t.location || "";
+    if (key === "location") {
+    const moving = String(t.moveStatus || "").toLowerCase() === "moving";
+    const loc = t.location || "";
+
+    if (moving) {
+      return loc ? `${loc} (Moving)` : "Moving";
+    }
+
+    return loc;
+  }
   if (key === "status") return t.status || "";
 
   if (key === "created") {
