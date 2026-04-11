@@ -1,6 +1,6 @@
 // public/js/ticketsUI.js
 import { auth } from "./firebase.js";
-import { listenTickets } from "./rosWash.js";
+import { listenTickets, findTicketAnywhereByRoOrTag } from "./rosWash.js";
 
 import { tabDefsForRole } from "./ui/roles.js";
 import { colsForView } from "./ui/columns.js";
@@ -125,6 +125,43 @@ export function mountTicketsUI({
     return span;
   }
 
+  function stageInfoForTicket(t) {
+    const status = String(t?.status || t?.washStatus || "").toLowerCase();
+    const hasQc = !!t?.qcAssignedTo && !t?.qcDoneAt;
+
+    if (status === "queued" || status === "washing") {
+      return { tabId: "active", tabLabel: "Wash" };
+    }
+
+    if (status === "washed") {
+      if (hasQc) return { tabId: "washed", tabLabel: "QC" };
+      return { tabId: "washed", tabLabel: "Washed" };
+    }
+
+    if (status === "closed") {
+      return { tabId: "closed", tabLabel: "Archive" };
+    }
+
+    return { tabId: null, tabLabel: "In Shop" };
+  }
+
+  function buildSearchResultEntry(found) {
+    const stage = stageInfoForTicket(found);
+
+    return {
+      status: String(found?.status || "").toLowerCase(),
+      tabId: stage.tabId,
+      tabLabel: stage.tabLabel,
+      ro: found?.ro || "",
+      tag: found?.tag || "",
+      location: found?.location || "",
+    };
+  }
+
+  let searchSeq = 0;
+
+
+
   rerender = () => {
     const tabDef = TAB_DEFS.find((t) => t.id === currentTab) || TAB_DEFS[0];
 
@@ -144,6 +181,8 @@ export function mountTicketsUI({
       set.has(String(r.status || "").toLowerCase())
     );
 
+
+
     if (searchText) {
       const allMatches = (lastRows || []).filter((t) => {
         const tag = String(t.tag || "").toLowerCase();
@@ -151,9 +190,9 @@ export function mountTicketsUI({
         return tag.includes(searchText) || ro.includes(searchText);
       });
 
-      searchResultInfo = null;
-
       if (allMatches.length) {
+        searchResultInfo = null;
+
         const inCurrentTab = allMatches.filter((t) =>
           set.has(String(t.status || "").toLowerCase())
         );
@@ -161,27 +200,11 @@ export function mountTicketsUI({
         if (inCurrentTab.length) {
           rows = inCurrentTab;
         } else {
-          const mapped = allMatches.map((found) => {
-            const foundStatus = String(found.status || "").toLowerCase();
+          const mapped = allMatches.map((found) => buildSearchResultEntry(found));
 
-            const foundTab = TAB_DEFS.find((tab) =>
-              Array.isArray(tab.statuses) &&
-              tab.statuses.map((s) => String(s).toLowerCase()).includes(foundStatus)
-            );
-
-            return {
-              status: foundStatus,
-              tabId: foundTab?.id || null,
-              tabLabel: foundTab?.label || foundStatus,
-              ro: found.ro || "",
-              tag: found.tag || "",
-            };
-          });
-
-          // de-dupe by tabId + status + ro + tag
           const seen = new Set();
           const results = mapped.filter((x) => {
-            const key = `${x.tabId}|${x.status}|${x.ro}|${x.tag}`;
+            const key = `${x.tabId}|${x.status}|${x.ro}|${x.tag}|${x.location}`;
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
@@ -196,11 +219,15 @@ export function mountTicketsUI({
         }
       } else {
         rows = [];
-        searchResultInfo = { type: "notfound", results: [] };
+        if (!searchResultInfo) {
+          searchResultInfo = { type: "searching", results: [] };
+        }
       }
     } else {
       searchResultInfo = null;
     }
+
+
 
     let etaMap = null;
 
@@ -228,7 +255,9 @@ export function mountTicketsUI({
       td.setAttribute("colspan", String(cols.length));
 
       if (searchText && searchResultInfo) {
-        if (searchResultInfo.type === "notfound") {
+        if (searchResultInfo.type === "searching") {
+          td.textContent = "Searching...";
+        } else if (searchResultInfo.type === "notfound") {
           td.textContent = "No ticket found.";
         } else if (searchResultInfo.type === "foundElsewhere") {
           const wrap = document.createElement("div");
@@ -242,14 +271,18 @@ export function mountTicketsUI({
           wrap.appendChild(intro);
 
           searchResultInfo.results.forEach((r) => {
-            const label =
+            const base =
               r.ro && r.tag
                 ? `${r.tabLabel} (RO ${r.ro} / Tag ${r.tag})`
                 : r.ro
-                ? `${r.tabLabel} (RO ${r.ro})`
-                : r.tag
-                ? `${r.tabLabel} (Tag ${r.tag})`
-                : r.tabLabel;
+                  ? `${r.tabLabel} (RO ${r.ro})`
+                  : r.tag
+                    ? `${r.tabLabel} (Tag ${r.tag})`
+                    : r.tabLabel;
+
+            const label = r.location
+              ? `${base} — ${r.location}`
+              : base;
 
             if (r.tabId) {
               wrap.appendChild(
@@ -277,7 +310,7 @@ export function mountTicketsUI({
       return;
     }
 
-        const splitActionKeys = new Set([
+    const splitActionKeys = new Set([
       "requestRewash",
       "setNeedByAction",
       "startWash",
@@ -323,9 +356,54 @@ export function mountTicketsUI({
   };
 
   if (searchEl) {
-    searchEl.addEventListener("input", () => {
-      searchText = String(searchEl.value || "").trim().toLowerCase();
+    searchEl.addEventListener("input", async () => {
+      const raw = String(searchEl.value || "").trim();
+      searchText = raw.toLowerCase();
+
+      const seq = ++searchSeq;
+
+      if (!searchText) {
+        searchResultInfo = null;
+        if (typeof rerender === "function") rerender();
+        return;
+      }
+
+      searchResultInfo = { type: "searching", results: [] };
       if (typeof rerender === "function") rerender();
+
+      const localMatches = (lastRows || []).filter((t) => {
+        const tag = String(t.tag || "").toLowerCase();
+        const ro = String(t.ro || "").toLowerCase();
+        return tag.includes(searchText) || ro.includes(searchText);
+      });
+
+      if (localMatches.length) {
+        searchResultInfo = null;
+        if (typeof rerender === "function") rerender();
+        return;
+      }
+
+      try {
+        const found = await findTicketAnywhereByRoOrTag(raw);
+
+        if (seq !== searchSeq) return;
+
+        if (found) {
+          searchResultInfo = {
+            type: "foundElsewhere",
+            results: [buildSearchResultEntry(found)],
+          };
+        } else {
+          searchResultInfo = { type: "notfound", results: [] };
+        }
+
+        if (typeof rerender === "function") rerender();
+      } catch (err) {
+        console.error(err);
+        if (seq !== searchSeq) return;
+        searchResultInfo = { type: "notfound", results: [] };
+        if (typeof rerender === "function") rerender();
+      }
     });
   }
 
@@ -348,9 +426,9 @@ export function mountTicketsUI({
   return () => {
     try {
       unsub?.();
-    } catch {}
+    } catch { }
     try {
       unsubSys?.();
-    } catch {}
+    } catch { }
   };
 }

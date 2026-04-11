@@ -263,10 +263,16 @@
 
         const SCREENS = [
             {
-                title: "Drop Off",
-                desc: "Create and send vehicles into the wash flow.",
-                href: "/dropoff.html",
-                roles: ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"]
+                title: "Scanner",
+                desc: "Scan and extract RO data.",
+                href: "/ro/scan.html",
+                roles: ["admin", "manager", "advisor"]
+            },
+            {
+                title: "Move / Locate",
+                desc: "Find and update vehicle location across the lot.",
+                href: "/location.html",
+                roles: ["admin", "manager", "advisor", "valet", "wash", "staff", "booker", "qc"]
             },
             {
                 title: "Advisor",
@@ -275,28 +281,16 @@
                 roles: ["admin", "manager", "advisor"]
             },
             {
-                title: "Wash",
-                desc: "Wash team working screen.",
-                href: "/wash.html",
-                roles: ["admin", "manager", "wash"]
-            },
-            {
                 title: "Valet",
                 desc: "Vehicle staging and movement control.",
                 href: "/valet.html",
                 roles: ["admin", "manager", "valet"]
             },
             {
-                title: "Booker",
-                desc: "Booking and dispatch work area.",
-                href: "/booker.html",
-                roles: ["admin", "manager", "booker"]
-            },
-            {
-                title: "QC",
-                desc: "Quality control review screen.",
-                href: "/qc.html",
-                roles: ["admin", "manager", "qc"]
+                title: "Wash",
+                desc: "Wash team working screen.",
+                href: "/wash.html",
+                roles: ["admin", "manager", "wash"]
             },
             {
                 title: "Manager",
@@ -311,16 +305,10 @@
                 roles: ["admin"]
             },
             {
-                title: "RO Tracker",
-                desc: "Open the RO tracker workspace.",
-                href: "/ro/",
-                roles: ["admin", "manager", "advisor"]
-            },
-            {
-                title: "Archive",
-                desc: "View archived tickets and history.",
-                href: "/archive.html",
-                roles: ["admin", "manager"]
+                title: "Drop Off",
+                desc: "Create and send vehicles into the wash flow.",
+                href: "/dropoff.html",
+                roles: ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"]
             },
             {
                 title: "Settings",
@@ -329,11 +317,35 @@
                 roles: ["admin", "manager"]
             },
             {
-                title: "Scanner",
-                desc: "Scan and extract RO data.",
-                href: "/ro/scan.html",
-                roles: ["admin", "manager", "advisor"]
+                title: "Booker",
+                desc: "Booking and dispatch work area.",
+                href: "/booker.html",
+                roles: ["admin", "manager", "booker"]
             },
+            {
+                title: "QC",
+                desc: "Quality control review screen.",
+                href: "/qc.html",
+                roles: ["admin", "manager", "qc"]
+            },
+            {
+                title: "Master RO",
+                desc: "Master repair order list.",
+                href: "/master-ro.html",
+                roles: ["admin", "manager", "advisor", "booker", "wash", "valet", "qc"]
+            },
+            {
+                title: "Archive",
+                desc: "View archived tickets and history.",
+                href: "/archive.html",
+                roles: ["admin", "manager", "advisor", "booker"]
+            },
+            {
+                title: "RO Tracker",
+                desc: "Open the RO tracker workspace.",
+                href: "/ro/index.html",
+                roles: ["admin", "manager", "advisor"]
+            }
         ];
 
         function showError(message) {

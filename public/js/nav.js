@@ -5,6 +5,8 @@ import { getUserProfile } from "./guard.js";
 
 const NAV_ITEMS = [
   ["Home", "/index.html", "home", ["admin", "manager", "advisor", "wash", "staff", "valet", "booker", "qc"]],
+  ["Scanner", "/ro/scan.html", "scanner", ["admin", "manager", "advisor"]],
+  ["Location", "/location.html", "location", ["admin", "manager", "advisor", "valet", "wash", "staff", "booker", "qc"]],
   ["Advisor", "/advisor.html", "advisor", ["admin", "manager", "advisor"]],
   ["Valet", "/valet.html", "valet", ["admin", "manager", "valet"]],
   ["Wash", "/wash.html", "wash", ["admin", "manager", "wash"]],
@@ -20,7 +22,6 @@ const NAV_ITEMS = [
   ["Archive", "/archive.html", "archive", ["admin", "manager","advisor", "booker"]],
 
   ["RO Tracker", "/ro/index.html", "rotracker", ["admin", "manager", "advisor"]],
-  ["Scanner", "/ro/scan.html", "scanner", ["admin", "manager", "advisor"]],
 ];
 
 function escapeHtml(s) {

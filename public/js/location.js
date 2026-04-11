@@ -262,13 +262,16 @@ async function saveFinalLocation() {
         currentTicket.moveStatus = "idle";
         currentTicket.moveCompletedBy = currentUser.email || currentUser.uid || "";
 
-        setMsg("Final location saved.", true);
+        setMsg(`Vehicle moved to ${finalLocation}.`, true);
 
         // Show confirmation briefly before clearing
         setTimeout(() => {
             resetPreview();
             searchInput.value = "";
             searchInput.focus();
+
+            // ✅ clear success message also
+            clearMsg();
         }, 3000);
     } catch (err) {
         console.error(err);

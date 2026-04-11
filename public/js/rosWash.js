@@ -336,6 +336,48 @@ export function listenTickets(options, callback) {
   };
 }
 
+export async function findTicketAnywhereByRoOrTag(value) {
+  const user = auth.currentUser;
+  if (!user) return null;
+
+  const dealerId = await getUserDealerId(user);
+  if (!dealerId) return null;
+
+  const needle = String(value || "").trim();
+  if (!needle) return null;
+
+  let snap = await getDocs(
+    query(
+      collection(db, COL),
+      where("dealerId", "==", dealerId),
+      where("ro", "==", needle)
+    )
+  );
+
+  if (snap.empty) {
+    snap = await getDocs(
+      query(
+        collection(db, COL),
+        where("dealerId", "==", dealerId),
+        where("tag", "==", needle)
+      )
+    );
+  }
+
+  if (snap.empty) return null;
+
+  const d = snap.docs[0];
+  const data = d.data() || {};
+
+  return {
+    id: d.id,
+    ...data,
+    status: String(data.washStatus || data.status || "").toLowerCase(),
+  };
+}
+
+
+
 /* -------------------------------------------
    Helpers
 --------------------------------------------*/
