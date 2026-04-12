@@ -1,0 +1,223 @@
+<!-- FILE: /public/loaner-returns.html -->
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Loaner Returns</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/ro/styles.css">
+
+  <style>
+    .loaner-wrap {
+      padding: 16px;
+    }
+
+    .subtabs {
+      display: flex;
+      gap: 8px;
+      margin: 12px 0 16px 0;
+      flex-wrap: wrap;
+    }
+
+    .subtabs a {
+      padding: 8px 12px;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      text-decoration: none;
+      color: #00f;
+      background: #fff;
+    }
+
+    .subtabs a.active {
+      color: #000;
+      background: #ffeaa7;
+      border-color: #888;
+      font-weight: bold;
+    }
+
+    .section {
+      margin: 16px 0;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+
+    input,
+    button,
+    select,
+    textarea {
+      font-family: "Times New Roman", Times, serif;
+      font-size: 13px;
+      padding: 4px 6px;
+      box-sizing: border-box;
+    }
+
+    input,
+    button,
+    select {
+      height: 28px;
+    }
+
+    textarea {
+      min-height: 70px;
+      resize: vertical;
+    }
+
+    video {
+      width: 320px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      margin-top: 8px;
+      display: block;
+    }
+
+    .msg {
+      font-size: 13px;
+      color: #444;
+    }
+
+    .return-form input {
+      min-width: 140px;
+    }
+
+    .return-form textarea {
+      width: 320px;
+      max-width: 100%;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid #cfcfcf;
+      background: #fff;
+    }
+
+    .returns-grid {
+      width: 100%;
+      min-width: 1100px;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .returns-grid th,
+    .returns-grid td {
+      border: 1px solid #cfcfcf;
+      padding: 4px 6px;
+      font-size: 12px;
+      line-height: 1.15;
+      white-space: nowrap;
+      vertical-align: middle;
+      background: #fff;
+      text-align: left;
+    }
+
+    .returns-grid th {
+      background: #12a8c6;
+      color: #fff;
+      font-weight: bold;
+    }
+
+    .returns-grid th:nth-child(1) { width: 180px; }
+    .returns-grid th:nth-child(2) { width: 70px; }
+    .returns-grid th:nth-child(3) { width: 110px; }
+    .returns-grid th:nth-child(4) { width: 160px; }
+    .returns-grid th:nth-child(5) { width: 170px; }
+    .returns-grid th:nth-child(6) { width: 90px; }
+    .returns-grid th:nth-child(7) { width: 70px; }
+    .returns-grid th:nth-child(8) { width: 220px; }
+  </style>
+</head>
+
+<body>
+
+  <div style="
+    background:#0b3d91;
+    color:#fff;
+    padding:14px 16px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border-bottom:4px solid #00a8c6;
+  ">
+    <div style="font-size:22px;font-weight:bold;">ArrowFlow</div>
+
+    <div>
+      <a href="/home.html" style="color:#fff;margin-right:15px;text-decoration:none;">Home</a>
+      <a href="#" id="logoutBtn" style="color:#fff;text-decoration:none;">Logout</a>
+    </div>
+  </div>
+
+  <div class="loaner-wrap">
+
+    <h1>Loaners</h1>
+
+    <div class="subtabs">
+      <a href="/loaners.html">Fleet</a>
+      <a href="/loaner-returns.html" class="active">Returns</a>
+    </div>
+
+    <div class="section">
+      <h2>Return Intake</h2>
+
+      <div class="row">
+        <button id="scanReturnBtn">Scan VIN</button>
+        <input id="manualVin" placeholder="Enter VIN">
+      </div>
+
+      <video id="scannerVideo" autoplay playsinline muted></video>
+      <div id="scannerStatus" class="msg"></div>
+
+      <div class="return-form">
+        <div class="row" style="margin-top:10px;">
+          <input id="vin" placeholder="VIN">
+          <input id="year" placeholder="Year">
+          <input id="model" placeholder="Model">
+        </div>
+
+        <div class="row">
+          <input id="returnedAt" placeholder="Returned At">
+          <input id="receivedBy" placeholder="Received By">
+          <input id="mileage" placeholder="Mileage">
+          <input id="fuelLevel" placeholder="Fuel Level">
+        </div>
+
+        <div class="row">
+          <textarea id="damageNotes" placeholder="Damage Notes"></textarea>
+        </div>
+
+        <div class="row">
+          <button id="saveReturnBtn">Save Return</button>
+          <div id="returnMsg" class="msg"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Return List</h2>
+      <div class="table-wrap">
+        <div id="returnTable"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script type="module">
+    import { auth } from "/js/firebase.js";
+    import { signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    document.getElementById("logoutBtn").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await signOut(auth);
+      window.location.href = "/login.html";
+    });
+  </script>
+
+  <script type="module" src="/js/loanerReturns.js"></script>
+
+</body>
+</html>

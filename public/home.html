@@ -208,10 +208,7 @@
             background: #f2f2f2;
         }
     </style>
-    logoutBtn.addEventListener("click", async () => {
-    await signOut(auth);
-    window.location.href = "/login.html";
-    });
+
 </head>
 
 <body>
@@ -292,6 +289,14 @@
                 href: "/wash.html",
                 roles: ["admin", "manager", "wash"]
             },
+
+            {
+                title: "Loaners",
+                desc: "Loaner fleet and return processing.",
+                href: "/loaners.html",
+                roles: ["admin", "manager", "advisor", "wash"]
+            },
+
             {
                 title: "Manager",
                 desc: "Manager overview and queue control.",

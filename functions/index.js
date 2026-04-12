@@ -1570,3 +1570,54 @@ function getToday() {
   const yy = String(d.getFullYear()).slice(-2);
   return `${mm}/${dd}/${yy}`;
 }
+
+
+// =====================================================
+// VIN SCANNER (LOANER - WINDSHIELD / DOOR)
+// =====================================================
+
+exports.scanVIN = functions.https.onRequest((req, res) => {
+  cors(req, res, async () => {
+
+    if (req.method === "OPTIONS") return res.status(204).send("");
+    if (req.method !== "POST") {
+      return res.status(405).json({ ok: false, error: "Use POST" });
+    }
+
+    try {
+
+      const fileBuffer = await readUpload(req);
+
+      if (!fileBuffer || !fileBuffer.length) {
+        return res.status(400).json({ ok: false, error: "Missing file" });
+      }
+
+      const [result] = await visionClient.textDetection({
+        image: { content: fileBuffer }
+      });
+
+      const text =
+        result.textAnnotations?.[0]?.description || "";
+
+      // 🔥 VIN extraction (17 chars)
+      const match = text.toUpperCase().match(/[A-HJ-NPR-Z0-9]{17}/);
+
+      return res.json({
+        ok: true,
+        vin: match ? match[0] : null,
+        rawText: text
+      });
+
+    } catch (err) {
+
+      console.error("scanVIN error:", err);
+
+      return res.status(500).json({
+        ok: false,
+        error: err.message || "Server error"
+      });
+
+    }
+
+  });
+});

@@ -4,12 +4,15 @@ import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/
 import { getUserProfile } from "./guard.js";
 
 const NAV_ITEMS = [
-  ["Home", "/index.html", "home", ["admin", "manager", "advisor", "wash", "staff", "valet", "booker", "qc"]],
+  ["Home", "/home.html", "home", ["admin", "manager", "advisor", "wash", "staff", "valet", "booker", "qc"]],
   ["Scanner", "/ro/scan.html", "scanner", ["admin", "manager", "advisor"]],
   ["Location", "/location.html", "location", ["admin", "manager", "advisor", "valet", "wash", "staff", "booker", "qc"]],
   ["Advisor", "/advisor.html", "advisor", ["admin", "manager", "advisor"]],
   ["Valet", "/valet.html", "valet", ["admin", "manager", "valet"]],
   ["Wash", "/wash.html", "wash", ["admin", "manager", "wash"]],
+
+  ["Loaners", "/loaners.html", "loaners", ["admin", "manager", "advisor", "wash"]],
+
   ["Manager", "/manager.html", "manager", ["admin", "manager"]],
   ["Admin", "/admin.html", "admin", ["admin"]],
   ["Dropoff", "/dropoff.html", "dropoff", ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"]],
@@ -19,7 +22,7 @@ const NAV_ITEMS = [
 
   ["Master RO", "/master-ro.html", "masterro", ["admin", "manager", "advisor", "booker", "wash", "valet", "qc"]],
 
-  ["Archive", "/archive.html", "archive", ["admin", "manager","advisor", "booker"]],
+  ["Archive", "/archive.html", "archive", ["admin", "manager", "advisor", "booker"]],
 
   ["RO Tracker", "/ro/index.html", "rotracker", ["admin", "manager", "advisor"]],
 ];

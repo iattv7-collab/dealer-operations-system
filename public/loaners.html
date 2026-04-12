@@ -1,0 +1,279 @@
+<!-- FILE: /public/loaners.html -->
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>Loaners</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/ro/styles.css">
+
+  <style>
+    .loaner-wrap { padding: 16px; }
+
+    .subtabs {
+      display: flex;
+      gap: 8px;
+      margin: 12px 0 16px 0;
+      flex-wrap: wrap;
+    }
+
+    .subtabs a {
+      padding: 8px 12px;
+      border: 1px solid #bbb;
+      border-radius: 8px;
+      text-decoration: none;
+      color: #00f;
+      background: #fff;
+    }
+
+    .subtabs a.active {
+      color: #000;
+      background: #ffeaa7;
+      border-color: #888;
+      font-weight: bold;
+    }
+
+    .section { margin: 16px 0; }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+      align-items: center;
+    }
+
+    input, button, select {
+      font-family: "Times New Roman", Times, serif;
+      font-size: 13px;
+      padding: 4px 6px;
+      height: 28px;
+      box-sizing: border-box;
+    }
+
+    video {
+      width: 320px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      margin-top: 8px;
+      display: block;
+    }
+
+    .msg {
+      font-size: 13px;
+      color: #444;
+    }
+
+    .tablewrap {
+      overflow: auto;
+      border: 1px solid #cfcfcf;
+      background: #fff;
+    }
+
+    .fleet-grid {
+      width: 100%;
+      min-width: 1500px;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+
+    .fleet-grid th,
+    .fleet-grid td {
+      border: 1px solid #cfcfcf;
+      padding: 3px 6px;
+      font-size: 12px;
+      line-height: 1.1;
+      white-space: nowrap;
+      vertical-align: middle;
+      background: #fff;
+    }
+
+    .fleet-grid th {
+      background: #12a8c6;
+      color: #fff;
+      font-weight: bold;
+    }
+
+    .fleet-grid input,
+    .fleet-grid select,
+    .fleet-grid button {
+      font-size: 12px;
+      padding: 2px 4px;
+      height: 24px;
+      box-sizing: border-box;
+    }
+
+    .mini-input { width: 100%; min-width: 0; }
+    .mini-select { width: 100%; min-width: 0; }
+
+    .actions {
+      display: flex;
+      gap: 3px;
+      flex-wrap: wrap;
+    }
+
+    .actions button {
+      font-size: 11px;
+      height: 22px;
+      padding: 1px 5px;
+    }
+
+    .col-unit     { width: 70px; }
+    .col-last8    { width: 75px; }
+    .col-year     { width: 60px; }
+    .col-make     { width: 75px; }
+    .col-model    { width: 95px; }
+    .col-plate    { width: 75px; }
+    .col-ro       { width: 80px; }
+    .col-status   { width: 85px; }
+    .col-location { width: 100px; }
+    .col-returned { width: 105px; }
+    .col-received { width: 95px; }
+    .col-mileage  { width: 75px; }
+    .col-fuel     { width: 60px; }
+    .col-damage   { width: 90px; }
+    .col-actions  { width: 130px; }
+  </style>
+</head>
+
+<body>
+
+  <!-- HEADER -->
+  <div style="
+    background:#0b3d91;
+    color:#fff;
+    padding:14px 16px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    border-bottom:4px solid #00a8c6;
+  ">
+    <div style="font-size:22px;font-weight:bold;">ArrowFlow</div>
+
+    <div>
+      <a href="/home.html" style="color:#fff;margin-right:15px;text-decoration:none;">Home</a>
+      <a href="#" id="logoutBtn" style="color:#fff;text-decoration:none;">Logout</a>
+    </div>
+  </div>
+
+  <div class="loaner-wrap">
+
+    <h1>Loaners</h1>
+
+    <div class="subtabs">
+      <a href="/loaners.html" class="active">Fleet</a>
+      <a href="/loaner-returns.html">Returns</a>
+    </div>
+
+    <!-- SEARCH -->
+    <div class="section">
+      <h2>Find Loaner</h2>
+      <div class="row">
+        <input id="fleetSearch"
+          placeholder="Search by VIN, last 8, unit #, plate, model, status, location or RO">
+        <label style="display:flex; gap:6px; align-items:center;">
+          <input type="checkbox" id="skipRemoveConfirm">
+          Skip remove confirmation
+        </label>
+      </div>
+    </div>
+
+    <!-- ADD -->
+    <div class="section">
+      <h2>Add Loaner</h2>
+
+      <div class="row">
+        <button id="scanFleetBtn">Scan VIN</button>
+        <input id="manualVin" placeholder="Enter VIN">
+      </div>
+
+      <video id="scannerVideo" autoplay playsinline muted></video>
+      <div id="scannerStatus" class="msg"></div>
+
+      <div class="row" style="margin-top:10px;">
+        <input id="vin" placeholder="VIN">
+        <input id="last8" placeholder="Last 8" readonly>
+        <input id="year" placeholder="Year">
+        <input id="make" placeholder="Make">
+        <input id="model" placeholder="Model">
+        <input id="unitNumber" placeholder="Unit #">
+        <input id="plate" placeholder="Plate">
+      </div>
+
+      <div class="row">
+        <button id="saveFleetBtn">Save</button>
+        <div id="fleetMsg" class="msg"></div>
+      </div>
+    </div>
+
+    <!-- TABLE -->
+    <div class="section">
+      <h2>Fleet List</h2>
+
+      <div class="tablewrap">
+        <table class="fleet-grid">
+          <colgroup>
+            <col class="col-unit">
+            <col class="col-last8">
+            <col class="col-year">
+            <col class="col-make">
+            <col class="col-model">
+            <col class="col-plate">
+            <col class="col-ro">
+            <col class="col-status">
+            <col class="col-location">
+            <col class="col-returned">
+            <col class="col-received">
+            <col class="col-mileage">
+            <col class="col-fuel">
+            <col class="col-damage">
+            <col class="col-actions">
+          </colgroup>
+
+          <thead>
+            <tr>
+              <th>Unit #</th>
+              <th>Last 8</th>
+              <th>Year</th>
+              <th>Make</th>
+              <th>Model</th>
+              <th>Plate</th>
+              <th>RO</th>
+              <th>Status</th>
+              <th>Location</th>
+              <th>Last Returned</th>
+              <th>Received By</th>
+              <th>Mileage</th>
+              <th>Fuel</th>
+              <th>Damage</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+
+          <!-- 🔥 THIS IS THE FIX -->
+          <tbody id="fleetTableBody"></tbody>
+
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- LOGOUT -->
+  <script type="module">
+    import { auth } from "/js/firebase.js";
+    import { signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+    document.getElementById("logoutBtn").addEventListener("click", async (e) => {
+      e.preventDefault();
+      await signOut(auth);
+      window.location.href = "/login.html";
+    });
+  </script>
+
+  <!-- MAIN JS -->
+  <script type="module" src="/js/loaners.js"></script>
+
+</body>
+</html>
