@@ -5,7 +5,7 @@ import { getUserProfile } from "./guard.js";
 
 const NAV_ITEMS = [
   ["Home", "/home.html", "home", ["admin", "manager", "advisor", "wash", "staff", "valet", "booker", "qc"]],
-  ["Scanner", "/ro/scan.html", "scanner", ["admin", "manager", "advisor"]],
+  ["New RO", "/ro/scan.html", "scanner", ["admin", "manager", "advisor"]],
   ["Location", "/location.html", "location", ["admin", "manager", "advisor", "valet", "wash", "staff", "booker", "qc"]],
   ["Advisor", "/advisor.html", "advisor", ["admin", "manager", "advisor"]],
   ["Valet", "/valet.html", "valet", ["admin", "manager", "valet"]],
@@ -15,12 +15,12 @@ const NAV_ITEMS = [
 
   ["Manager", "/manager.html", "manager", ["admin", "manager"]],
   ["Admin", "/admin.html", "admin", ["admin"]],
-  ["Dropoff", "/dropoff.html", "dropoff", ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"]],
+  ["Send to Wash", "/dropoff.html", "dropoff", ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"]],
   ["Settings", "/settings.html", "settings", ["admin", "manager"]],
   ["Booker", "/booker.html", "booker", ["admin", "manager", "booker"]],
   ["QC", "/qc.html", "qc", ["admin", "manager", "qc"]],
 
-  ["Master RO", "/master-ro.html", "masterro", ["admin", "manager", "advisor", "booker", "wash", "valet", "qc"]],
+  ["Master RO", "/master-ro.html", "masterro", ["admin", "manager", "advisor", "booker", "qc"]],
 
   ["Archive", "/archive.html", "archive", ["admin", "manager", "advisor", "booker"]],
 

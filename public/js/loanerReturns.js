@@ -5,6 +5,9 @@ import {
   collection,
   addDoc,
   getDocs,
+  getDoc,
+  doc,
+  setDoc,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -72,27 +75,27 @@ document.addEventListener("DOMContentLoaded", () => {
   // =========================
   // SCAN BUTTON (FIXED)
   // =========================
- $("scanReturnBtn").addEventListener("click", async () => {
+  $("scanReturnBtn").addEventListener("click", async () => {
 
-  try {
-    status.textContent = "Opening camera...";
+    try {
+      status.textContent = "Opening camera...";
 
-    const res = await scanVinWithCamera(video, status);
+      const res = await scanVinWithCamera(video, status);
 
-    if (res?.vin) {
-      await fillReturnFromVin(res.vin);
-      status.textContent = "VIN captured";
-    } else {
-      status.textContent = res?.reason || "No VIN found";
+      if (res?.vin) {
+        await fillReturnFromVin(res.vin);
+        status.textContent = "VIN captured";
+      } else {
+        status.textContent = res?.reason || "No VIN found";
+      }
+
+    } catch (err) {
+      console.error("Scan failed:", err);
+      status.textContent = err.message || "Camera error";
+      $("returnMsg").textContent = err.message || "Camera error";
+      alert(err.message);
     }
-
-  } catch (err) {
-    console.error("Scan failed:", err);
-    status.textContent = err.message || "Camera error";
-    $("returnMsg").textContent = err.message || "Camera error";
-    alert(err.message);
-  }
-});
+  });
 
   // =========================
   // MANUAL VIN
@@ -107,36 +110,71 @@ document.addEventListener("DOMContentLoaded", () => {
   // =========================
   // SAVE RETURN
   // =========================
+
+
   $("saveReturnBtn").addEventListener("click", async () => {
-    const vin = normalizeVin($("vin").value);
+  const vin = normalizeVin($("vin").value);
 
-    if (!vin) {
-      $("returnMsg").textContent = "VIN is required";
-      return;
-    }
+  if (!vin) {
+    $("returnMsg").textContent = "VIN is required";
+    return;
+  }
 
-    await addDoc(collection(db, "loanerReturns"), {
-      vin,
-      year: $("year")?.value || "",
-      model: $("model")?.value || "",
-      returnedAtText: $("returnedAt")?.value || "",
-      receivedBy: $("receivedBy")?.value || "",
-      mileage: $("mileage")?.value || "",
-      fuelLevel: $("fuelLevel")?.value || "",
-      damageNotes: $("damageNotes")?.value || "",
-      createdAt: serverTimestamp()
-    });
+  const returnedAtText = $("returnedAt")?.value || "";
+  const receivedBy = $("receivedBy")?.value || "";
+  const mileage = $("mileage")?.value || "";
+  const fuelLevel = $("fuelLevel")?.value || "";
+  const damageNotes = $("damageNotes")?.value || "";
+  const year = $("year")?.value || "";
+  const model = $("model")?.value || "";
 
-    $("returnMsg").textContent = "Saved";
-
-    [
-      "manualVin","vin","year","model",
-      "returnedAt","receivedBy",
-      "mileage","fuelLevel","damageNotes"
-    ].forEach(id => { if ($(id)) $(id).value = ""; });
-
-    load();
+  await addDoc(collection(db, "loanerReturns"), {
+    vin,
+    year,
+    model,
+    returnedAtText,
+    receivedBy,
+    mileage,
+    fuelLevel,
+    damageNotes,
+    createdAt: serverTimestamp()
   });
+
+  const fleetRef = doc(db, "loanerFleet", vin);
+  const fleetSnap = await getDoc(fleetRef);
+
+  if (fleetSnap.exists()) {
+    await setDoc(
+      fleetRef,
+      {
+        status: "At Wash",
+        assignedRo: "",
+        lastReturnedAt: returnedAtText,
+        lastReceivedBy: receivedBy,
+        lastMileage: mileage,
+        lastFuelLevel: fuelLevel,
+        lastDamageNotes: damageNotes,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+
+    $("returnMsg").textContent = "Saved and moved to At Wash";
+  } else {
+    $("returnMsg").textContent = "Return saved, but VIN was not found in Fleet";
+  }
+
+  [
+    "manualVin", "vin", "year", "model",
+    "returnedAt", "receivedBy",
+    "mileage", "fuelLevel", "damageNotes"
+  ].forEach(id => {
+    if ($(id)) $(id).value = "";
+  });
+
+  await load();
+});
+
 
   // =========================
   // LOAD TABLE

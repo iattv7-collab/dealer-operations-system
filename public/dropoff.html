@@ -1,19 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dropoff</title>
+  <title>Send to Wash</title>
   <link rel="stylesheet" href="/css/arrowflow.css">
 </head>
+
 <body>
   <div id="nav"></div>
   <p id="status"></p>
 
-  <h2>Dropoff</h2>
+  <h2>Send to Wash</h2>
 
   <div class="card">
-    <h3>Find RO / Send to Wash</h3>
+    <h3>Find RO and Send to Wash</h3>
 
     <div class="row">
       <div>
@@ -118,7 +120,7 @@
 
     document.getElementById("nav").innerHTML = renderNav("ROLE");
 
-    requireRole(["staff", "advisor", "wash", "manager", "admin"]);
+    requireRole(["staff", "advisor", "wash", "manager", "admin", "valet"]);
 
     const searchInputEl = document.getElementById("searchInput");
     const findBtn = document.getElementById("findBtn");
@@ -361,4 +363,5 @@
     }
   </script>
 </body>
+
 </html>
