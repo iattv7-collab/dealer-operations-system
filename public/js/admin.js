@@ -5,7 +5,9 @@ import { auth, db } from "./firebase.js";
 import {
   collection,
   getDocs,
+  getDoc,
   updateDoc,
+  setDoc,
   doc,
   deleteDoc,
   query,
@@ -23,6 +25,64 @@ const usersTable = document.getElementById("usersTable");
 
 // Roles now (no tech)
 const ROLES = ["admin", "manager", "advisor", "wash", "valet", "staff", "dropoff", "booker", "qc", "pending"];
+const TAB_KEYS = [
+  "home",
+  "scanner",
+  "location",
+  "advisor",
+  "valet",
+  "wash",
+  "loaners",
+  "manager",
+  "admin",
+  "dropoff",
+  "settings",
+  "booker",
+  "qc",
+  "masterro",
+  "archive",
+  "rotracker",
+];
+
+const TAB_LABELS = {
+  home: "Home",
+  scanner: "New RO",
+  location: "Location",
+  advisor: "Advisor",
+  valet: "Valet",
+  wash: "Wash",
+  loaners: "Loaners",
+  manager: "Manager",
+  admin: "Admin",
+  dropoff: "Send to Wash",
+  settings: "Settings",
+  booker: "Booker",
+  qc: "QC",
+  masterro: "Master RO",
+  archive: "Archive",
+  rotracker: "RO Tracker",
+};
+
+const ROLES_FOR_TABS = ["admin", "manager", "advisor", "wash", "valet", "staff", "booker", "qc"];
+
+const DEFAULT_TAB_VISIBILITY = {
+  home: ["admin", "manager", "advisor", "wash", "staff", "valet", "booker", "qc"],
+  scanner: ["admin", "manager", "advisor"],
+  location: ["admin", "manager", "advisor", "valet", "wash", "staff", "booker", "qc"],
+  advisor: ["admin", "manager", "advisor"],
+  valet: ["admin", "manager", "valet"],
+  wash: ["admin", "manager", "wash"],
+  loaners: ["admin", "manager", "advisor", "wash"],
+  manager: ["admin", "manager"],
+  admin: ["admin"],
+  dropoff: ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"],
+  settings: ["admin", "manager"],
+  booker: ["admin", "manager", "booker"],
+  qc: ["admin", "manager", "qc"],
+  masterro: ["admin", "manager", "advisor", "booker"],
+  archive: ["admin", "manager", "advisor", "booker"],
+  rotracker: ["admin", "manager", "advisor"],
+};
 
 /* -----------------------------
    Modal elements (from admin.html)
@@ -100,6 +160,118 @@ function waitForAuthUser() {
       resolve(u || null);
     });
   });
+}
+
+let tabVisibilityBaseline = "";
+
+function getTabVisibilityButton() {
+  return document.getElementById("saveTabVisibilityBtn");
+}
+
+function setTabVisibilitySaveEnabled(enabled) {
+  const btn = getTabVisibilityButton();
+  if (!btn) return;
+
+  btn.disabled = !enabled;
+  btn.style.opacity = enabled ? "1" : "0.5";
+}
+
+function buildTabVisibilityPayloadFromDom() {
+  const checkboxes = document.querySelectorAll('#tabVisibilityTable input[type="checkbox"]');
+  const payload = {};
+
+  TAB_KEYS.forEach((tabKey) => {
+    payload[tabKey] = [];
+  });
+
+  checkboxes.forEach((cb) => {
+    const tab = cb.dataset.tab;
+    const role = cb.dataset.role;
+    if (!tab || !role) return;
+    if (cb.checked) payload[tab].push(role);
+  });
+
+  TAB_KEYS.forEach((tabKey) => {
+    payload[tabKey].sort();
+  });
+
+  return payload;
+}
+
+function getTabVisibilitySnapshot() {
+  return JSON.stringify(buildTabVisibilityPayloadFromDom());
+}
+
+function onTabVisibilityChanged() {
+  const current = getTabVisibilitySnapshot();
+  setTabVisibilitySaveEnabled(current !== tabVisibilityBaseline);
+}
+
+
+async function loadTabVisibility() {
+  const table = document.getElementById("tabVisibilityTable");
+  if (!table) return;
+
+  table.innerHTML = "";
+
+  const ref = doc(db, "settings", "tabVisibility");
+  const snap = await getDoc(ref);
+  const saved = snap.exists() ? snap.data() : {};
+
+  TAB_KEYS.forEach((tabKey) => {
+    const tr = document.createElement("tr");
+
+    const tdLabel = document.createElement("td");
+    tdLabel.textContent = TAB_LABELS[tabKey] || tabKey;
+    tr.appendChild(tdLabel);
+
+    const allowedRoles = Array.isArray(saved[tabKey])
+      ? saved[tabKey]
+      : (DEFAULT_TAB_VISIBILITY[tabKey] || []);
+
+    ROLES_FOR_TABS.forEach((role) => {
+      const td = document.createElement("td");
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.checked = allowedRoles.includes(role);
+      cb.dataset.tab = tabKey;
+      cb.dataset.role = role;
+      cb.addEventListener("change", onTabVisibilityChanged);
+
+      td.appendChild(cb);
+      tr.appendChild(td);
+    });
+
+    table.appendChild(tr);
+  });
+
+  tabVisibilityBaseline = getTabVisibilitySnapshot();
+  setTabVisibilitySaveEnabled(false);
+}
+
+async function saveTabVisibility() {
+  const btn = getTabVisibilityButton();
+  const payload = buildTabVisibilityPayloadFromDom();
+
+  await setDoc(doc(db, "settings", "tabVisibility"), payload, { merge: true });
+
+  tabVisibilityBaseline = JSON.stringify(payload);
+
+  if (btn) {
+    const oldText = btn.textContent;
+    btn.textContent = "Saved ✓";
+    btn.style.color = "#0a7a2a";
+    btn.style.fontWeight = "bold";
+    setTabVisibilitySaveEnabled(false);
+
+    setTimeout(() => {
+      btn.textContent = oldText;
+      btn.style.color = "";
+      btn.style.fontWeight = "";
+      setTabVisibilitySaveEnabled(false);
+    }, 1200);
+  }
 }
 
 /* -----------------------------
@@ -639,5 +811,12 @@ async function loadAllUsers() {
   });
 }
 
+const saveTabVisibilityBtn = document.getElementById("saveTabVisibilityBtn");
+if (saveTabVisibilityBtn) {
+  saveTabVisibilityBtn.addEventListener("click", saveTabVisibility);
+  setTabVisibilitySaveEnabled(false);
+}
+
 loadPending();
 loadAllUsers();
+loadTabVisibility();

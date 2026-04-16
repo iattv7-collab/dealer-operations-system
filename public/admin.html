@@ -5,7 +5,70 @@
   <meta charset="utf-8">
   <title>ArrowFlow – Admin</title>
   <link rel="stylesheet" href="/css/arrowflow.css">
+
+
   <style>
+    /* --- Admin page layout helpers --- */
+    .admin-section {
+      margin-top: 16px;
+    }
+
+    .section-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 0;
+      background: transparent;
+      border: 0;
+      cursor: pointer;
+      text-align: left;
+      font: inherit;
+      color: inherit;
+    }
+
+    .section-toggle h3 {
+      margin: 0;
+    }
+
+    .section-chevron {
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .section-body[hidden] {
+      display: none !important;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      max-width: 100%;
+      max-height: 420px;
+      margin-top: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .table-wrap table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 900px;
+    }
+
+    .table-wrap thead th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #f7f7f7;
+    }
+
+    .table-wrap th,
+    .table-wrap td {
+      white-space: nowrap;
+    }
+
     /* --- Columns modal only --- */
     #columnsModalBackdrop {
       display: none;
@@ -166,49 +229,96 @@
 
   <p id="status" class="muted">Loading...</p>
 
+
   <h2>Admin / User Management</h2>
 
-  <div class="card">
-    <h3 style="margin-top:0;">Pending approvals</h3>
+  <div class="card admin-section">
+    <button type="button" class="section-toggle" data-target="pendingSectionBody" aria-expanded="false">
+      <h3>Pending approvals</h3>
+      <span class="section-chevron">▸</span>
+    </button>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Email</th>
-          <th>Name</th>
-          <th>Employee ID</th>
-          <th>Dealer ID</th>
-          <th>Set role</th>
-          <th>Approve</th>
-        </tr>
-      </thead>
-      <tbody id="pendingTable"></tbody>
-    </table>
+    <div id="pendingSectionBody" class="section-body" hidden>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Name</th>
+              <th>Employee ID</th>
+              <th>Dealer ID</th>
+              <th>Set role</th>
+              <th>Approve</th>
+            </tr>
+          </thead>
+          <tbody id="pendingTable"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
-  <div class="card" style="margin-top:16px;">
-    <h3 style="margin-top:0;">All users</h3>
+  <div class="card admin-section">
+    <button type="button" class="section-toggle" data-target="usersSectionBody" aria-expanded="true">
+      <h3>All users</h3>
+      <span class="section-chevron">▾</span>
+    </button>
 
-    <table>
-      <thead>
-        <tr>
-          <th>Email</th>
-          <th>Name</th>
-          <th>Employee ID</th>
-          <th>Dealer ID</th>
-          <th>Role</th>
-          <th>Active (Account)</th>
-          <th>Supervisor (Wash Day)</th>
-          <th>Corrections Tab</th>
-          <th>Fix Tag</th>
-          <th>Fix RO</th>
-          <th>Fix Location</th>
-          <th>Fix Advisor #</th>
-          <th>Actions (Admin)</th>
-        </tr>
-      </thead>
-      <tbody id="usersTable"></tbody>
-    </table>
+    <div id="usersSectionBody" class="section-body">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Email</th>
+              <th>Name</th>
+              <th>Employee ID</th>
+              <th>Dealer ID</th>
+              <th>Role</th>
+              <th>Active (Account)</th>
+              <th>Supervisor (Wash Day)</th>
+              <th>Corrections Tab</th>
+              <th>Fix Tag</th>
+              <th>Fix RO</th>
+              <th>Fix Location</th>
+              <th>Fix Advisor #</th>
+              <th>Actions (Admin)</th>
+            </tr>
+          </thead>
+          <tbody id="usersTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="card admin-section">
+    <button type="button" class="section-toggle" data-target="tabVisibilitySectionBody" aria-expanded="false">
+      <h3>Tab Visibility (by Role)</h3>
+      <span class="section-chevron">▸</span>
+    </button>
+
+    <div id="tabVisibilitySectionBody" class="section-body" hidden>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Tab</th>
+              <th>admin</th>
+              <th>manager</th>
+              <th>advisor</th>
+              <th>wash</th>
+              <th>valet</th>
+              <th>staff</th>
+              <th>booker</th>
+              <th>qc</th>
+            </tr>
+          </thead>
+          <tbody id="tabVisibilityTable"></tbody>
+        </table>
+      </div>
+
+      <div style="margin-top:10px;">
+        <button id="saveTabVisibilityBtn">Save Tab Visibility</button>
+      </div>
+    </div>
   </div>
 
   <div id="columnsModalBackdrop" aria-hidden="true">
@@ -266,6 +376,28 @@
     document.getElementById("nav").innerHTML = renderNav("admin");
 
     requireRole(["admin"]);
+
+    document.querySelectorAll(".section-toggle").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const targetId = btn.dataset.target;
+        const body = document.getElementById(targetId);
+        const chevron = btn.querySelector(".section-chevron");
+        if (!body || !chevron) return;
+
+        const isHidden = body.hasAttribute("hidden");
+
+        if (isHidden) {
+          body.removeAttribute("hidden");
+          btn.setAttribute("aria-expanded", "true");
+          chevron.textContent = "▾";
+        } else {
+          body.setAttribute("hidden", "");
+          btn.setAttribute("aria-expanded", "false");
+          chevron.textContent = "▸";
+        }
+      });
+    });
+
 
     const path = window.location.pathname.split("/").pop();
 

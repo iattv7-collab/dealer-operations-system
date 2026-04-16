@@ -258,105 +258,133 @@
             }
         });
 
+
+
+
         const SCREENS = [
             {
+                key: "scanner",
                 title: "New RO",
                 desc: "Create a new repair order by scanning or manual entry.",
                 href: "/ro/scan.html",
-                roles: ["admin", "manager", "advisor"]
+                defaultRoles: ["admin", "manager", "advisor"]
             },
             {
+                key: "location",
                 title: "Move / Locate",
                 desc: "Find and update vehicle location across the lot.",
                 href: "/location.html",
-                roles: ["admin", "manager", "advisor", "valet", "wash", "staff", "booker", "qc"]
+                defaultRoles: ["admin", "manager", "advisor", "valet", "wash", "staff", "booker", "qc"]
             },
             {
+                key: "advisor",
                 title: "Advisor",
                 desc: "Advisor queue and service follow-through view.",
                 href: "/advisor.html",
-                roles: ["admin", "manager", "advisor"]
+                defaultRoles: ["admin", "manager", "advisor"]
             },
             {
+                key: "valet",
                 title: "Valet",
                 desc: "Vehicle staging and movement control.",
                 href: "/valet.html",
-                roles: ["admin", "manager", "valet"]
+                defaultRoles: ["admin", "manager", "valet"]
             },
             {
+                key: "wash",
                 title: "Wash",
                 desc: "Wash team working screen.",
                 href: "/wash.html",
-                roles: ["admin", "manager", "wash"]
+                defaultRoles: ["admin", "manager", "wash"]
             },
-
             {
+                key: "loaners",
                 title: "Loaners",
                 desc: "Loaner fleet and return processing.",
                 href: "/loaners.html",
-                roles: ["admin", "manager", "advisor", "wash"]
+                defaultRoles: ["admin", "manager", "advisor", "wash"]
             },
-
             {
+                key: "manager",
                 title: "Manager",
                 desc: "Manager overview and queue control.",
                 href: "/manager.html",
-                roles: ["admin", "manager"]
+                defaultRoles: ["admin", "manager"]
             },
             {
+                key: "admin",
                 title: "Admin",
                 desc: "User approvals and system setup.",
                 href: "/admin.html",
-                roles: ["admin"]
+                defaultRoles: ["admin"]
             },
             {
+                key: "dropoff",
                 title: "Send to Wash",
                 desc: "Find a finished RO and send it into the wash flow.",
                 href: "/dropoff.html",
-                roles: ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"]
+                defaultRoles: ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"]
             },
             {
+                key: "settings",
                 title: "Settings",
                 desc: "System settings and wash configuration.",
                 href: "/settings.html",
-                roles: ["admin", "manager"]
+                defaultRoles: ["admin", "manager"]
             },
             {
+                key: "booker",
                 title: "Booker",
                 desc: "Booking and dispatch work area.",
                 href: "/booker.html",
-                roles: ["admin", "manager", "booker"]
+                defaultRoles: ["admin", "manager", "booker"]
             },
             {
+                key: "qc",
                 title: "QC",
                 desc: "Quality control review screen.",
                 href: "/qc.html",
-                roles: ["admin", "manager", "qc"]
+                defaultRoles: ["admin", "manager", "qc"]
             },
             {
+                key: "masterro",
                 title: "Master RO",
                 desc: "Master repair order list.",
                 href: "/master-ro.html",
-                roles: ["admin", "manager", "advisor", "booker", "qc"]
+                defaultRoles: ["admin", "manager", "advisor", "booker"]
             },
             {
+                key: "archive",
                 title: "Archive",
                 desc: "View archived tickets and history.",
                 href: "/archive.html",
-                roles: ["admin", "manager", "advisor", "booker"]
+                defaultRoles: ["admin", "manager", "advisor", "booker"]
             },
             {
+                key: "rotracker",
                 title: "RO Tracker",
                 desc: "Open the RO tracker workspace.",
                 href: "/ro/index.html",
-                roles: ["admin", "manager", "advisor"]
+                defaultRoles: ["admin", "manager", "advisor"]
             }
         ];
+
+
+
 
         function showError(message) {
             errorBox.textContent = message;
             errorBox.style.display = "block";
         }
+
+        function canRoleSeeScreen(screen, role, tabVisibility) {
+            const configuredRoles = Array.isArray(tabVisibility?.[screen.key])
+                ? tabVisibility[screen.key]
+                : screen.defaultRoles;
+
+            return configuredRoles.includes(role);
+        }
+
 
         function makeCard(screen) {
             const card = document.createElement("div");
@@ -384,7 +412,6 @@
 
                 if (!snap.exists()) {
                     showError("No user profile was found for this account.");
-                    statusBox.textContent = "Profile missing.";
                     return;
                 }
 
@@ -402,13 +429,17 @@
                     return;
                 }
 
-                const allowedScreens = SCREENS.filter(screen => screen.roles.includes(role));
+                const tabVisibilitySnap = await getDoc(doc(db, "settings", "tabVisibility"));
+                const tabVisibility = tabVisibilitySnap.exists() ? tabVisibilitySnap.data() : {};
+
+                const allowedScreens = SCREENS.filter((screen) =>
+                    canRoleSeeScreen(screen, role, tabVisibility)
+                );
 
                 homeGrid.innerHTML = "";
 
                 if (!allowedScreens.length) {
                     showError(`No screens are assigned to role: ${role}`);
-                    statusBox.textContent = "No available screens.";
                     return;
                 }
 
@@ -423,7 +454,6 @@
             } catch (err) {
                 console.error(err);
                 showError("There was a problem loading your home screen.");
-                statusBox.textContent = "Load failed.";
             }
         });
     </script>
