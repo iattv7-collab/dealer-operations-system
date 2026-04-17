@@ -14,7 +14,8 @@ import {
   where,
   onSnapshot,
   serverTimestamp,
-  increment
+  increment,
+  runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const COL = "ros";
@@ -154,6 +155,114 @@ export async function requestRewash(ticketId, user, role = "advisor") {
     ])
   });
 }
+
+/* -------------------------------------------
+   Pickup request
+--------------------------------------------*/
+export async function requestPickup(ticketId, user, role = "advisor") {
+  if (!user) throw new Error("Not authenticated.");
+  if (!ticketId) throw new Error("Missing ticket id.");
+
+  const ref = doc(db, COL, ticketId);
+  const nowMs = Date.now();
+
+  const snap = await getDoc(ref);
+  if (!snap.exists()) throw new Error("Ticket not found.");
+
+  const cur = snap.data() || {};
+  const pickupStatus = String(cur.pickupStatus || "").toLowerCase();
+
+  if (pickupStatus === "requested" || pickupStatus === "on_the_way") {
+    throw new Error("Pickup already requested or in progress.");
+  }
+
+  await updateDoc(ref, {
+    pickupStatus: "requested",
+    pickupRequestedAtMs: nowMs,
+    pickupRequestedBy: user.uid,
+    pickupRequestedByName: String(user.displayName || user.email || "").trim(),
+    updatedAt: serverTimestamp(),
+    ...auditUser(user),
+    washEvents: arrayUnion(
+      makeEvent({ type: "pickup_requested", atMs: nowMs, by: user.uid, role, cycle: "pickup" })
+    ),
+    ...lastEditPatch(user, role, [
+      "pickupStatus",
+      "pickupRequestedAtMs",
+      "pickupRequestedBy",
+      "pickupRequestedByName",
+      "updatedAt",
+      "updatedByUid",
+      "updatedByName",
+      "updatedByEmail",
+      "washEvents"
+    ])
+  });
+}
+
+/* -------------------------------------------
+   Pickup claim / on the way
+--------------------------------------------*/
+export async function claimPickup(ticketId, user, role = "valet") {
+  if (!user) throw new Error("Not authenticated.");
+  if (!ticketId) throw new Error("Missing ticket id.");
+
+  const ref = doc(db, COL, ticketId);
+  const nowMs = Date.now();
+  const who = String(user.displayName || user.email || "").trim();
+
+  return await runTransaction(db, async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Ticket not found.");
+
+    const cur = snap.data() || {};
+    const pickupStatus = String(cur.pickupStatus || "").toLowerCase();
+
+    if (pickupStatus !== "requested") {
+      const handledBy = String(cur.pickupClaimedByName || "").trim();
+      throw new Error(
+        handledBy
+          ? `Another valet is already handling this pickup (${handledBy}).`
+          : "Another valet is already handling this pickup."
+      );
+    }
+
+    tx.update(ref, {
+      pickupStatus: "on_the_way",
+      pickupClaimedBy: user.uid,
+      pickupClaimedByName: who,
+      pickupClaimedAtMs: nowMs,
+      pickupOnTheWayAtMs: nowMs,
+      updatedAt: serverTimestamp(),
+      ...auditUser(user),
+      washEvents: arrayUnion(
+        makeEvent({ type: "pickup_claimed", atMs: nowMs, by: user.uid, role, cycle: "pickup" })
+      ),
+      ...lastEditPatch(user, role, [
+        "pickupStatus",
+        "pickupClaimedBy",
+        "pickupClaimedByName",
+        "pickupClaimedAtMs",
+        "pickupOnTheWayAtMs",
+        "updatedAt",
+        "updatedByUid",
+        "updatedByName",
+        "updatedByEmail",
+        "washEvents"
+      ])
+    });
+
+    return {
+      ok: true,
+      id: ticketId,
+      location: String(cur.location || "").trim(),
+      ro: String(cur.ro || "").trim(),
+      tag: String(cur.tag || "").trim()
+    };
+  });
+}
+
+
 
 /* -------------------------------------------
    Update wash status on SAME master RO

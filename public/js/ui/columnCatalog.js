@@ -185,6 +185,14 @@ export const COLUMN_CATALOG = {
     editRoles: [],
   },
 
+  pickupRequestAction: {
+    key: "pickupRequestAction",
+    label: "Pickup",
+    field: null,
+    type: "action",
+    editRoles: [],
+  },
+
   setNeedByAction: {
     key: "setNeedByAction",
     label: "Need By",
@@ -275,6 +283,7 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "washed",   // ✅ moved early so it's not stuck far right
     "updatedAt",
     "requestRewash",
+    "pickupRequestAction",
     "setNeedByAction",
     "startWash",
     "markComplete",
@@ -299,6 +308,7 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "washed",
     "updatedAt",
     "requestRewash",
+    "pickupRequestAction",
     "setNeedByAction",
     "startWash",
     "markComplete",
@@ -322,6 +332,7 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "notes",
     "washed",
     "requestRewash",
+    "pickupRequestAction",
     "setNeedByAction",
     "startWash",
     "markComplete",
@@ -345,6 +356,7 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "notes",
     "washed",
     "requestRewash",
+    "pickupRequestAction",
     "setNeedByAction",
     "startWash",
     "markComplete",
@@ -417,6 +429,7 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "washed",
     "updatedAt",
     "requestRewash",
+    "pickupRequestAction",
     "setNeedByAction",
     "startWash",
     "markComplete",

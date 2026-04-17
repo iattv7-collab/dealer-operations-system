@@ -460,7 +460,17 @@ match /{document=**} {
           "hasLoaner",
           "advisor",
           "source",
-          "updatedAt"
+          "updatedAt",
+
+          "pickupStatus",
+          "pickupRequestedAtMs",
+          "pickupRequestedBy",
+          "pickupRequestedByName",
+          "pickupClaimedBy",
+          "pickupClaimedByName",
+          "pickupClaimedAtMs",
+          "pickupOnTheWayAtMs",
+          "pickupDeliveredAtMs"
         ]);
 
       allow update: if canFixTag()

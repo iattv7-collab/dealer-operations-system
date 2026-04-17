@@ -6,6 +6,7 @@ import { pickQcUserUid } from "./qcUsers.js";
 import { capsFor } from "./roles.js";
 import { isRewashTicket } from "./formatters.js";
 import { el } from "./dom.js";
+import { requestPickup } from "../rosWash.js";
 
 import { updateDoc, doc, serverTimestamp, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -98,6 +99,8 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
 
   const bArchive = el("button", { type: "button", className: "btn-archive", text: "Archive" });
 
+  const bPickup = el("button", { type: "button", className: "btn-pickup", text: "Request Pickup" });
+
   const bCpBooked = el("button", { type: "button", className: "btn-cpbooked", text: "CP Booked" });
   const bWtyBooked = el("button", { type: "button", className: "btn-wtybooked", text: "WTY Booked" });
   const bRequestQc = el("button", { type: "button", className: "btn-requestqc", text: "Request QC" });
@@ -119,6 +122,26 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
   bWashing.disabled = isClosed || !(caps.canWashOps && status === "queued");
   bWashed.disabled = isClosed || !(caps.canWashOps && status === "washing");
   bArchive.disabled = !(caps.canArchive && !isClosed);
+
+  const pickupStatus = String(t.pickupStatus || "").toLowerCase();
+  const pickupAlreadyActive = pickupStatus === "requested" || pickupStatus === "on_the_way";
+
+  const canRequestPickup =
+    role === "advisor" ||
+    role === "booker" ||
+    role === "manager" ||
+    role === "admin" ||
+    role === "wash";
+
+  bPickup.disabled = isClosed || !canRequestPickup || pickupAlreadyActive;
+
+  if (pickupStatus === "requested") {
+    bPickup.textContent = "Pickup Requested";
+  }
+
+  if (pickupStatus === "on_the_way") {
+    bPickup.textContent = "On The Way";
+  }
 
   const canCpBook = (role === "booker" || role === "advisor" || role === "manager" || role === "admin");
   const canWtyBook = (role === "booker" || role === "manager" || role === "admin");
@@ -142,6 +165,7 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
   wrap.appendChild(bNeedBy);
   wrap.appendChild(bWashing);
   wrap.appendChild(bWashed);
+  wrap.appendChild(bPickup);
 
   if (canCpBook) wrap.appendChild(bCpBooked);
   if (canWtyBook) wrap.appendChild(bWtyBooked);
@@ -178,6 +202,7 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
     if (wrap.contains(bNeedBy)) actionMap.setNeedByAction = bNeedBy;
     if (wrap.contains(bWashing)) actionMap.startWash = bWashing;
     if (wrap.contains(bWashed)) actionMap.markComplete = bWashed;
+    if (wrap.contains(bPickup)) actionMap.pickupRequestAction = bPickup;
     if (wrap.contains(bCpBooked)) actionMap.cpBookedAction = bCpBooked;
     if (wrap.contains(bWtyBooked)) actionMap.wtyBookedAction = bWtyBooked;
     if (wrap.contains(bRequestQc)) actionMap.requestQc = bRequestQc;
@@ -439,12 +464,22 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
       return;
     }
 
+    if (btn.classList.contains("btn-pickup")) {
+      await requestPickup(id, user, role);
+      if (msgEl) {
+        msgEl.className = "ok";
+        msgEl.textContent = "Pickup requested.";
+      }
+      return;
+    }
+
     if (btn.classList.contains("btn-archive")) {
       if (!caps.canArchive) return;
       await setTicketStatus(id, "closed", user, role);
       if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "Archived (closed)."; }
       return;
     }
+
   } catch (err) {
     console.error(err);
     if (msgEl) { msgEl.className = "err"; msgEl.textContent = err?.message || "Error updating ticket."; }

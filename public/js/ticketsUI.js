@@ -109,62 +109,72 @@ export function mountTicketsUI({
   }
 
   function buildFoundLink(label, onClick) {
-    const span = document.createElement("span");
-    span.textContent = label;
-    span.style.cursor = "pointer";
-    span.style.color = "#0a7a2a";
-    span.style.fontWeight = "bold";
-    span.style.textDecoration = "underline";
-    span.style.display = "inline-block";
-    span.style.padding = "2px 8px";
-    span.style.border = "1px solid #0a7a2a";
-    span.style.borderRadius = "999px";
-    span.style.margin = "2px 6px 2px 0";
-    span.style.background = "#eefaf0";
-    span.onclick = onClick;
-    return span;
+  const span = document.createElement("span");
+  span.textContent = label;
+  span.style.cursor = "pointer";
+  span.style.color = "#0a7a2a";
+  span.style.fontWeight = "bold";
+  span.style.textDecoration = "underline";
+  span.style.display = "inline-block";
+  span.style.padding = "2px 8px";
+  span.style.border = "1px solid #0a7a2a";
+  span.style.borderRadius = "999px";
+  span.style.margin = "2px 6px 2px 0";
+  span.style.background = "#eefaf0";
+  span.onclick = onClick;
+  return span;
+}
+
+function stageInfoForTicket(t) {
+  const status = String(t?.status || t?.washStatus || "").toLowerCase();
+  const hasQc = !!t?.qcAssignedTo && !t?.qcDoneAt;
+
+  if (String(t?.pickupStatus || "").toLowerCase() === "requested") {
+    return { tabId: "pickup", tabLabel: "Pickup" };
   }
 
-  function stageInfoForTicket(t) {
-    const status = String(t?.status || t?.washStatus || "").toLowerCase();
-    const hasQc = !!t?.qcAssignedTo && !t?.qcDoneAt;
-
-    if (status === "queued" || status === "washing") {
-      return { tabId: "active", tabLabel: "Wash" };
-    }
-
-    if (status === "washed") {
-      if (hasQc) return { tabId: "washed", tabLabel: "QC" };
-      return { tabId: "washed", tabLabel: "Washed" };
-    }
-
-    if (status === "closed") {
-      return { tabId: "closed", tabLabel: "Archive" };
-    }
-
-    return { tabId: null, tabLabel: "In Shop" };
+  if (status === "queued" || status === "washing") {
+    return { tabId: "active", tabLabel: "Wash" };
   }
 
-  function buildSearchResultEntry(found) {
-    const stage = stageInfoForTicket(found);
-
-    return {
-      status: String(found?.status || "").toLowerCase(),
-      tabId: stage.tabId,
-      tabLabel: stage.tabLabel,
-      ro: found?.ro || "",
-      tag: found?.tag || "",
-      location: found?.location || "",
-    };
+  if (status === "washed") {
+    if (hasQc) return { tabId: "washed", tabLabel: "QC" };
+    return { tabId: "washed", tabLabel: "Washed" };
   }
 
-  let searchSeq = 0;
+  if (status === "closed") {
+    return { tabId: "closed", tabLabel: "Archive" };
+  }
 
+  return { tabId: null, tabLabel: "In Shop" };
+}
 
+function buildSearchResultEntry(found) {
+  const stage = stageInfoForTicket(found);
 
-  rerender = () => {
-    const tabDef = TAB_DEFS.find((t) => t.id === currentTab) || TAB_DEFS[0];
+  return {
+    status: String(found?.status || "").toLowerCase(),
+    tabId: stage.tabId,
+    tabLabel: stage.tabLabel,
+    ro: found?.ro || "",
+    tag: found?.tag || "",
+    location: found?.location || "",
+  };
+}
 
+let searchSeq = 0;
+
+rerender = () => {
+  const tabDef = TAB_DEFS.find((t) => t.id === currentTab) || TAB_DEFS[0];
+
+  let rows = [];
+  let set = null;
+
+  if (currentTab === "pickup") {
+    rows = (lastRows || []).filter((r) =>
+      String(r.pickupStatus || "").toLowerCase() === "requested"
+    );
+  } else {
     if (!Array.isArray(tabDef.statuses)) {
       tbody.innerHTML = "";
       const tr = el("tr");
@@ -175,24 +185,49 @@ export function mountTicketsUI({
       return;
     }
 
-    const set = new Set(tabDef.statuses.map((s) => String(s).toLowerCase()));
+    set = new Set(tabDef.statuses.map((s) => String(s).toLowerCase()));
 
-    let rows = (lastRows || []).filter((r) =>
+    rows = (lastRows || []).filter((r) =>
       set.has(String(r.status || "").toLowerCase())
     );
+  }
 
+  if (searchText) {
+    const allMatches = (lastRows || []).filter((t) => {
+      const tag = String(t.tag || "").toLowerCase();
+      const ro = String(t.ro || "").toLowerCase();
+      return tag.includes(searchText) || ro.includes(searchText);
+    });
 
+    if (allMatches.length) {
+      searchResultInfo = null;
 
-    if (searchText) {
-      const allMatches = (lastRows || []).filter((t) => {
-        const tag = String(t.tag || "").toLowerCase();
-        const ro = String(t.ro || "").toLowerCase();
-        return tag.includes(searchText) || ro.includes(searchText);
-      });
+      if (currentTab === "pickup") {
+        const inCurrentTab = allMatches.filter((t) =>
+          String(t.pickupStatus || "").toLowerCase() === "requested"
+        );
 
-      if (allMatches.length) {
-        searchResultInfo = null;
+        if (inCurrentTab.length) {
+          rows = inCurrentTab;
+        } else {
+          const mapped = allMatches.map((found) => buildSearchResultEntry(found));
 
+          const seen = new Set();
+          const results = mapped.filter((x) => {
+            const key = `${x.tabId}|${x.status}|${x.ro}|${x.tag}|${x.location}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+
+          searchResultInfo = {
+            type: "foundElsewhere",
+            results,
+          };
+
+          rows = [];
+        }
+      } else {
         const inCurrentTab = allMatches.filter((t) =>
           set.has(String(t.status || "").toLowerCase())
         );
@@ -217,143 +252,143 @@ export function mountTicketsUI({
 
           rows = [];
         }
-      } else {
-        rows = [];
-        if (!searchResultInfo) {
-          searchResultInfo = { type: "searching", results: [] };
-        }
       }
     } else {
-      searchResultInfo = null;
+      rows = [];
+      if (!searchResultInfo) {
+        searchResultInfo = { type: "searching", results: [] };
+      }
     }
+  } else {
+    searchResultInfo = null;
+  }
 
+  let etaMap = null;
 
+  if (currentTab === "active") {
+    rows = rows.slice().sort(sortActiveQueue);
 
-    let etaMap = null;
+    const minutesPerCar = Number(sys?.washDurationMin) || 15;
+    const bufferMin = Number(sys?.bufferMin) || 0;
 
-    if (currentTab === "active") {
-      rows = rows.slice().sort(sortActiveQueue);
+    const baysOpen = Number.isFinite(sys?.effectiveBays)
+      ? Math.floor(sys.effectiveBays)
+      : 0;
 
-      const minutesPerCar = Number(sys?.washDurationMin) || 15;
-      const bufferMin = Number(sys?.bufferMin) || 0;
+    etaMap = computeEtaMap(rows, {
+      minutesPerCar: minutesPerCar + bufferMin,
+      baysOpen,
+    });
+  }
 
-      const baysOpen = Number.isFinite(sys?.effectiveBays)
-        ? Math.floor(sys.effectiveBays)
-        : 0;
+  tbody.innerHTML = "";
 
-      etaMap = computeEtaMap(rows, {
-        minutesPerCar: minutesPerCar + bufferMin,
-        baysOpen,
-      });
-    }
+  if (!rows.length) {
+    const tr = el("tr");
+    const td = el("td", { className: "muted" });
+    td.setAttribute("colspan", String(cols.length));
 
-    tbody.innerHTML = "";
+    if (searchText && searchResultInfo) {
+      if (searchResultInfo.type === "searching") {
+        td.textContent = "Searching...";
+      } else if (searchResultInfo.type === "notfound") {
+        td.textContent = "No ticket found.";
+      } else if (searchResultInfo.type === "foundElsewhere") {
+        const wrap = document.createElement("div");
 
-    if (!rows.length) {
-      const tr = el("tr");
-      const td = el("td", { className: "muted" });
-      td.setAttribute("colspan", String(cols.length));
+        const intro = document.createElement("div");
+        intro.style.marginBottom = "8px";
+        intro.textContent =
+          searchResultInfo.results.length === 1
+            ? "Found in:"
+            : "Found in multiple places:";
+        wrap.appendChild(intro);
 
-      if (searchText && searchResultInfo) {
-        if (searchResultInfo.type === "searching") {
-          td.textContent = "Searching...";
-        } else if (searchResultInfo.type === "notfound") {
-          td.textContent = "No ticket found.";
-        } else if (searchResultInfo.type === "foundElsewhere") {
-          const wrap = document.createElement("div");
+        searchResultInfo.results.forEach((r) => {
+          const base =
+            r.ro && r.tag
+              ? `${r.tabLabel} (RO ${r.ro} / Tag ${r.tag})`
+              : r.ro
+                ? `${r.tabLabel} (RO ${r.ro})`
+                : r.tag
+                  ? `${r.tabLabel} (Tag ${r.tag})`
+                  : r.tabLabel;
 
-          const intro = document.createElement("div");
-          intro.style.marginBottom = "8px";
-          intro.textContent =
-            searchResultInfo.results.length === 1
-              ? "Found in:"
-              : "Found in multiple places:";
-          wrap.appendChild(intro);
+          const label = r.location
+            ? `${base} — ${r.location}`
+            : base;
 
-          searchResultInfo.results.forEach((r) => {
-            const base =
-              r.ro && r.tag
-                ? `${r.tabLabel} (RO ${r.ro} / Tag ${r.tag})`
-                : r.ro
-                  ? `${r.tabLabel} (RO ${r.ro})`
-                  : r.tag
-                    ? `${r.tabLabel} (Tag ${r.tag})`
-                    : r.tabLabel;
+          if (r.tabId) {
+            wrap.appendChild(
+              buildFoundLink(label, () => switchToTab(r.tabId))
+            );
+          } else {
+            const plain = document.createElement("span");
+            plain.textContent = label;
+            plain.style.display = "inline-block";
+            plain.style.margin = "2px 6px 2px 0";
+            wrap.appendChild(plain);
+          }
+        });
 
-            const label = r.location
-              ? `${base} — ${r.location}`
-              : base;
-
-            if (r.tabId) {
-              wrap.appendChild(
-                buildFoundLink(label, () => switchToTab(r.tabId))
-              );
-            } else {
-              const plain = document.createElement("span");
-              plain.textContent = label;
-              plain.style.display = "inline-block";
-              plain.style.margin = "2px 6px 2px 0";
-              wrap.appendChild(plain);
-            }
-          });
-
-          td.appendChild(wrap);
-        } else {
-          td.textContent = "No tickets.";
-        }
+        td.appendChild(wrap);
       } else {
         td.textContent = "No tickets.";
       }
-
-      tr.appendChild(td);
-      tbody.appendChild(tr);
-      return;
+    } else {
+      td.textContent = "No tickets.";
     }
 
-    const splitActionKeys = new Set([
-      "requestRewash",
-      "setNeedByAction",
-      "startWash",
-      "markComplete",
-      "cpBookedAction",
-      "wtyBookedAction",
-      "requestQc",
-      "noQc",
-      "qcDoneAction",
-      "archiveAction",
-    ]);
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
 
-    const hasSplitActions = cols.some((c) => splitActionKeys.has(c.key));
+  const splitActionKeys = new Set([
+    "requestRewash",
+    "pickupRequestAction",
+    "setNeedByAction",
+    "startWash",
+    "markComplete",
+    "cpBookedAction",
+    "wtyBookedAction",
+    "requestQc",
+    "noQc",
+    "qcDoneAction",
+    "archiveAction",
+  ]);
 
-    rows.forEach((t) => {
-      const tr = renderRow(t, role, cols, etaMap);
+  const hasSplitActions = cols.some((c) => splitActionKeys.has(c.key));
 
-      if (hasSplitActions) {
-        const actionMap = buildActionsCell({
-          t,
-          role,
-          tab: currentTab,
-          correctionsPerms: {
-            ...(correctionsPerms || {}),
-            canEditTickets: canEditTickets,
-          },
-          splitMode: true,
+  rows.forEach((t) => {
+    const tr = renderRow(t, role, cols, etaMap);
+
+    if (hasSplitActions) {
+      const actionMap = buildActionsCell({
+        t,
+        role,
+        tab: currentTab,
+        correctionsPerms: {
+          ...(correctionsPerms || {}),
+          canEditTickets: canEditTickets,
+        },
+        splitMode: true,
+      });
+
+      if (actionMap && typeof actionMap === "object") {
+        Object.entries(actionMap).forEach(([key, node]) => {
+          const td = tr.querySelector(`td[data-action-key="${key}"]`);
+          if (td && node) {
+            td.innerHTML = "";
+            td.appendChild(node);
+          }
         });
-
-        if (actionMap && typeof actionMap === "object") {
-          Object.entries(actionMap).forEach(([key, node]) => {
-            const td = tr.querySelector(`td[data-action-key="${key}"]`);
-            if (td && node) {
-              td.innerHTML = "";
-              td.appendChild(node);
-            }
-          });
-        }
       }
+    }
 
-      tbody.appendChild(tr);
-    });
-  };
+    tbody.appendChild(tr);
+  });
+};
 
   if (searchEl) {
     searchEl.addEventListener("input", async () => {

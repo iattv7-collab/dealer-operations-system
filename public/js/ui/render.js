@@ -20,9 +20,10 @@ export function renderRow(t, role, cols, etaMap) {
 
   cols.forEach((c) => {
 
-       // ✅ Split action placeholders (presentation only, no logic change)
+    // ✅ Split action placeholders (presentation only, no logic change)
     if (
       c.key === "requestRewash" ||
+      c.key === "pickupRequestAction" ||
       c.key === "setNeedByAction" ||
       c.key === "startWash" ||
       c.key === "markComplete" ||
