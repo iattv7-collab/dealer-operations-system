@@ -1,12 +1,11 @@
 // public/js/ui/actions.js
 import { auth, db } from "../firebase.js";
-import { requestRewash, setTicketStatus } from "../rosWash.js";
+import { requestRewash, setTicketStatus, requestPickup, claimPickup } from "../rosWash.js";
 import { pickDateTimeMs } from "./datetimePicker.js";
 import { pickQcUserUid } from "./qcUsers.js";
 import { capsFor } from "./roles.js";
 import { isRewashTicket } from "./formatters.js";
 import { el } from "./dom.js";
-import { requestPickup } from "../rosWash.js";
 
 import { updateDoc, doc, serverTimestamp, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -101,6 +100,8 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
 
   const bPickup = el("button", { type: "button", className: "btn-pickup", text: "Request Pickup" });
 
+  const bPickupClaim = el("button", { type: "button", className: "btn-pickup-claim", text: "On The Way" });
+
   const bCpBooked = el("button", { type: "button", className: "btn-cpbooked", text: "CP Booked" });
   const bWtyBooked = el("button", { type: "button", className: "btn-wtybooked", text: "WTY Booked" });
   const bRequestQc = el("button", { type: "button", className: "btn-requestqc", text: "Request QC" });
@@ -143,6 +144,16 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
     bPickup.textContent = "On The Way";
   }
 
+  const canClaimPickup = role === "valet";
+  const pickupCanBeClaimed = pickupStatus === "requested";
+
+  bPickupClaim.disabled = isClosed || !canClaimPickup || !pickupCanBeClaimed;
+
+  if (pickupStatus === "on_the_way") {
+    bPickupClaim.textContent = "Claimed";
+    bPickupClaim.disabled = true;
+  }
+
   const canCpBook = (role === "booker" || role === "advisor" || role === "manager" || role === "admin");
   const canWtyBook = (role === "booker" || role === "manager" || role === "admin");
   const canQcDecision = (role === "booker" || role === "advisor" || role === "manager" || role === "admin");
@@ -166,6 +177,7 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
   wrap.appendChild(bWashing);
   wrap.appendChild(bWashed);
   wrap.appendChild(bPickup);
+  wrap.appendChild(bPickupClaim);
 
   if (canCpBook) wrap.appendChild(bCpBooked);
   if (canWtyBook) wrap.appendChild(bWtyBooked);
@@ -203,6 +215,7 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
     if (wrap.contains(bWashing)) actionMap.startWash = bWashing;
     if (wrap.contains(bWashed)) actionMap.markComplete = bWashed;
     if (wrap.contains(bPickup)) actionMap.pickupRequestAction = bPickup;
+    if (wrap.contains(bPickupClaim)) actionMap.pickupClaimAction = bPickupClaim;
     if (wrap.contains(bCpBooked)) actionMap.cpBookedAction = bCpBooked;
     if (wrap.contains(bWtyBooked)) actionMap.wtyBookedAction = bWtyBooked;
     if (wrap.contains(bRequestQc)) actionMap.requestQc = bRequestQc;
@@ -472,6 +485,18 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
       }
       return;
     }
+
+    if (btn.classList.contains("btn-pickup-claim")) {
+      const result = await claimPickup(id, user, role);
+      if (msgEl) {
+        msgEl.className = "ok";
+        msgEl.textContent = result?.location
+          ? `On the way. Location: ${result.location}`
+          : "On the way. Location unknown.";
+      }
+      return;
+    }
+
 
     if (btn.classList.contains("btn-archive")) {
       if (!caps.canArchive) return;

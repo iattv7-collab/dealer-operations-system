@@ -24,6 +24,7 @@ export function renderRow(t, role, cols, etaMap) {
     if (
       c.key === "requestRewash" ||
       c.key === "pickupRequestAction" ||
+      c.key === "pickupClaimAction" ||
       c.key === "setNeedByAction" ||
       c.key === "startWash" ||
       c.key === "markComplete" ||

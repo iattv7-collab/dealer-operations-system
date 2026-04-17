@@ -1,4 +1,4 @@
-// public/js/ui/columns.js 
+// public/js/ui/columns.js
 import { DEFAULT_COLUMNS_BY_VIEW, getColumnDef } from "./columnCatalog.js";
 
 /**
@@ -24,28 +24,24 @@ export function buildColumnsFromKeys(keys) {
 /**
  * Core function:
  * Builds columns for a view using:
- * - system defaults
- * - manager/user assigned columns (extraKeys)
+ * - saved admin/user-selected columns IF they exist
+ * - otherwise falls back to system defaults
  */
 export function colsForView(viewKey, extraKeys = []) {
-
   const normalizedView = String(viewKey || "staff").toLowerCase();
 
-  // Default columns for that role/view
-  const base = DEFAULT_COLUMNS_BY_VIEW[normalizedView] || [];
+  const defaults = DEFAULT_COLUMNS_BY_VIEW[normalizedView] || [];
+  const saved = Array.isArray(extraKeys) ? extraKeys.filter(Boolean) : [];
 
-  // Merge defaults + extra keys (no duplicates)
-  const merged = [
-    ...new Set([
-      ...(base || []),
-      ...(extraKeys || [])
-    ])
-  ];
+  // NEW BEHAVIOR:
+  // If admin/user has saved at least one column, that saved list is the source of truth.
+  // Otherwise use the default preset.
+  const chosenKeys = saved.length > 0 ? saved : defaults;
 
   /**
    * HARD BLOCK RULE
    * Only manager and admin can see "Last Update" column
-   * Even if extraKeys tries to add it
+   * Even if saved config tries to add it
    */
   const blocked = new Set();
 
@@ -53,18 +49,15 @@ export function colsForView(viewKey, extraKeys = []) {
     blocked.add("updatedAt");
   }
 
-  const finalKeys = merged.filter(k => !blocked.has(k));
+  const finalKeys = [...new Set(chosenKeys)].filter((k) => !blocked.has(k));
 
   return buildColumnsFromKeys(finalKeys);
 }
 
 /**
  * Compatibility wrapper used by ticketsUI.js
- * This is now fully functional with dynamic columns
  */
 export function colsForRole(role, extraKeys = []) {
-
   const normalizedRole = String(role || "staff").toLowerCase();
-
   return colsForView(normalizedRole, extraKeys);
 }
