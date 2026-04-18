@@ -32,13 +32,13 @@ function applyColumnVisibility() {
   const table = document.querySelector(".tablewrap table");
   if (!table) return;
 
-  const hideIndexes = [3, 4, 5, 6, 10];
+  const hideIndexes = [3, 4, 5, 6, 11];
   // 1-based columns:
   // 3 Customer
   // 4 Phone
   // 5 RO Date
   // 6 Promise Date
-  // 10 Notes
+  // 11 Notes
 
   const rows = table.querySelectorAll("tr");
 

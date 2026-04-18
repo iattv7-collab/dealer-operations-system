@@ -1,6 +1,7 @@
 // public/modules/archive.js
-import { db } from "../firebase.js";
-import { collection, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { db, auth } from "../firebase.js";
+import { getUserProfile } from "../../js/guard.js";
+import { collection, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { formatNoYearDate } from "../datetimePicker.js";
 import { restoreFromArchive, COL_ARCHIVE } from "./firestore.js";
 function ensureArchiveStyles() {
@@ -37,14 +38,14 @@ function openArchiveUpModal() {
   btnClose.textContent = "Close";
   let unsub = null;
   btnClose.onclick = () => {
-    try { unsub && unsub(); } catch {}
+    try { unsub && unsub(); } catch { }
     backdrop.remove();
   };
   closeRow.appendChild(btnClose);
   const table = document.createElement("table");
   table.className = "rt-arch-table";
   const thead = document.createElement("thead");
-  thead.innerHTML = `<tr><th>Customer</th><th>Phone</th><th>RO</th><th>Promise</th><th>Model</th><th>Archived</th><th>Actions</th></tr>`;
+  thead.innerHTML = `<tr><th>Customer</th><th>Phone</th><th>RO</th><th>Promise</th><th>Model</th><th>Advisor #</th><th>Archived</th><th>Actions</th></tr>`;
   const tbody = document.createElement("tbody");
   table.appendChild(thead);
   table.appendChild(tbody);
@@ -56,60 +57,92 @@ function openArchiveUpModal() {
   backdrop.addEventListener("click", (e) => {
     if (e.target === backdrop) btnClose.click();
   });
-  unsub = onSnapshot(collection(db, COL_ARCHIVE), (qs) => {
-    const rows = [];
-    qs.forEach((d) => rows.push({ id: d.id, ...d.data() }));
-    rows.forEach((r) => { if (!r.ro) r.ro = r.id; });
-    rows.sort((a, b) => {
-      const am = a.archivedAt?.toMillis ? a.archivedAt.toMillis() : 0;
-      const bm = b.archivedAt?.toMillis ? b.archivedAt.toMillis() : 0;
-      if (bm !== am) return bm - am;
-      return String(a.ro || "").localeCompare(String(b.ro || ""), undefined, { numeric: true });
-    });
-    tbody.innerHTML = "";
-    rows.forEach((r) => {
-      const tr = document.createElement("tr");
-      const td = (txt) => {
-        const x = document.createElement("td");
-        x.textContent = txt || "";
-        return x;
-      };
-      tr.appendChild(td(r.customerName || ""));
-      tr.appendChild(td(r.phone || ""));
-      tr.appendChild(td(r.ro || ""));
-      tr.appendChild(td(formatNoYearDate(r.promiseDate || "")));
-      tr.appendChild(td(r.model || ""));
-      const archivedTxt = r.archivedAt?.toDate ? r.archivedAt.toDate().toLocaleString() : "";
-      tr.appendChild(td(archivedTxt));
-      const tdAct = document.createElement("td");
-      tdAct.className = "rt-arch-actions";
-      const btnText = document.createElement("button");
-      btnText.className = "smallbtn";
-      btnText.textContent = "Text";
-      btnText.addEventListener("click", () => {
-        const phone = String(r.phone || "").replace(/[^\d]/g, "");
-        if (!phone) { alert("Missing phone."); return; }
-        const msg = `Hello ${r.customerName || ""}, following up on your Porsche service RO ${r.ro || ""}.`;
-        window.location.href = `sms:${phone}?&body=${encodeURIComponent(msg)}`;
+  const user = auth.currentUser;
+
+  Promise.resolve(user ? getUserProfile(user) : null).then((profile) => {
+    const role = String(profile?.role || "").toLowerCase();
+    const advisorNo = String(
+      profile?.employeeId ||
+      profile?.advisorNo ||
+      profile?.advisorNumber ||
+      ""
+    ).trim();
+
+    let refOrQuery = collection(db, COL_ARCHIVE);
+
+    // Advisors only see their own archived ROs
+    if (role === "advisor" && advisorNo) {
+      refOrQuery = query(
+        collection(db, COL_ARCHIVE),
+        where("advisorNo", "==", advisorNo)
+      );
+    }
+
+    unsub = onSnapshot(refOrQuery, (qs) => {
+      const rows = [];
+      qs.forEach((d) => rows.push({ id: d.id, ...d.data() }));
+      rows.forEach((r) => { if (!r.ro) r.ro = r.id; });
+      rows.sort((a, b) => {
+        const am = a.archivedAt?.toMillis ? a.archivedAt.toMillis() : 0;
+        const bm = b.archivedAt?.toMillis ? b.archivedAt.toMillis() : 0;
+        if (bm !== am) return bm - am;
+        return String(a.ro || "").localeCompare(String(b.ro || ""), undefined, { numeric: true });
       });
-      const btnRestore = document.createElement("button");
-      btnRestore.className = "smallbtn";
-      btnRestore.textContent = "Restore";
-      btnRestore.style.marginLeft = "8px";
-      btnRestore.addEventListener("click", async () => {
-        const ro = String(r.ro || "").trim();
-        if (!ro) return;
-        if (!confirm(`Restore RO ${ro} back to Active?`)) return;
-        try {
-          await restoreFromArchive(ro);
-        } catch (e) {
-          alert(String(e?.message || e));
-        }
+
+      tbody.innerHTML = "";
+
+      rows.forEach((r) => {
+        const tr = document.createElement("tr");
+
+        const td = (txt) => {
+          const x = document.createElement("td");
+          x.textContent = txt || "";
+          return x;
+        };
+
+        tr.appendChild(td(r.customerName || ""));
+        tr.appendChild(td(r.phone || ""));
+        tr.appendChild(td(r.ro || ""));
+        tr.appendChild(td(formatNoYearDate(r.promiseDate || "")));
+        tr.appendChild(td(r.model || ""));
+        tr.appendChild(td(r.advisorNo || ""));
+
+        const archivedTxt = r.archivedAt?.toDate ? r.archivedAt.toDate().toLocaleString() : "";
+        tr.appendChild(td(archivedTxt));
+
+        const tdAct = document.createElement("td");
+        tdAct.className = "rt-arch-actions";
+
+        const btnText = document.createElement("button");
+        btnText.className = "smallbtn";
+        btnText.textContent = "Text";
+        btnText.addEventListener("click", () => {
+          const phone = String(r.phone || "").replace(/[^\d]/g, "");
+          if (!phone) { alert("Missing phone."); return; }
+          const msg = `Hello ${r.customerName || ""}, following up on your Porsche service RO ${r.ro || ""}.`;
+          window.location.href = `sms:${phone}?&body=${encodeURIComponent(msg)}`;
+        });
+
+        const btnRestore = document.createElement("button");
+        btnRestore.className = "smallbtn";
+        btnRestore.textContent = "Restore";
+        btnRestore.style.marginLeft = "8px";
+        btnRestore.addEventListener("click", async () => {
+          const ro = String(r.ro || "").trim();
+          if (!ro) return;
+          if (!confirm(`Restore RO ${ro} back to Active?`)) return;
+          try {
+            await restoreFromArchive(ro);
+          } catch (e) {
+            alert(String(e?.message || e));
+          }
+        });
+
+        tdAct.appendChild(btnText);
+        tdAct.appendChild(btnRestore);
+        tr.appendChild(tdAct);
+        tbody.appendChild(tr);
       });
-      tdAct.appendChild(btnText);
-      tdAct.appendChild(btnRestore);
-      tr.appendChild(tdAct);
-      tbody.appendChild(tr);
     });
   });
 }

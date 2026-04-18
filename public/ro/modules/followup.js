@@ -1,6 +1,7 @@
 // public/modules/followup.js
-import { db } from "../firebase.js";
-import { collection, doc, getDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { db, auth } from "../firebase.js";
+import { getUserProfile } from "../../js/guard.js";
+import { collection, doc, getDoc, onSnapshot, updateDoc, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 import { addDaysAtTime, firstNameFromCustomer, fmtDue, renderTemplate, smsHref } from "./utils.js";
 import { loadSettings } from "./settings.js";
 import { COL_ARCHIVE } from "./firestore.js";
@@ -74,13 +75,13 @@ function openReadyUpModal(followupDocs) {
     const table = document.createElement("table");
     table.className = "rt-list";
     const thead = document.createElement("thead");
-    thead.innerHTML = `<tr><th>RO</th><th>Name</th><th>Phone</th><th>Model</th><th>Due</th><th class="center">Action</th></tr>`;
+    thead.innerHTML = `<tr><th>RO</th><th>Name</th><th>Phone</th><th>Model</th><th>Advisor #</th><th>Due</th><th class="center">Action</th></tr>`;
     table.appendChild(thead);
     const tbody = document.createElement("tbody");
     if (!readyItems.length) {
       const tr = document.createElement("tr");
       const td = document.createElement("td");
-      td.colSpan = 6;
+      td.colSpan = 7;
       td.textContent = "Nothing ready right now.";
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -125,10 +126,14 @@ function openReadyUpModal(followupDocs) {
           }
         });
         tdAct.appendChild(btnText);
+        const tdAdvisor = document.createElement("td");
+        tdAdvisor.textContent = String(d.advisorNo || "");
+
         tr.appendChild(tdRO);
         tr.appendChild(tdName);
         tr.appendChild(tdPhone);
         tr.appendChild(tdModel);
+        tr.appendChild(tdAdvisor);
         tr.appendChild(tdDue);
         tr.appendChild(tdAct);
         tbody.appendChild(tr);
@@ -197,14 +202,38 @@ let FOLLOWUP_CACHE = [];
 let unsubFollowup = null;
 export function initFollowUp() {
   handleFollowUpLaunchFromUrl();
+
   if (!unsubFollowup) {
-    unsubFollowup = onSnapshot(collection(db, COL_ARCHIVE), (qs) => {
-      const rows = [];
-      qs.forEach((d) => rows.push({ id: d.id, ...d.data() }));
-      rows.forEach((r) => { if (!r.ro) r.ro = r.id; });
-      FOLLOWUP_CACHE = rows;
+    const user = auth.currentUser;
+
+    Promise.resolve(user ? getUserProfile(user) : null).then((profile) => {
+      const role = String(profile?.role || "").toLowerCase();
+      const advisorNo = String(
+        profile?.employeeId ||
+        profile?.advisorNo ||
+        profile?.advisorNumber ||
+        ""
+      ).trim();
+
+      let refOrQuery = collection(db, COL_ARCHIVE);
+
+      // Advisors only see their own archived ROs in Follow Up
+      if (role === "advisor" && advisorNo) {
+        refOrQuery = query(
+          collection(db, COL_ARCHIVE),
+          where("advisorNo", "==", advisorNo)
+        );
+      }
+
+      unsubFollowup = onSnapshot(refOrQuery, (qs) => {
+        const rows = [];
+        qs.forEach((d) => rows.push({ id: d.id, ...d.data() }));
+        rows.forEach((r) => { if (!r.ro) r.ro = r.id; });
+        FOLLOWUP_CACHE = rows;
+      });
     });
   }
+
   const btn = document.getElementById("btnFollowUp");
   if (btn && !btn.__rtBound) {
     btn.__rtBound = true;
