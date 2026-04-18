@@ -224,7 +224,7 @@ tr.row-past .cell-edit {
 
 /* widths */
 .col-phone {
-  width: 120px;
+  width: 125px;
 }
 
 .col-ro {
@@ -285,6 +285,20 @@ tr.row-past .cell-edit {
 
 .col-ready {
   width: 130px;
+}
+
+.col-location {
+  width: 110px;
+}
+
+.col-loanerlast6 {
+  width: 100px;
+  text-align: center;
+}
+
+.col-repairdone {
+  width: 100px;
+  text-align: center;
 }
 
 /* FREEZE RO COLUMN */
