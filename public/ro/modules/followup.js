@@ -49,9 +49,31 @@ function computeDueListForArchived(docData, settings) {
   const ts = docData?.archivedAt;
   const archivedMs = ts?.toMillis ? ts.toMillis() : (typeof ts === "number" ? ts : null);
   if (!archivedMs) return [];
+
   const out = [];
-  if (Number(settings.followUpDay1 || 0) > 0) out.push({ slot: 1, dueMs: addDaysAtTime(archivedMs, settings.followUpDay1, settings.followUpTime1) });
-  if (Number(settings.followUpDay2 || 0) > 0) out.push({ slot: 2, dueMs: addDaysAtTime(archivedMs, settings.followUpDay2, settings.followUpTime2) });
+
+  // 🔥 TEST MODE (5 seconds after archive)
+  if (settings.followUpQuickMin && Number(settings.followUpQuickMin) > 0) {
+    const quickMs = archivedMs + (Number(settings.followUpQuickMin) * 60 * 1000);
+    out.push({ slot: 1, dueMs: quickMs });
+    return out;
+  }
+
+  // NORMAL MODE
+  if (Number(settings.followUpDay1 || 0) > 0) {
+    out.push({
+      slot: 1,
+      dueMs: addDaysAtTime(archivedMs, settings.followUpDay1, settings.followUpTime1)
+    });
+  }
+
+  if (Number(settings.followUpDay2 || 0) > 0) {
+    out.push({
+      slot: 2,
+      dueMs: addDaysAtTime(archivedMs, settings.followUpDay2, settings.followUpTime2)
+    });
+  }
+
   return out.sort((a, b) => a.dueMs - b.dueMs);
 }
 function openReadyUpModal(followupDocs) {

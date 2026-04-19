@@ -119,6 +119,10 @@ async function disableThisDevice() {
     const existing = snap.exists() ? (snap.data().fcmTokens || []) : [];
     const updated = existing.filter(t => t !== currentToken);
 
+    console.log("DISABLE → currentToken:", currentToken);
+    console.log("DISABLE → existing tokens:", existing);
+    console.log("DISABLE → updated tokens:", updated);
+
     await setDoc(PRIVATE_DOC, { fcmTokens: updated }, { merge: true });
   } catch {
     // ignore
@@ -204,16 +208,33 @@ function applyButtonStyle(btn, state) {
 
 export function initNotifications() {
   let cachedTokens = [];
+  let currentDeviceToken = "";
 
   async function refreshTokenCache() {
     cachedTokens = await loadRemoteToken();
+
+    try {
+      const reg = await ensureServiceWorker();
+      const messaging = getMessaging();
+
+      currentDeviceToken = await getToken(messaging, {
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: reg,
+      });
+    } catch {
+      currentDeviceToken = "";
+    }
+
+    console.log("REFRESH → currentDeviceToken:", currentDeviceToken);
+    console.log("REFRESH → cachedTokens:", cachedTokens);
+
     return cachedTokens;
   }
 
   async function refreshButton(btn) {
     const perm = ("Notification" in window) ? Notification.permission : "unsupported";
-    const hasToken = Array.isArray(cachedTokens) && cachedTokens.length > 0;
-    const state = computeState(perm, hasToken);
+    const thisDeviceEnabled = currentDeviceToken && cachedTokens.includes(currentDeviceToken);
+    const state = computeState(perm, thisDeviceEnabled);
 
     btn.textContent = labelForState(state);
     btn.disabled = (state === "unsupported");

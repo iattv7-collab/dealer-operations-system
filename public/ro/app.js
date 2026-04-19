@@ -844,114 +844,122 @@ function renderRows(rows) {
   rows.forEach((r) => {
     if (!("readyCalled" in r)) r.readyCalled = isReadyCalled(r);
 
-const tr = document.createElement("tr");
-tr.className = rowClass(r);
-tr.dataset.ro = String(r.ro || "");
-
-// 1) RO #
-tr.appendChild(tdEditableRO(r));
-
-// 2) Tag #
-tr.appendChild(tdInput(r.tag, (v) => safeUpdate(r.ro, { tag: v })));
-
-// 3) Customer name
-tr.appendChild(tdInput(r.customerName, (v) => safeUpdate(r.ro, { customerName: v })));
-
-// 4) Phone
-tr.appendChild(tdInput(r.phone, (v) => safeUpdate(r.ro, { phone: v }), { phone: true }));
-
-// 5) RO Date
-tr.appendChild(tdDatePickerNoYear(r.roDate, (v) => safeUpdate(r.ro, { roDate: v })));
-
-// 6) Promise Date
-tr.appendChild(tdDatePickerNoYear(r.promiseDate, (v) => safeUpdate(r.ro, { promiseDate: v })));
-
-// 7) Model
-tr.appendChild(tdInput(r.model, (v) => safeUpdate(r.ro, { model: v })));
-
-// 8) Concern
-const concernCell = tdInput(
-  r.concern,
-  (v) => safeUpdate(r.ro, { concern: v }),
-  { hoverFull: true }
-);
-
-concernCell.addEventListener("dblclick", () => {
-  openTextEditor("Edit Concern", r.concern || "", (val) => {
-    safeUpdate(r.ro, { concern: val });
-  });
-});
-
-tr.appendChild(concernCell);
-
-// 9) Location (view only for now; later from Location Module)
-tr.appendChild(tdHover(r.location || ""));
-
-// 10) Ready Called
-const readyCell = tdReadyCalled(r, tr);
-tr.appendChild(readyCell.td);
-
-// 11) Notes
-const notesCell = tdInput(
-  r.notes,
-  (v) => safeUpdate(r.ro, { notes: v }),
-  { hoverFull: true }
-);
-
-notesCell.addEventListener("dblclick", () => {
-  openTextEditor("Edit Notes", r.notes || "", (val) => {
-    safeUpdate(r.ro, { notes: val });
-  });
-});
-
-tr.appendChild(notesCell);
-
-// 12) Tech Video
-tr.appendChild(tdTechVideo(r, tr, readyCell));
-
-// 13) Called
-tr.appendChild(tdDateTimePicker(
-  r.calledAtMs || null,
-  (ms) => safeUpdate(r.ro, { calledAtMs: ms }),
-  { showNow: true, stepMin: 5 }
-));
-
-// 14) Next Update
-tr.appendChild(tdDateTimePicker(
-  r.nextUpdateAtMs || null,
-  (ms) => {
-    r.nextUpdateAtMs = ms;
+    const tr = document.createElement("tr");
     tr.className = rowClass(r);
-    return safeUpdate(r.ro, { nextUpdateAtMs: ms });
-  },
-  { showNow: false, stepMin: 15 }
-));
+    tr.dataset.ro = String(r.ro || "");
 
-// 15) Waiter
-tr.appendChild(tdWaiter(r, tr));
+    // 1) RO #
+    tr.appendChild(tdEditableRO(r));
 
-// 16) Loaner Last 6 (view only for now; later from Loaner Module)
-tr.appendChild(tdHover(r.loanerVinLast6 || ""));
+    // 2) Tag #
+    tr.appendChild(tdInput(r.tag, (v) => safeUpdate(r.ro, { tag: v })));
 
-// 17) Repair Complete (view only for now; later from Dispatch/Tech)
-tr.appendChild(tdHover(r.repairCompleted ? "✅" : ""));
+    // 3) Customer name
+    tr.appendChild(tdInput(r.customerName, (v) => safeUpdate(r.ro, { customerName: v })));
 
-// 18) Actions
-tr.appendChild(tdBtn("Archive", async () => {
-  const activeRef = doc(db, COL_ACTIVE, r.ro);
-  const snap = await getDoc(activeRef);
-  if (!snap.exists()) return;
+    // 4) Phone
+    tr.appendChild(tdInput(r.phone, (v) => safeUpdate(r.ro, { phone: v }), { phone: true }));
+
+    // 5) RO Date
+    tr.appendChild(tdDatePickerNoYear(r.roDate, (v) => safeUpdate(r.ro, { roDate: v })));
+
+    // 6) Promise Date
+    tr.appendChild(tdDatePickerNoYear(r.promiseDate, (v) => safeUpdate(r.ro, { promiseDate: v })));
+
+    // 7) Model
+    tr.appendChild(tdInput(r.model, (v) => safeUpdate(r.ro, { model: v })));
+
+    // 8) Concern
+    const concernCell = tdInput(
+      r.concern,
+      (v) => safeUpdate(r.ro, { concern: v }),
+      { hoverFull: true }
+    );
+
+    concernCell.addEventListener("dblclick", () => {
+      openTextEditor("Edit Concern", r.concern || "", (val) => {
+        safeUpdate(r.ro, { concern: val });
+      });
+    });
+
+    tr.appendChild(concernCell);
+
+    // 9) Location (view only for now; later from Location Module)
+    tr.appendChild(tdHover(r.location || ""));
+
+    // 10) Ready Called
+    const readyCell = tdReadyCalled(r, tr);
+    tr.appendChild(readyCell.td);
+
+    // 11) Notes
+    const notesCell = tdInput(
+      r.notes,
+      (v) => safeUpdate(r.ro, { notes: v }),
+      { hoverFull: true }
+    );
+
+    notesCell.addEventListener("dblclick", () => {
+      openTextEditor("Edit Notes", r.notes || "", (val) => {
+        safeUpdate(r.ro, { notes: val });
+      });
+    });
+
+    tr.appendChild(notesCell);
+
+    // 12) Tech Video
+    tr.appendChild(tdTechVideo(r, tr, readyCell));
+
+    // 13) Called
+    tr.appendChild(tdDateTimePicker(
+      r.calledAtMs || null,
+      (ms) => safeUpdate(r.ro, { calledAtMs: ms }),
+      { showNow: true, stepMin: 5 }
+    ));
+
+    // 14) Next Update
+    tr.appendChild(tdDateTimePicker(
+      r.nextUpdateAtMs || null,
+      (ms) => {
+        r.nextUpdateAtMs = ms;
+        tr.className = rowClass(r);
+        return safeUpdate(r.ro, { nextUpdateAtMs: ms });
+      },
+      { showNow: false, stepMin: 15 }
+    ));
+
+    // 15) Waiter
+    tr.appendChild(tdWaiter(r, tr));
+
+    // 16) Loaner Last 6 (view only for now; later from Loaner Module)
+    tr.appendChild(tdHover(r.loanerVinLast6 || ""));
+
+    // 17) Repair Complete (view only for now; later from Dispatch/Tech)
+    tr.appendChild(tdHover(r.repairCompleted ? "✅" : ""));
+
+    // 18) Actions
+    tr.appendChild(tdBtn("Archive", async () => {
+      const activeRef = doc(db, COL_ACTIVE, r.ro);
+      const snap = await getDoc(activeRef);
+      if (!snap.exists()) return;
 
       const data = snap.data();
       const archiveRef = doc(db, COL_ARCHIVE, r.ro);
 
-      let pushAfterArchiveAtMs = null;
+      let pushAfterArchiveAtMs = Date.now() + (2 * 60 * 1000);
+
       try {
         const remote = await loadRemotePrivateSettings();
         const enabled = !!remote.pushAfterArchiveEnabled;
         const delayMin = Math.max(1, Number(remote.pushAfterArchiveDelayMin || 2));
-        if (enabled) pushAfterArchiveAtMs = Date.now() + delayMin * 60 * 1000;
-      } catch { }
+
+        if (enabled) {
+          pushAfterArchiveAtMs = Date.now() + delayMin * 60 * 1000;
+        } else {
+          pushAfterArchiveAtMs = null;
+        }
+      } catch {
+        // keep fallback
+      }
 
       await setDoc(archiveRef, {
         ...data,

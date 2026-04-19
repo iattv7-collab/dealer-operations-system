@@ -246,15 +246,46 @@ exports.deleteUser = functions.https.onCall(async (data, context) => {
   return { ok: true };
 });
 
-// ===================================================== 
-// RO TRACKER PUSH NOTIFICATIONS
 // =====================================================
+// RO TRACKER PUSH NOTIFICATIONS (FIXED)
+// =====================================================
+
+async function removeFailedTokens(settingsRef, tokens, resp) {
+  try {
+    if (!resp || !Array.isArray(resp.responses) || !Array.isArray(tokens)) return tokens;
+
+    const badTokens = [];
+
+    resp.responses.forEach((r, idx) => {
+      if (r && r.success === false) {
+        badTokens.push(tokens[idx]);
+      }
+    });
+
+    if (!badTokens.length) return tokens;
+
+    const updated = tokens.filter(t => !badTokens.includes(t));
+
+    await settingsRef.set({
+      fcmTokens: updated,
+      fcmTokenCleanedAtMs: Date.now()
+    }, { merge: true });
+
+    console.log("Removed failed tokens:", badTokens.length);
+    return updated;
+  } catch (err) {
+    console.error("Failed token cleanup error:", err);
+    return tokens;
+  }
+}
+
+
+const ARCHIVE_COLLECTIONS = ["followup", "tickets_archive"];
 
 exports.followUpScheduler = functions.pubsub
   .schedule("every 1 minutes")
   .timeZone("America/New_York")
   .onRun(async () => {
-
     const db = admin.firestore();
     const now = Date.now();
 
@@ -263,71 +294,101 @@ exports.followUpScheduler = functions.pubsub
     if (!settingsSnap.exists) return null;
 
     const settings = settingsSnap.data() || {};
-
-    const tokens = Array.isArray(settings.fcmTokens) && settings.fcmTokens.length
-      ? settings.fcmTokens
+    let tokens = Array.isArray(settings.fcmTokens)
+      ? settings.fcmTokens.filter(Boolean)
       : [];
 
-    functions.logger.info("Push tokens:", tokens);
+    console.log("Scheduler start → tokens:", tokens.length);
 
-    if (!tokens.length) return null;
+    if (!tokens.length) {
+      console.log("No tokens → exiting");
+      return null;
+    }
 
     // =========================
-    // TEST PUSH (instant)
+    // TEST PUSH (5 sec button)
     // =========================
-    if (settings.followUpTestAtMs) {
-      await admin.messaging().sendEachForMulticast({
-        tokens,
-        notification: {
-          title: "Test Notification",
-          body: "Push is working ✅"
-        }
-      });
+    if (settings.followUpTestAtMs && settings.followUpTestAtMs <= now) {
+      console.log("Sending TEST push...");
 
-      await settingsRef.set({
-        followUpTestAtMs: null,
-        followUpTestRequestedAtMs: admin.firestore.FieldValue.delete(),
-        followUpLastTestSentAtMs: now
-      }, { merge: true });
+      try {
+        const resp = await admin.messaging().sendEachForMulticast({
+          tokens,
+          notification: {
+            title: "Test Notification",
+            body: "Push is working ✅"
+          },
+          data: {
+            url: "/ro/index.html"
+          }
+        });
+
+        console.log("TEST push result:", resp.successCount, resp.failureCount);
+
+        tokens = await removeFailedTokens(settingsRef, tokens, resp);
+
+        await settingsRef.set({
+          followUpTestAtMs: null,
+          followUpLastTestSentAtMs: now
+        }, { merge: true });
+
+      } catch (err) {
+        console.error("TEST push failed:", err);
+      }
 
       return null;
     }
 
     // =========================
-    // ARCHIVE / FOLLOW-UP PUSH
+    // ARCHIVE FOLLOW-UP PUSH
     // =========================
-    const snap = await db.collection("followup").get();
+    let sentCount = 0;
 
-    for (const docSnap of snap.docs) {
-      const d = docSnap.data() || {};
+    for (const col of ARCHIVE_COLLECTIONS) {
+      const snap = await db.collection(col).get();
 
-      if (
-        d.pushAfterArchiveAtMs &&
-        d.pushAfterArchiveAtMs <= now &&
-        !d.pushAfterArchiveSentAtMs
-      ) {
-        await admin.messaging().sendEachForMulticast({
-          tokens,
-          notification: {
-            title: "Follow Up Reminder",
-            body: `RO ${d.ro || docSnap.id} needs follow-up`
-          },
-          data: {
-            url: `/ro/index.html?fu=1&ro=${encodeURIComponent(String(d.ro || docSnap.id))}&slot=archive`
+      for (const docSnap of snap.docs) {
+        const d = docSnap.data() || {};
+        const ro = d.ro || docSnap.id;
+
+        if (
+          d.pushAfterArchiveAtMs &&
+          d.pushAfterArchiveAtMs <= now &&
+          !d.pushAfterArchiveSentAtMs
+        ) {
+          console.log("Sending archive push for:", ro);
+
+          try {
+            const resp = await admin.messaging().sendEachForMulticast({
+              tokens,
+              notification: {
+                title: "Follow Up Reminder",
+                body: `RO ${ro} needs follow-up`
+              },
+              data: {
+                url: `/ro/index.html?fu=1&ro=${encodeURIComponent(ro)}&slot=archive`
+              }
+            });
+
+            console.log("Archive push result:", resp.successCount, resp.failureCount);
+
+            tokens = await removeFailedTokens(settingsRef, tokens, resp);
+
+            await docSnap.ref.set({
+              pushAfterArchiveSentAtMs: now
+            }, { merge: true });
+
+            sentCount++;
+          } catch (err) {
+            console.error("Archive push failed:", err);
           }
-        });
-
-        await docSnap.ref.set({
-          pushAfterArchiveSentAtMs: now
-        }, { merge: true });
-
-        break;
+        }
       }
     }
 
+    console.log("Archive push cycle finished. Sent:", sentCount);
     return null;
   });
-
 // =====================================================
 // SCHEDULER
 // =====================================================
@@ -1232,7 +1293,7 @@ function extractCustomerName(lines, zoneLines = []) {
       }
     }
   }
-  
+
   const vinIdx = allLines.findIndex(line => looksLikeVIN(line));
   if (vinIdx >= 0) {
     for (let i = vinIdx + 1; i <= Math.min(vinIdx + 10, allLines.length - 1); i++) {
