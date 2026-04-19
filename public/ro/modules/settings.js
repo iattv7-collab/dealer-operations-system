@@ -1,6 +1,6 @@
 // public/modules/settings.js
 
-import { db } from "../firebase.js";
+import { db, auth } from "../firebase.js";
 import { doc, getDoc, setDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 /* ===========================
    SETTINGS (Local + Remote)
@@ -21,7 +21,14 @@ export function defaultSettings() {
       "Hi {firstName}, just following up on your Porsche service visit for RO {ro}. Any questions or updates needed?",
     // Push right after archiving (backend sends it)
     pushAfterArchiveEnabled: false,
-    pushAfterArchiveDelayMin: 2
+    pushAfterArchiveDelayMin: 2,
+
+    // Keep in touch (settings only for now)
+    keepInTouchEnabled: false,
+    keepInTouchMonths: 3,
+    keepInTouchTime: "10:00",
+    keepInTouchTemplate:
+      "Hi {firstName}, just checking in and keeping in touch. If you need anything for your Porsche, we're here to help."
   };
 }
 
@@ -114,7 +121,23 @@ function ensureModalStyles() {
       border:1px solid #888; background:#fff; cursor:pointer;
     }
     .rt-btn.primary{ background:#0b3d91; color:#fff; border-color:#0b3d91; }
-    .rt-mini{ font-size:12px; color:#333; }
+        .rt-mini{ font-size:12px; color:#333; }
+    .rt-tabs{ display:flex; gap:8px; margin:6px 0 14px; }
+    .rt-tab{
+      font-family:"Times New Roman", Times, serif;
+      padding:8px 12px;
+      border-radius:10px;
+      border:1px solid #888;
+      background:#fff;
+      cursor:pointer;
+    }
+    .rt-tab.active{
+      background:#0b3d91;
+      color:#fff;
+      border-color:#0b3d91;
+    }
+    .rt-panel{ display:none; }
+    .rt-panel.active{ display:block; }
   `;
   document.head.appendChild(st);
 }
@@ -150,18 +173,31 @@ function buildNotifStatusEl() {
   el.style.fontWeight = "bold";
   el.style.marginTop = "6px";
   el.style.marginLeft = "6px";
+
   const set = (text, color) => {
     el.textContent = text;
     el.style.color = color;
   };
+
   if (!("Notification" in window)) {
-    set("Notifications: Not supported on this device", "gray");
+    set("Browser notifications are not supported on this device.", "gray");
     return el;
   }
+
   const p = Notification.permission;
-  if (p === "granted") set("Notifications: Allowed ✅", "green");
-  else if (p === "denied") set("Notifications: Blocked ❌ (enable in browser settings)", "red");
-  else set("Notifications: Not enabled yet ⚠️", "orange");
+
+  if (p === "granted") {
+    el.textContent = "";
+    el.style.display = "none";
+    return el;
+  }
+
+  if (p === "denied") {
+    set("Browser notifications are blocked ❌ Enable them in browser settings.", "red");
+    return el;
+  }
+
+  set("Browser notifications are not enabled yet ⚠️", "orange");
   return el;
 }
 
@@ -180,15 +216,59 @@ export async function openSettingsModal() {
     followUpTime2: remote.followUpTime2 ?? local.followUpTime2,
     smsTemplate: remote.smsTemplate ?? local.smsTemplate,
     pushAfterArchiveEnabled: remote.pushAfterArchiveEnabled ?? local.pushAfterArchiveEnabled,
-    pushAfterArchiveDelayMin: remote.pushAfterArchiveDelayMin ?? local.pushAfterArchiveDelayMin
+    pushAfterArchiveDelayMin: remote.pushAfterArchiveDelayMin ?? local.pushAfterArchiveDelayMin,
+
+    keepInTouchEnabled: remote.keepInTouchEnabled ?? local.keepInTouchEnabled,
+    keepInTouchMonths: remote.keepInTouchMonths ?? local.keepInTouchMonths,
+    keepInTouchTime: remote.keepInTouchTime ?? local.keepInTouchTime,
+    keepInTouchTemplate: remote.keepInTouchTemplate ?? local.keepInTouchTemplate
   };
 
-  openModal("Settings — Follow Up", (body, close) => {
+  const user = auth.currentUser;
+  const isMarlon = user?.email === "marlonv@gmail.com";
+
+
+  openModal("Settings", (body, close) => {
+    const tabs = document.createElement("div");
+    tabs.className = "rt-tabs";
+
+    const btnTabFollow = document.createElement("button");
+    btnTabFollow.type = "button";
+    btnTabFollow.className = "rt-tab active";
+    btnTabFollow.textContent = "Follow Up";
+
+    const btnTabKeep = document.createElement("button");
+    btnTabKeep.type = "button";
+    btnTabKeep.className = "rt-tab";
+    btnTabKeep.textContent = "Keep In Touch";
+
+    tabs.appendChild(btnTabFollow);
+    tabs.appendChild(btnTabKeep);
+    body.appendChild(tabs);
+
+    const followPanel = document.createElement("div");
+    followPanel.className = "rt-panel active";
+
+    const keepPanel = document.createElement("div");
+    keepPanel.className = "rt-panel";
+
+    function showPanel(which) {
+      const followOn = which === "follow";
+      btnTabFollow.classList.toggle("active", followOn);
+      btnTabKeep.classList.toggle("active", !followOn);
+      followPanel.classList.toggle("active", followOn);
+      keepPanel.classList.toggle("active", !followOn);
+    }
+
+    btnTabFollow.onclick = () => showPanel("follow");
+    btnTabKeep.onclick = () => showPanel("keep");
+
+    // FOLLOW UP TAB
     const row1 = document.createElement("div");
     row1.className = "rt-row";
 
     const labD1 = document.createElement("label");
-    labD1.textContent = "Follow-up Day #1:";
+    labD1.textContent = "Follow-up Days:";
     const inpD1 = document.createElement("input");
     inpD1.type = "number";
     inpD1.min = "0";
@@ -197,7 +277,7 @@ export async function openSettingsModal() {
     inpD1.style.width = "120px";
 
     const labT1 = document.createElement("label");
-    labT1.textContent = "Time #1 (HH:MM):";
+    labT1.textContent = "Send Time:";
     const inpT1 = document.createElement("input");
     inpT1.type = "time";
     inpT1.value = String(s.followUpTime1 || "10:00");
@@ -208,40 +288,11 @@ export async function openSettingsModal() {
     row1.appendChild(labT1);
     row1.appendChild(inpT1);
 
-    const row2 = document.createElement("div");
-    row2.className = "rt-row";
-
-    const labD2 = document.createElement("label");
-    labD2.textContent = "Follow-up Day #2:";
-    const inpD2 = document.createElement("input");
-    inpD2.type = "number";
-    inpD2.min = "0";
-    inpD2.max = "30";
-    inpD2.value = String(s.followUpDay2 || 0);
-    inpD2.style.width = "120px";
-
-    const labT2 = document.createElement("label");
-    labT2.textContent = "Time #2 (HH:MM):";
-    const inpT2 = document.createElement("input");
-    inpT2.type = "time";
-    inpT2.value = String(s.followUpTime2 || "14:00");
-    inpT2.style.width = "140px";
-
-    const mini = document.createElement("div");
-    mini.className = "rt-mini";
-    mini.textContent = "Set Day #2 = 0 to disable.";
-
-    row2.appendChild(labD2);
-    row2.appendChild(inpD2);
-    row2.appendChild(labT2);
-    row2.appendChild(inpT2);
-    row2.appendChild(mini);
-
     const row3 = document.createElement("div");
     row3.className = "rt-row";
 
     const labTpl = document.createElement("label");
-    labTpl.textContent = "SMS template:";
+    labTpl.textContent = "Follow-up Text:";
     labTpl.style.width = "140px";
 
     const box = document.createElement("div");
@@ -260,33 +311,169 @@ export async function openSettingsModal() {
     row3.appendChild(labTpl);
     row3.appendChild(box);
 
-    const rowQuick = document.createElement("div");
-    rowQuick.className = "rt-row";
+    followPanel.appendChild(row1);
+    followPanel.appendChild(row3);
 
-    const labQuick = document.createElement("label");
-    labQuick.textContent = "Auto Push After Archive (minutes):";
-    labQuick.style.width = "140px";
+    let quickToggle = null;
+    let quickDelay = null;
+    let btnTest = null;
 
-    const quickToggle = document.createElement("input");
-    quickToggle.type = "checkbox";
-    quickToggle.checked = !!s.pushAfterArchiveEnabled;
+    if (isMarlon) {
+      const devNote = document.createElement("div");
+      devNote.className = "rt-mini";
+      devNote.style.marginTop = "8px";
+      devNote.style.color = "#0b3d91";
+      devNote.textContent = "DEV MODE: Test controls enabled";
 
-    const labMin = document.createElement("span");
-    labMin.className = "rt-mini";
-    labMin.textContent = " Minutes:";
+      const rowQuick = document.createElement("div");
+      rowQuick.className = "rt-row";
 
-    const quickDelay = document.createElement("input");
-    quickDelay.type = "number";
-    quickDelay.min = "1";
-    quickDelay.max = "60";
-    quickDelay.step = "1";
-    quickDelay.value = String(Number(s.pushAfterArchiveDelayMin || 2));
-    quickDelay.style.width = "90px";
+      const labQuick = document.createElement("label");
+      labQuick.textContent = "Auto Push After Archive:";
+      labQuick.style.width = "140px";
 
-    rowQuick.appendChild(labQuick);
-    rowQuick.appendChild(quickToggle);
-    rowQuick.appendChild(labMin);
-    rowQuick.appendChild(quickDelay);
+      quickToggle = document.createElement("input");
+      quickToggle.type = "checkbox";
+      quickToggle.checked = !!s.pushAfterArchiveEnabled;
+
+      const labMin = document.createElement("span");
+      labMin.className = "rt-mini";
+      labMin.textContent = " Minutes:";
+
+      quickDelay = document.createElement("input");
+      quickDelay.type = "number";
+      quickDelay.min = "1";
+      quickDelay.max = "60";
+      quickDelay.step = "1";
+      quickDelay.value = String(Number(s.pushAfterArchiveDelayMin || 2));
+      quickDelay.style.width = "90px";
+
+      rowQuick.appendChild(labQuick);
+      rowQuick.appendChild(quickToggle);
+      rowQuick.appendChild(labMin);
+      rowQuick.appendChild(quickDelay);
+
+      const rowDev = document.createElement("div");
+      rowDev.className = "rt-row";
+
+      btnTest = document.createElement("button");
+      btnTest.className = "rt-btn";
+      btnTest.type = "button";
+      btnTest.textContent = "TEST Notification";
+
+      btnTest.onclick = async () => {
+        try {
+          const mins = Math.max(1, Number(quickDelay?.value || s.pushAfterArchiveDelayMin || 2));
+
+          await setDoc(PRIVATE_DOC, {
+            followUpTestAtMs: Date.now() + mins * 60 * 1000,
+            followUpTestRequestedAtMs: Date.now()
+          }, { merge: true });
+
+          alert(`TEST scheduled ✅ You should get a push in about ${mins} minute(s).`);
+        } catch (e) {
+          alert(String(e?.message || e));
+        }
+      };
+
+      quickToggle.addEventListener("change", () => {
+        const enabled = quickToggle.checked;
+
+        quickDelay.disabled = !enabled;
+        quickDelay.readOnly = !enabled;
+        quickDelay.style.opacity = enabled ? "1" : "0.5";
+        quickDelay.style.cursor = enabled ? "pointer" : "not-allowed";
+
+        btnTest.disabled = !enabled;
+        btnTest.style.opacity = enabled ? "1" : "0.5";
+        btnTest.style.cursor = enabled ? "pointer" : "not-allowed";
+      });
+
+      rowDev.appendChild(btnTest);
+
+      // initial state
+      const enabledInit = quickToggle.checked;
+
+      quickDelay.disabled = !enabledInit;
+      quickDelay.readOnly = !enabledInit;
+      quickDelay.style.opacity = enabledInit ? "1" : "0.5";
+      quickDelay.style.cursor = enabledInit ? "pointer" : "not-allowed";
+
+      btnTest.disabled = !enabledInit;
+      btnTest.style.opacity = enabledInit ? "1" : "0.5";
+      btnTest.style.cursor = enabledInit ? "pointer" : "not-allowed";
+
+      followPanel.appendChild(devNote);
+      followPanel.appendChild(rowQuick);
+      followPanel.appendChild(rowDev);
+    }
+
+    // KEEP IN TOUCH TAB
+    const rowK0 = document.createElement("div");
+    rowK0.className = "rt-row";
+
+    const labKeepEnabled = document.createElement("label");
+    labKeepEnabled.textContent = "Enable:";
+    const keepEnabled = document.createElement("input");
+    keepEnabled.type = "checkbox";
+    keepEnabled.checked = !!s.keepInTouchEnabled;
+
+    rowK0.appendChild(labKeepEnabled);
+    rowK0.appendChild(keepEnabled);
+
+    const rowK1 = document.createElement("div");
+    rowK1.className = "rt-row";
+
+    const labKeepMonths = document.createElement("label");
+    labKeepMonths.textContent = "Months After:";
+    const inpKeepMonths = document.createElement("input");
+    inpKeepMonths.type = "number";
+    inpKeepMonths.min = "1";
+    inpKeepMonths.max = "24";
+    inpKeepMonths.value = String(s.keepInTouchMonths || 3);
+    inpKeepMonths.style.width = "120px";
+
+    const labKeepTime = document.createElement("label");
+    labKeepTime.textContent = "Send Time:";
+    const inpKeepTime = document.createElement("input");
+    inpKeepTime.type = "time";
+    inpKeepTime.value = String(s.keepInTouchTime || "10:00");
+    inpKeepTime.style.width = "140px";
+
+    rowK1.appendChild(labKeepMonths);
+    rowK1.appendChild(inpKeepMonths);
+    rowK1.appendChild(labKeepTime);
+    rowK1.appendChild(inpKeepTime);
+
+    const rowK2 = document.createElement("div");
+    rowK2.className = "rt-row";
+
+    const labKeepTpl = document.createElement("label");
+    labKeepTpl.textContent = "Keep in Touch Text:";
+    labKeepTpl.style.width = "140px";
+
+    const keepBox = document.createElement("div");
+    keepBox.style.flex = "1";
+
+    const keepTpl = document.createElement("textarea");
+    keepTpl.value = String(s.keepInTouchTemplate || "");
+
+    const keepHelp = document.createElement("div");
+    keepHelp.className = "rt-mini";
+    keepHelp.textContent = "This stores the Keep in Touch message only. It does not send automatically yet.";
+
+    keepBox.appendChild(keepTpl);
+    keepBox.appendChild(keepHelp);
+
+    rowK2.appendChild(labKeepTpl);
+    rowK2.appendChild(keepBox);
+
+    keepPanel.appendChild(rowK0);
+    keepPanel.appendChild(rowK1);
+    keepPanel.appendChild(rowK2);
+
+    body.appendChild(followPanel);
+    body.appendChild(keepPanel);
 
     const actions = document.createElement("div");
     actions.className = "rt-actions";
@@ -297,45 +484,75 @@ export async function openSettingsModal() {
     btnCancel.textContent = "Close";
     btnCancel.onclick = close;
 
-    const btnTest = document.createElement("button");
-    btnTest.className = "rt-btn";
-    btnTest.type = "button";
-    btnTest.textContent = "TEST Notification (5 sec)";
-
     let notifStatus = buildNotifStatusEl();
 
-    btnTest.onclick = async () => {
-      try {
-        // refresh status (in case user changed permissions)
-        const nextStatus = buildNotifStatusEl();
-        try { notifStatus.replaceWith(nextStatus); } catch { }
-        notifStatus = nextStatus;
+    function getCurrentSettingsSnapshot() {
+      return {
+        followUpDay1: Number(inpD1.value || 0),
+        followUpTime1: String(inpT1.value || "10:00"),
+        smsTemplate: String(tpl.value || ""),
 
-        await setDoc(PRIVATE_DOC, {
-          followUpTestAtMs: Date.now() + 5 * 1000,
-          followUpTestRequestedAtMs: Date.now()
-        }, { merge: true });
+        pushAfterArchiveEnabled: isMarlon ? !!quickToggle?.checked : !!s.pushAfterArchiveEnabled,
+        pushAfterArchiveDelayMin: isMarlon
+          ? Number(quickDelay?.value || s.pushAfterArchiveDelayMin || 2)
+          : Number(s.pushAfterArchiveDelayMin || 2),
 
-        alert("TEST scheduled ✅ You should get a push in a few seconds.");
-      } catch (e) {
-        alert(String(e?.message || e));
-      }
+        keepInTouchEnabled: !!keepEnabled.checked,
+        keepInTouchMonths: Number(inpKeepMonths.value || 3),
+        keepInTouchTime: String(inpKeepTime.value || "10:00"),
+        keepInTouchTemplate: String(keepTpl.value || "")
+      };
+    }
+
+    const originalSnapshot = {
+      followUpDay1: Number(s.followUpDay1 || 0),
+      followUpTime1: String(s.followUpTime1 || "10:00"),
+      smsTemplate: String(s.smsTemplate || ""),
+      pushAfterArchiveEnabled: !!s.pushAfterArchiveEnabled,
+      pushAfterArchiveDelayMin: Number(s.pushAfterArchiveDelayMin || 2),
+      keepInTouchEnabled: !!s.keepInTouchEnabled,
+      keepInTouchMonths: Number(s.keepInTouchMonths || 3),
+      keepInTouchTime: String(s.keepInTouchTime || "10:00"),
+      keepInTouchTemplate: String(s.keepInTouchTemplate || "")
     };
+
+    function refreshSaveState() {
+      const changed =
+        JSON.stringify(getCurrentSettingsSnapshot()) !== JSON.stringify(originalSnapshot);
+
+      btnSave.disabled = !changed;
+      btnSave.style.opacity = changed ? "1" : "0.5";
+      btnSave.style.cursor = changed ? "pointer" : "not-allowed";
+    }
 
     const btnSave = document.createElement("button");
     btnSave.className = "rt-btn primary";
     btnSave.type = "button";
     btnSave.textContent = "Save";
+    btnSave.disabled = true;
+    btnSave.style.opacity = "0.5";
+    btnSave.style.cursor = "not-allowed";
 
     btnSave.onclick = async () => {
       const next = {
         followUpDay1: Number(inpD1.value || 0),
         followUpTime1: String(inpT1.value || "10:00"),
-        followUpDay2: Number(inpD2.value || 0),
-        followUpTime2: String(inpT2.value || "14:00"),
+
+        // keep old fields untouched so nothing breaks
+        followUpDay2: Number(s.followUpDay2 || 0),
+        followUpTime2: String(s.followUpTime2 || "14:00"),
+
         smsTemplate: String(tpl.value || ""),
-        pushAfterArchiveEnabled: !!quickToggle.checked,
-        pushAfterArchiveDelayMin: Number(quickDelay.value || 2)
+
+        pushAfterArchiveEnabled: isMarlon ? !!quickToggle?.checked : !!s.pushAfterArchiveEnabled,
+        pushAfterArchiveDelayMin: isMarlon
+          ? Number(quickDelay?.value || s.pushAfterArchiveDelayMin || 2)
+          : Number(s.pushAfterArchiveDelayMin || 2),
+
+        keepInTouchEnabled: !!keepEnabled.checked,
+        keepInTouchMonths: Number(inpKeepMonths.value || 3),
+        keepInTouchTime: String(inpKeepTime.value || "10:00"),
+        keepInTouchTemplate: String(keepTpl.value || "")
       };
 
       saveSettings(next);
@@ -354,15 +571,29 @@ export async function openSettingsModal() {
       alert("Settings saved ✅");
     };
 
+    [
+      inpD1,
+      inpT1,
+      tpl,
+      keepEnabled,
+      inpKeepMonths,
+      inpKeepTime,
+      keepTpl,
+      quickToggle,
+      quickDelay
+    ]
+      .filter(Boolean)
+      .forEach((el) => {
+        el.addEventListener("input", refreshSaveState);
+        el.addEventListener("change", refreshSaveState);
+      });
+
+    refreshSaveState();
+
     actions.appendChild(btnCancel);
-    actions.appendChild(btnTest);
     actions.appendChild(notifStatus);
     actions.appendChild(btnSave);
 
-    body.appendChild(row1);
-    body.appendChild(row2);
-    body.appendChild(row3);
-    body.appendChild(rowQuick);
     body.appendChild(actions);
   });
 }
