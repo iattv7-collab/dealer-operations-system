@@ -11,10 +11,12 @@ function ensureFollowupStyles() {
   st.id = "__rt_followup_styles";
   st.textContent = `
     .rt-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:99999;}
-    .rt-modal{background:#fff;border:1px solid #cfcfcf;border-radius:12px;width:min(980px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;box-shadow:0 10px 30px rgba(0,0,0,.25);font-family:"Times New Roman", Times, serif;padding:14px;}
+    .rt-modal{background:#fff;border:1px solid #cfcfcf;border-radius:12px;width:calc(100vw - 40px);height:calc(100vh - 40px);max-width:1400px;max-height:95vh;overflow:auto;resize:both;box-shadow:0 10px 30px rgba(0,0,0,.25);font-family:"Times New Roman", Times, serif;padding:14px;}
     .rt-title{font-weight:bold;font-size:18px;margin-bottom:10px;background:#0b3d91;color:#fff;padding:10px 12px;border-radius:10px;}
     .rt-mini{font-size:12px;color:#333;margin:6px 0 10px;}
     .rt-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px;}
+    .rt-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0 12px;flex-wrap:wrap;}
+    .rt-search{font-family:"Times New Roman", Times, serif;padding:8px 10px;border:1px solid #c8d0d9;border-radius:8px;font-size:14px;min-width:280px;}
     .rt-btn{font-family:"Times New Roman", Times, serif;padding:8px 12px;border-radius:10px;border:1px solid #888;background:#fff;cursor:pointer;}
     .rt-list{width:100%;border-collapse:collapse;}
     .rt-list th,.rt-list td{border-bottom:1px solid #eee;padding:8px;text-align:left;}
@@ -77,77 +79,183 @@ function computeDueListForArchived(docData, settings) {
   return out.sort((a, b) => a.dueMs - b.dueMs);
 }
 function openReadyUpModal(followupDocs) {
+
+
   const settings = loadSettings();
   const nowMs = Date.now();
-  const readyItems = [];
-  followupDocs.forEach((d) => {
-    const dueList = computeDueListForArchived(d, settings);
-    dueList.forEach(({ slot, dueMs }) => {
-      const sentKey = slot === 1 ? "followup1SentAtMs" : "followup2SentAtMs";
-      const alreadySent = !!d[sentKey];
-      if (!alreadySent && dueMs <= nowMs) readyItems.push({ doc: d, slot, dueMs });
+  const queueItems = [];
+
+  followupDocs
+    .filter((d) => String(d.followupStatus || "waiting") !== "done")
+    .forEach((d) => {
+      const dueList = computeDueListForArchived(d, settings);
+
+      dueList.forEach(({ slot, dueMs }) => {
+        const sentKey = slot === 1 ? "followup1SentAtMs" : "followup2SentAtMs";
+        const alreadySent = !!d[sentKey];
+
+        if (!alreadySent) {
+          queueItems.push({
+            doc: d,
+            slot,
+            dueMs,
+            isDue: dueMs <= nowMs
+          });
+        }
+      });
     });
+
+  queueItems.sort((a, b) => {
+    if (a.isDue !== b.isDue) return a.isDue ? -1 : 1;
+    if (a.dueMs !== b.dueMs) return a.dueMs - b.dueMs;
+    return String(a.doc?.ro || a.doc?.id || "").localeCompare(
+      String(b.doc?.ro || b.doc?.id || ""),
+      undefined,
+      { numeric: true }
+    );
   });
-  readyItems.sort((a, b) => a.dueMs - b.dueMs);
-  openModal("Follow Up — Ready", (body, close) => {
+
+
+  openModal("Follow Up Queue", (body, close) => {
     const note = document.createElement("div");
     note.className = "rt-mini";
-    note.textContent = "This list is based on Archived time + your settings. Tap Text to open your phone SMS prefilled.";
+    note.textContent = "Rows turn yellow when follow-up is due. Due items appear first, waiting items stay below. Use Text or Mark Done to remove them from this queue.";
     body.appendChild(note);
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "rt-toolbar";
+
+    const search = document.createElement("input");
+    search.className = "rt-search";
+    search.type = "text";
+    search.placeholder = "Search RO, customer, phone, model, advisor #";
+
+    toolbar.appendChild(search);
+    body.appendChild(toolbar);
+
     const table = document.createElement("table");
     table.className = "rt-list";
     const thead = document.createElement("thead");
-    thead.innerHTML = `<tr><th>RO</th><th>Name</th><th>Phone</th><th>Model</th><th>Advisor #</th><th>Due</th><th class="center">Action</th></tr>`;
+    thead.innerHTML = `<tr><th>RO</th><th>Name</th><th>Phone</th><th>Model</th><th>Advisor #</th><th>Due</th><th>Status</th><th class="center">Action</th></tr>`;
     table.appendChild(thead);
+
+
     const tbody = document.createElement("tbody");
-    if (!readyItems.length) {
-      const tr = document.createElement("tr");
-      const td = document.createElement("td");
-      td.colSpan = 7;
-      td.textContent = "Nothing ready right now.";
-      tr.appendChild(td);
-      tbody.appendChild(tr);
-    } else {
-      readyItems.forEach(({ doc: d, slot, dueMs }) => {
+
+    function renderRows(filterText = "") {
+      const q = String(filterText || "").trim().toLowerCase();
+      tbody.innerHTML = "";
+
+      const filtered = !q
+        ? queueItems
+        : queueItems.filter(({ doc: d }) => {
+          const hay = [
+            d.ro || d.id || "",
+            d.customerName || "",
+            d.phone || "",
+            d.model || "",
+            d.advisorNo || ""
+          ].join(" ").toLowerCase();
+
+          return hay.includes(q);
+        });
+
+      if (!filtered.length) {
         const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 8;
+        td.textContent = q ? "No matching follow-ups found." : "No follow-ups in queue.";
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
+
+      filtered.forEach(({ doc: d, slot, dueMs, isDue }) => {
+        const tr = document.createElement("tr");
+        tr.style.background = isDue ? "#fff59d" : "#fff";
         const name = String(d.customerName || "");
         const phone = String(d.phone || "");
         const ro = String(d.ro || d.id || "");
         const model = String(d.model || "");
+
         const pill = document.createElement("span");
         pill.className = "rt-pill ready";
-        pill.textContent = `READY (slot ${slot})`;
+        pill.textContent = isDue ? `READY (slot ${slot})` : `WAITING (slot ${slot})`;
+
         const tdRO = document.createElement("td");
         tdRO.appendChild(document.createTextNode(ro + " "));
         tdRO.appendChild(pill);
+
         const tdName = document.createElement("td");
         tdName.textContent = name;
+
         const tdPhone = document.createElement("td");
         tdPhone.textContent = phone;
+
         const tdModel = document.createElement("td");
         tdModel.textContent = model;
+
         const tdDue = document.createElement("td");
         tdDue.textContent = fmtDue(dueMs);
+
+        const tdStatus = document.createElement("td");
+        tdStatus.textContent = isDue ? "Follow Up Needed" : "Waiting";
+
         const tdAct = document.createElement("td");
         tdAct.className = "center";
+
         const btnText = document.createElement("button");
         btnText.className = "rt-btn";
         btnText.textContent = "Text";
         btnText.addEventListener("click", async () => {
-          const msg = renderTemplate(settings.smsTemplate, { firstName: firstNameFromCustomer(name), name, ro, model });
+          const msg = renderTemplate(settings.smsTemplate, {
+            firstName: firstNameFromCustomer(name),
+            name,
+            ro,
+            model
+          });
           const sentAt = Date.now();
           const sentKey = slot === 1 ? "followup1SentAtMs" : "followup2SentAtMs";
+
           try {
             window.location.href = smsHref(phone, msg);
+
             setTimeout(async () => {
               const ref = doc(db, COL_ARCHIVE, ro);
-              await updateDoc(ref, { [sentKey]: sentAt, followupLastSlot: slot, followupLastSentAtMs: sentAt });
+              await updateDoc(ref, {
+                [sentKey]: sentAt,
+                followupLastSlot: slot,
+                followupLastSentAtMs: sentAt,
+                followupStatus: "done",
+                followupCompletedAtMs: sentAt
+              });
             }, 400);
           } catch (e) {
             alert(String(e?.message || e));
           }
         });
+
+        const btnDone = document.createElement("button");
+        btnDone.className = "rt-btn";
+        btnDone.textContent = "Mark Done";
+        btnDone.style.marginLeft = "8px";
+        btnDone.addEventListener("click", async () => {
+          try {
+            const ref = doc(db, COL_ARCHIVE, ro);
+            await updateDoc(ref, {
+              followupStatus: "done",
+              followupCompletedAtMs: Date.now()
+            });
+
+            tr.remove();
+          } catch (e) {
+            alert(String(e?.message || e));
+          }
+        });
+
         tdAct.appendChild(btnText);
+        tdAct.appendChild(btnDone);
+
         const tdAdvisor = document.createElement("td");
         tdAdvisor.textContent = String(d.advisorNo || "");
 
@@ -157,10 +265,16 @@ function openReadyUpModal(followupDocs) {
         tr.appendChild(tdModel);
         tr.appendChild(tdAdvisor);
         tr.appendChild(tdDue);
+        tr.appendChild(tdStatus);
         tr.appendChild(tdAct);
         tbody.appendChild(tr);
       });
     }
+
+    search.addEventListener("input", () => renderRows(search.value));
+    renderRows();
+
+
     table.appendChild(tbody);
     body.appendChild(table);
     const actions = document.createElement("div");

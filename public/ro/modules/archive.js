@@ -10,13 +10,15 @@ function ensureArchiveStyles() {
   st.id = "__rt_archive_styles";
   st.textContent = `
     .rt-arch-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:99999;}
-    .rt-arch-modal{background:#fff;border:1px solid #cfcfcf;border-radius:12px;width:min(1100px,calc(100vw - 24px));max-height:calc(100vh - 24px);overflow:auto;box-shadow:0 10px 30px rgba(0,0,0,.25);font-family:"Times New Roman", Times, serif;padding:14px;}
+    .rt-arch-modal{background:#fff;border:1px solid #cfcfcf;border-radius:12px;width:calc(100vw - 40px);height:calc(100vh - 40px);max-width:1500px;max-height:95vh;overflow:auto;resize:both;box-shadow:0 10px 30px rgba(0,0,0,.25);font-family:"Times New Roman", Times, serif;padding:14px;}
     .rt-arch-title{font-weight:bold;font-size:18px;margin-bottom:10px;background:#0b3d91;color:#fff;padding:10px 12px;border-radius:10px;}
     .rt-arch-closeRow{display:flex;justify-content:flex-end;margin:8px 0 12px;}
     .rt-arch-table{width:100%;border-collapse:collapse;}
     .rt-arch-table th{border-bottom:1px solid #ddd;padding:8px;text-align:left;}
     .rt-arch-table td{border-bottom:1px solid #eee;padding:8px;text-align:left;}
     .rt-arch-actions{white-space:nowrap;}
+    .rt-arch-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0 12px;flex-wrap:wrap;}
+    .rt-arch-search{font-family:"Times New Roman", Times, serif;padding:8px 10px;border:1px solid #c8d0d9;border-radius:8px;font-size:14px;min-width:280px;}
   `;
   document.head.appendChild(st);
 }
@@ -42,6 +44,16 @@ function openArchiveUpModal() {
     backdrop.remove();
   };
   closeRow.appendChild(btnClose);
+  const toolbar = document.createElement("div");
+  toolbar.className = "rt-arch-toolbar";
+
+  const search = document.createElement("input");
+  search.className = "rt-arch-search";
+  search.type = "text";
+  search.placeholder = "Search RO, customer, phone, model, advisor #";
+
+  toolbar.appendChild(search);
+
   const table = document.createElement("table");
   table.className = "rt-arch-table";
   const thead = document.createElement("thead");
@@ -51,6 +63,7 @@ function openArchiveUpModal() {
   table.appendChild(tbody);
   modal.appendChild(title);
   modal.appendChild(closeRow);
+  modal.appendChild(toolbar);
   modal.appendChild(table);
   backdrop.appendChild(modal);
   document.body.appendChild(backdrop);
@@ -89,60 +102,92 @@ function openArchiveUpModal() {
         return String(a.ro || "").localeCompare(String(b.ro || ""), undefined, { numeric: true });
       });
 
-      tbody.innerHTML = "";
+      function renderRows(filterText = "") {
+        const q = String(filterText || "").trim().toLowerCase();
+        tbody.innerHTML = "";
 
-      rows.forEach((r) => {
-        const tr = document.createElement("tr");
+        const baseRows = rows.filter((r) => String(r.followupStatus || "") === "done");
 
-        const td = (txt) => {
-          const x = document.createElement("td");
-          x.textContent = txt || "";
-          return x;
-        };
+        const filtered = !q
+          ? baseRows
+          : baseRows.filter((r) => {
+            const hay = [
+              r.customerName || "",
+              r.phone || "",
+              r.ro || "",
+              r.model || "",
+              r.advisorNo || ""
+            ].join(" ").toLowerCase();
 
-        tr.appendChild(td(r.customerName || ""));
-        tr.appendChild(td(r.phone || ""));
-        tr.appendChild(td(r.ro || ""));
-        tr.appendChild(td(formatNoYearDate(r.promiseDate || "")));
-        tr.appendChild(td(r.model || ""));
-        tr.appendChild(td(r.advisorNo || ""));
+            return hay.includes(q);
+          });
 
-        const archivedTxt = r.archivedAt?.toDate ? r.archivedAt.toDate().toLocaleString() : "";
-        tr.appendChild(td(archivedTxt));
+        if (!filtered.length) {
+          const tr = document.createElement("tr");
+          const td = document.createElement("td");
+          td.colSpan = 8;
+          td.textContent = q ? "No matching archived follow-ups found." : "No completed follow-ups found.";
+          tr.appendChild(td);
+          tbody.appendChild(tr);
+          return;
+        }
 
-        const tdAct = document.createElement("td");
-        tdAct.className = "rt-arch-actions";
+        filtered.forEach((r) => {
+          const tr = document.createElement("tr");
 
-        const btnText = document.createElement("button");
-        btnText.className = "smallbtn";
-        btnText.textContent = "Text";
-        btnText.addEventListener("click", () => {
-          const phone = String(r.phone || "").replace(/[^\d]/g, "");
-          if (!phone) { alert("Missing phone."); return; }
-          const msg = `Hello ${r.customerName || ""}, following up on your Porsche service RO ${r.ro || ""}.`;
-          window.location.href = `sms:${phone}?&body=${encodeURIComponent(msg)}`;
+          const td = (txt) => {
+            const x = document.createElement("td");
+            x.textContent = txt || "";
+            return x;
+          };
+
+          tr.appendChild(td(r.customerName || ""));
+          tr.appendChild(td(r.phone || ""));
+          tr.appendChild(td(r.ro || ""));
+          tr.appendChild(td(formatNoYearDate(r.promiseDate || "")));
+          tr.appendChild(td(r.model || ""));
+          tr.appendChild(td(r.advisorNo || ""));
+
+          const archivedTxt = r.archivedAt?.toDate ? r.archivedAt.toDate().toLocaleString() : "";
+          tr.appendChild(td(archivedTxt));
+
+          const tdAct = document.createElement("td");
+          tdAct.className = "rt-arch-actions";
+
+          const btnText = document.createElement("button");
+          btnText.className = "smallbtn";
+          btnText.textContent = "Text";
+          btnText.addEventListener("click", () => {
+            const phone = String(r.phone || "").replace(/[^\d]/g, "");
+            if (!phone) { alert("Missing phone."); return; }
+            const msg = `Hello ${r.customerName || ""}, following up on your Porsche service RO ${r.ro || ""}.`;
+            window.location.href = `sms:${phone}?&body=${encodeURIComponent(msg)}`;
+          });
+
+          const btnRestore = document.createElement("button");
+          btnRestore.className = "smallbtn";
+          btnRestore.textContent = "Restore";
+          btnRestore.style.marginLeft = "8px";
+          btnRestore.addEventListener("click", async () => {
+            const ro = String(r.ro || "").trim();
+            if (!ro) return;
+            if (!confirm(`Restore RO ${ro} back to Active?`)) return;
+            try {
+              await restoreFromArchive(ro);
+            } catch (e) {
+              alert(String(e?.message || e));
+            }
+          });
+
+          tdAct.appendChild(btnText);
+          tdAct.appendChild(btnRestore);
+          tr.appendChild(tdAct);
+          tbody.appendChild(tr);
         });
+      }
 
-        const btnRestore = document.createElement("button");
-        btnRestore.className = "smallbtn";
-        btnRestore.textContent = "Restore";
-        btnRestore.style.marginLeft = "8px";
-        btnRestore.addEventListener("click", async () => {
-          const ro = String(r.ro || "").trim();
-          if (!ro) return;
-          if (!confirm(`Restore RO ${ro} back to Active?`)) return;
-          try {
-            await restoreFromArchive(ro);
-          } catch (e) {
-            alert(String(e?.message || e));
-          }
-        });
-
-        tdAct.appendChild(btnText);
-        tdAct.appendChild(btnRestore);
-        tr.appendChild(tdAct);
-        tbody.appendChild(tr);
-      });
+      search.oninput = () => renderRows(search.value);
+      renderRows();
     });
   });
 }
