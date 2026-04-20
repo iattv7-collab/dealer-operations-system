@@ -52,7 +52,7 @@ function computeDueListForArchived(docData, settings) {
 
   const out = [];
 
-  // 🔥 TEST MODE (5 seconds after archive)
+  // 🔥 TEST MODE (minutes after archive)
   if (settings.followUpQuickMin && Number(settings.followUpQuickMin) > 0) {
     const quickMs = archivedMs + (Number(settings.followUpQuickMin) * 60 * 1000);
     out.push({ slot: 1, dueMs: quickMs });
