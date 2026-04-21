@@ -562,11 +562,24 @@ function tdReadyCalled(r, tr) {
   label.style.fontSize = "12px";
 
   c.addEventListener("change", async () => {
-    if (!r.techVideo) { c.checked = false; return; }
+    if (!r.techVideo) {
+      c.checked = false;
+      return;
+    }
+
     r.readyCalled = c.checked;
     r.status = c.checked ? "Ready called" : "";
     tr.className = rowClass(r);
-    await safeUpdate(r.ro, { readyCalled: r.readyCalled, status: r.status });
+
+    await safeUpdate(r.ro, {
+      readyCalled: r.readyCalled,
+      status: r.status,
+      customerWaiting: r.readyCalled ? false : r.customerWaiting,
+      waiterMarkedAtMs: r.readyCalled ? null : r.waiterMarkedAtMs || null,
+      waiterNextReminderAtMs: r.readyCalled ? null : r.waiterNextReminderAtMs || null,
+      waiterReminderCount: r.readyCalled ? 0 : (r.waiterReminderCount || 0),
+      waiterLastSentAtMs: r.readyCalled ? null : r.waiterLastSentAtMs || null
+    });
   });
 
   wrap.appendChild(c);
@@ -575,7 +588,10 @@ function tdReadyCalled(r, tr) {
 
   return {
     td,
-    setEnabled: (on) => { c.disabled = !on; if (!on) c.checked = false; }
+    setEnabled: (on) => {
+      c.disabled = !on;
+      if (!on) c.checked = false;
+    }
   };
 }
 
@@ -618,9 +634,28 @@ function tdWaiter(r, tr) {
   c.checked = !!r.customerWaiting;
 
   c.addEventListener("change", async () => {
+    const now = Date.now();
+
     r.customerWaiting = c.checked;
     tr.className = rowClass(r);
-    await safeUpdate(r.ro, { customerWaiting: r.customerWaiting });
+
+    if (c.checked) {
+      await safeUpdate(r.ro, {
+        customerWaiting: true,
+        waiterMarkedAtMs: now,
+        waiterNextReminderAtMs: now + (2.5 * 60 * 60 * 1000),
+        waiterReminderCount: 0,
+        waiterLastSentAtMs: null
+      });
+    } else {
+      await safeUpdate(r.ro, {
+        customerWaiting: false,
+        waiterMarkedAtMs: null,
+        waiterNextReminderAtMs: null,
+        waiterReminderCount: 0,
+        waiterLastSentAtMs: null
+      });
+    }
   });
 
   td.appendChild(c);
@@ -936,7 +971,24 @@ function renderRows(rows) {
     // 17) Repair Complete (view only for now; later from Dispatch/Tech)
     tr.appendChild(tdHover(r.repairCompleted ? "✅" : ""));
 
-    // 18) Actions
+    // 18) Text
+    tr.appendChild(tdBtn("Text", () => {
+      const phone = String(r.phone || "").replace(/\D/g, "");
+      const name = String(r.customerName || "").trim();
+
+      if (!phone) {
+        alert("No phone number available");
+        return;
+      }
+
+      const firstName = name.split(" ")[0] || "";
+      const message = `Hello, ${firstName},`;
+
+      const smsLink = `sms:+1${phone}?body=${encodeURIComponent(message)}`;
+      window.location.href = smsLink;
+    }));
+
+    // 19) Actions
     tr.appendChild(tdBtn("Archive", async () => {
       const activeRef = doc(db, COL_ACTIVE, r.ro);
       const snap = await getDoc(activeRef);
@@ -971,7 +1023,14 @@ function renderRows(rows) {
         followup1SentAtMs: null,
         followup2SentAtMs: null,
         followupLastSlot: null,
-        followupLastSentAtMs: null
+        followupLastSentAtMs: null,
+
+        // STOP waiter reminders
+        customerWaiting: false,
+        waiterMarkedAtMs: null,
+        waiterNextReminderAtMs: null,
+        waiterReminderCount: 0,
+        waiterLastSentAtMs: null
       });
 
       await deleteDoc(activeRef);

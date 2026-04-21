@@ -386,6 +386,53 @@ exports.followUpScheduler = functions.pubsub
       }
     }
 
+    // =========================
+    // WAITER LIVE NOTIFICATIONS
+    // =========================
+
+    const ACTIVE_RO_COLLECTION = "ros";
+
+    const waiterSnap = await db.collection(ACTIVE_RO_COLLECTION)
+      .where("customerWaiting", "==", true)
+      .get();
+
+    for (const docSnap of waiterSnap.docs) {
+      const d = docSnap.data() || {};
+      const ro = d.ro || docSnap.id;
+
+      if (!d.waiterMarkedAtMs) continue;
+      if (d.readyCalled === true) continue;
+
+      const nextTrigger = Number(d.waiterNextReminderAtMs || 0);
+      if (!nextTrigger || nextTrigger > now) continue;
+
+      console.log("Sending WAITER push for:", ro);
+
+      try {
+        const resp = await admin.messaging().sendEachForMulticast({
+          tokens,
+          notification: {
+            title: "Waiter Reminder",
+            body: `RO ${ro} is still waiting`
+          },
+          data: {
+            url: `/ro/index.html?ro=${encodeURIComponent(ro)}&waiter=1`
+          }
+        });
+
+        tokens = await removeFailedTokens(settingsRef, tokens, resp);
+
+        await docSnap.ref.set({
+          waiterLastSentAtMs: now,
+          waiterReminderCount: Number(d.waiterReminderCount || 0) + 1,
+          waiterNextReminderAtMs: now + (30 * 60 * 1000)
+        }, { merge: true });
+
+      } catch (err) {
+        console.error("WAITER push failed:", err);
+      }
+    }
+
     console.log("Archive push cycle finished. Sent:", sentCount);
     return null;
   });

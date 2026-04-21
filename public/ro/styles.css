@@ -263,6 +263,11 @@ tr.row-past .cell-edit {
   width: 90px;
 }
 
+.col-text {
+  width: 90px;
+}
+
+
 .col-loaner {
   width: 90px;
 }
