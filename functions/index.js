@@ -280,6 +280,30 @@ async function removeFailedTokens(settingsRef, tokens, resp) {
 }
 
 
+async function writeUserNotification(userId, payload) {
+  try {
+    if (!userId) return;
+
+    await admin
+      .firestore()
+      .collection("users")
+      .doc(String(userId))
+      .collection("notifications")
+      .add({
+        title: String(payload?.title || "Notification"),
+        body: String(payload?.body || ""),
+        url: String(payload?.url || "/ro/index.html"),
+        type: String(payload?.type || ""),
+        roId: String(payload?.roId || ""),
+        read: false,
+        dismissed: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+  } catch (err) {
+    console.error("writeUserNotification failed:", err);
+  }
+}
+
 const ARCHIVE_COLLECTIONS = ["followup", "tickets_archive"];
 
 exports.followUpScheduler = functions.pubsub
@@ -358,6 +382,8 @@ exports.followUpScheduler = functions.pubsub
         ) {
           console.log("Sending archive push for:", ro);
 
+          const notifUrl = `/ro/index.html?fu=1&ro=${encodeURIComponent(ro)}&slot=archive`;
+
           try {
             const resp = await admin.messaging().sendEachForMulticast({
               tokens,
@@ -366,7 +392,7 @@ exports.followUpScheduler = functions.pubsub
                 body: `RO ${ro} needs follow-up`
               },
               data: {
-                url: `/ro/index.html?fu=1&ro=${encodeURIComponent(ro)}&slot=archive`
+                url: notifUrl
               }
             });
 
@@ -377,6 +403,16 @@ exports.followUpScheduler = functions.pubsub
             await docSnap.ref.set({
               pushAfterArchiveSentAtMs: now
             }, { merge: true });
+
+            if (d.advisorId) {
+              await writeUserNotification(d.advisorId, {
+                title: "Follow Up Reminder",
+                body: `RO ${ro} needs follow-up`,
+                url: notifUrl,
+                type: "followup",
+                roId: ro
+              });
+            }
 
             sentCount++;
           } catch (err) {
@@ -408,6 +444,8 @@ exports.followUpScheduler = functions.pubsub
 
       console.log("Sending WAITER push for:", ro);
 
+      const waiterUrl = `/ro/index.html?ro=${encodeURIComponent(ro)}&waiter=1`;
+
       try {
         const resp = await admin.messaging().sendEachForMulticast({
           tokens,
@@ -416,7 +454,7 @@ exports.followUpScheduler = functions.pubsub
             body: `RO ${ro} is still waiting`
           },
           data: {
-            url: `/ro/index.html?ro=${encodeURIComponent(ro)}&waiter=1`
+            url: waiterUrl
           }
         });
 
@@ -427,6 +465,16 @@ exports.followUpScheduler = functions.pubsub
           waiterReminderCount: Number(d.waiterReminderCount || 0) + 1,
           waiterNextReminderAtMs: now + (30 * 60 * 1000)
         }, { merge: true });
+
+        if (d.advisorId) {
+          await writeUserNotification(d.advisorId, {
+            title: "Waiter Reminder",
+            body: `RO ${ro} is still waiting`,
+            url: waiterUrl,
+            type: "waiter",
+            roId: ro
+          });
+        }
 
       } catch (err) {
         console.error("WAITER push failed:", err);

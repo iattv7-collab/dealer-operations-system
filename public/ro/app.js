@@ -11,6 +11,9 @@ import { dateInputToMMDDYYYY, mmddyyyyToDateInput } from "./modules/utils.js";
 import { COL_ACTIVE, COL_ARCHIVE, safeUpdate } from "./modules/firestore.js?v=20260314-1";
 import { initNotifications } from "./modules/notifications.js";
 import { initFollowUp } from "./modules/followup.js";
+
+import { initNotificationCenter } from "./modules/notification-center.js";
+
 import { initArchiveModal } from "./modules/archive.js";
 import { loadRemotePrivateSettings, openSettingsModal } from "./modules/settings.js";
 
@@ -98,6 +101,7 @@ function makeTabButton(label, key, active, onClickOverride = null) {
 
     activeTrackerTab = key;
     renderTrackerTabs();
+
     renderRows(filterActiveRows(ACTIVE_ROWS));
   });
 
@@ -131,6 +135,11 @@ function renderTrackerTabs() {
     wrap.appendChild(makeTabButton("All ROs", "all", activeTrackerTab === "all"));
   }
 }
+
+$("btnNotifCenter")?.addEventListener("click", () => {
+  window.location.href = "/ro/notifications.html";
+});
+
 
 async function loadSharedTrackersForMe(user, profile) {
   sharedTrackerTabs = [];
@@ -1070,7 +1079,14 @@ async function listenActive() {
 
   renderSignedInInfo(user, profile);
   renderTrackerTabs();
-
+  // INIT NOTIFICATION CENTER
+  if (user && !notificationCenterApi) {
+    notificationCenterApi = initNotificationCenter({
+      userId: user.uid,
+      mountId: "notificationCenter",
+      badgeId: "notifBadge"
+    });
+  }
   const q = query(
     collection(db, COL_ACTIVE),
     where("dealerId", "==", dealerId)
@@ -1128,6 +1144,8 @@ $("searchActive")?.addEventListener("keydown", (e) => {
 
 const notifApi = initNotifications();
 notifApi.bindStatusToButton("btnNotify");
+
+let notificationCenterApi = null;
 
 initFollowUp();
 initArchiveModal();;

@@ -53,6 +53,7 @@ function normalizePayload(raw) {
       body,
       icon,
       badge,
+      requireInteraction: true,
       data: { ...data, url }
     }
   };

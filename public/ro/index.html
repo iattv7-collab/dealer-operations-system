@@ -12,7 +12,7 @@
   <meta http-equiv="Expires" content="0" />
 
   <!-- CACHE-BUST VERSION -->
-  <link rel="stylesheet" href="./styles.css?v=20260324-2" />
+  <link rel="stylesheet" href="./styles.css?v=20260421-3" />
   <link rel="manifest" href="/manifest.json">
   <meta name="theme-color" content="#0b3d91">
 </head>
@@ -40,66 +40,74 @@
   </header>
 
   <div class="toolbar">
-    <button class="btn" id="btnFollowUp">Follow Up</button>
-    <button class="btn" id="btnSettings">Settings</button>
-    <button class="btn" id="btnArchiveView">Archive / Follow Up</button>
-    <button class="btn" id="btnNotify">Enable Notifications</button>
-    <button class="btn" id="btnToggleView">Short View</button>
+
+    <div class="notif-wrapper" style="display:flex; align-items:center;">
+      <button class="btn" id="btnNotifCenter">Notifications</button>
+      <span id="notifBadge" class="notif-badge"></span>
+    </div>
 
     <input id="searchActive" type="text" placeholder="Search RO, Tag, Name, Phone"
-      style="margin-left:10px;padding:6px 10px;width:260px;font-family:'Times New Roman';" />
+      style="margin-left:10px;padding:6px 10px;width:140px;font-family:'Times New Roman';" />
+
+    <button class="btn" id="btnToggleView">Short View</button>
+    <button class="btn" id="btnNotify">Notifications ON</button>
+    <button class="btn" id="btnFollowUp">Follow Up</button>
+    <button class="btn" id="btnArchiveView">Archive / Follow Up</button>
+    <button class="btn" id="btnSettings">Settings</button>
+
   </div>
 
+  <div id="notificationCenter" style="display:none; padding:10px;"></div>
 
- <div class="tablewrap">
-  <table>
-    <colgroup>
-      <col class="col-ro">
-      <col class="col-tag">
-      <col class="col-customer">
-      <col class="col-phone">
-      <col class="col-date">
-      <col class="col-date">
-      <col class="col-model">
-      <col class="col-concern">
-      <col class="col-location">
-      <col class="col-ready">
-      <col class="col-notes">
-      <col class="col-video">
-      <col class="col-called">
-      <col class="col-next">
-      <col class="col-wait">
-      <col class="col-loanerlast6">
-      <col class="col-repairdone">
-      <col class="col-text">
-      <col class="col-archive">
-    </colgroup>
-    <thead>
-      <tr>
-        <th class="col-ro">RO #</th>
-        <th class="col-tag">Tag #</th>
-        <th class="col-customer">Customer name</th>
-        <th class="col-phone">Phone</th>
-        <th class="col-date">RO Date</th>
-        <th class="col-date">Promise Date</th>
-        <th class="col-model">Model</th>
-        <th class="col-concern">Concern</th>
-        <th class="col-location">Location</th>
-        <th class="col-ready">Ready Called</th>
-        <th class="col-notes">Notes</th>
-        <th class="col-video">Tech Video</th>
-        <th class="col-called">Called</th>
-        <th class="col-next">Next Update</th>
-        <th class="col-wait">Waiter</th>
-        <th class="col-loanerlast6">Loaner VIN</th>
-        <th class="col-repairdone">Tech Done</th>
-        <th class="col-text">Text</th>
-        <th class="col-archive">Actions</th>
-      </tr>
-    </thead>
-    <tbody id="tbody"></tbody>
-  </table>
-</div>
+  <div class="tablewrap">
+    <table>
+      <colgroup>
+        <col class="col-ro">
+        <col class="col-tag">
+        <col class="col-customer">
+        <col class="col-phone">
+        <col class="col-date">
+        <col class="col-date">
+        <col class="col-model">
+        <col class="col-concern">
+        <col class="col-location">
+        <col class="col-ready">
+        <col class="col-notes">
+        <col class="col-video">
+        <col class="col-called">
+        <col class="col-next">
+        <col class="col-wait">
+        <col class="col-loanerlast6">
+        <col class="col-repairdone">
+        <col class="col-text">
+        <col class="col-archive">
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="col-ro">RO #</th>
+          <th class="col-tag">Tag #</th>
+          <th class="col-customer">Customer name</th>
+          <th class="col-phone">Phone</th>
+          <th class="col-date">RO Date</th>
+          <th class="col-date">Promise Date</th>
+          <th class="col-model">Model</th>
+          <th class="col-concern">Concern</th>
+          <th class="col-location">Location</th>
+          <th class="col-ready">Ready Called</th>
+          <th class="col-notes">Notes</th>
+          <th class="col-video">Tech Video</th>
+          <th class="col-called">Called</th>
+          <th class="col-next">Next Update</th>
+          <th class="col-wait">Waiter</th>
+          <th class="col-loanerlast6">Loaner VIN</th>
+          <th class="col-repairdone">Tech Done</th>
+          <th class="col-text">Text</th>
+          <th class="col-archive">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
 
   <!-- Barcode reader (ZXing) -->
   <script src="https://unpkg.com/@zxing/browser@0.1.5/umd/zxing-browser.min.js"></script>

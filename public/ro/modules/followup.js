@@ -5,6 +5,7 @@ import { collection, doc, getDoc, onSnapshot, updateDoc, query, where } from "ht
 import { addDaysAtTime, firstNameFromCustomer, fmtDue, renderTemplate, smsHref } from "./utils.js";
 import { loadSettings } from "./settings.js";
 import { COL_ARCHIVE } from "./firestore.js";
+import { createUserNotification } from "./notification-center.js";
 function ensureFollowupStyles() {
   if (document.getElementById("__rt_followup_styles")) return;
   const st = document.createElement("style");
@@ -95,13 +96,29 @@ function openReadyUpModal(followupDocs) {
         const alreadySent = !!d[sentKey];
 
         if (!alreadySent) {
-          queueItems.push({
-            doc: d,
-            slot,
-            dueMs,
-            isDue: dueMs <= nowMs
-          });
-        }
+  const isDueNow = dueMs <= nowMs;
+
+  queueItems.push({
+    doc: d,
+    slot,
+    dueMs,
+    isDue: isDueNow
+  });
+
+  // 🔥 CREATE NOTIFICATION (ONLY WHEN DUE)
+  if (isDueNow && !d.__notifCreated) {
+    d.__notifCreated = true;
+
+    createUserNotification({
+      userId: auth.currentUser.uid,
+      title: "Follow-up Due",
+      body: `RO ${d.ro || d.id} is ready for follow-up`,
+      url: `/ro/index.html?ro=${d.ro || d.id}`,
+      type: "followup",
+      roId: d.ro || d.id
+    });
+  }
+}
       });
     });
 
