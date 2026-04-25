@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Location Settings</title>
+    <link rel="stylesheet" href="/css/arrowflow.css">
+</head>
+
+<body>
+
+    <div id="nav"></div>
+
+    <h2>Location Settings</h2>
+
+    <div class="card">
+
+        <h3>Add Location</h3>
+
+        <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
+            <input id="locLabel" placeholder="Location name (ex: Main - Lot 1)" style="width:260px;">
+
+            <select id="locArea">
+                <option value="main">Main Store</option>
+                <option value="annex">Annex</option>
+            </select>
+
+            <button id="addLocationBtn">Add Location</button>
+        </div>
+
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Location</th>
+                        <th>Area</th>
+                        <th>Active</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="locationCatalogBody"></tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script type="module">
+        import { renderNav } from "./js/nav.js";
+        document.getElementById("nav").innerHTML = renderNav("locationsettings");
+    </script>
+
+    <script type="module" src="/js/locationSettings.js?v=2"></script>
+
+</body>
+
+</html>

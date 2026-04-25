@@ -10,6 +10,7 @@ import {
     where,
     onSnapshot,
     updateDoc,
+    setDoc,
     doc,
     getDocs,
     serverTimestamp
@@ -26,6 +27,8 @@ let currentDealerId = null;
 let currentFilter = "all";
 let currentSort = "ro";
 let workloadFilterText = "";
+let locationAreaFilter = "all"; // all | main | annex
+let waiterCapacity = "open";
 
 function setMsg(text, ok = true) {
     if (!msgEl) return;
@@ -92,11 +95,21 @@ function ensureControls() {
     <button type="button" data-filter="waiters">Waiters</button>
     <button type="button" data-filter="unassigned">Unassigned</button>
     <button type="button" data-filter="assigned">Assigned</button>
+    <span style="margin-left:12px;">Shop:</span>
+    <span style="margin-left:12px;">Waiters:</span>
+    <select id="waiterCapacitySelect">
+      <option value="open">Open</option>
+      <option value="limited">Limited</option>
+      <option value="full">Full</option>
+    </select>
+    <button type="button" data-area="all">All Shops</button>
+    <button type="button" data-area="main">Main Store</button>
+    <button type="button" data-area="annex">Annex</button>
 
     <span style="margin-left:12px;">Workload:</span>
-<input id="foremanWorkloadFilter" type="text" placeholder="Tech or advisor # / name / email" style="padding:6px 8px; width:280px;">
+    <input id="foremanWorkloadFilter" type="text" placeholder="Tech or advisor # / name / email" style="padding:6px 8px; width:280px;">
 
-<button type="button" id="clearFiltersBtn">Clear Filters</button>
+    <button type="button" id="clearFiltersBtn">Clear Filters</button>
 
     <span style="margin-left:12px;">Sort:</span>
     <button type="button" data-sort="ro">RO</button>
@@ -113,6 +126,7 @@ function ensureControls() {
 
         if (btn.dataset.filter) currentFilter = btn.dataset.filter;
         if (btn.dataset.sort) currentSort = btn.dataset.sort;
+        if (btn.dataset.area) locationAreaFilter = btn.dataset.area;
 
         applySearch();
     });
@@ -126,6 +140,7 @@ function ensureControls() {
         currentFilter = "all";
         currentSort = "ro";
         workloadFilterText = "";
+        locationAreaFilter = "all";
 
         if (searchInput) searchInput.value = "";
         const workloadInput = document.getElementById("foremanWorkloadFilter");
@@ -134,6 +149,30 @@ function ensureControls() {
         applySearch();
     });
 }
+
+const waiterSelect = document.getElementById("waiterCapacitySelect");
+
+if (waiterSelect) {
+    waiterSelect.value = waiterCapacity;
+
+    waiterSelect.addEventListener("change", async () => {
+        waiterCapacity = waiterSelect.value;
+
+        try {
+            await setDoc(doc(db, "settings", `shopLoad_${currentDealerId}`), {
+                dealerId: currentDealerId,
+                waiterCapacity,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            setMsg("Waiter capacity updated.");
+        } catch (e) {
+            console.error(e);
+            setMsg("Failed to update waiter capacity.", false);
+        }
+    });
+}
+
 
 function makeTechSelectCell(t) {
     const td = document.createElement("td");
@@ -244,6 +283,10 @@ function filterRows(rows) {
 
     if (currentFilter === "unassigned") {
         out = out.filter((t) => !t.assignedTechUid);
+    }
+
+    if (locationAreaFilter !== "all") {
+        out = out.filter((t) => String(t.locationArea || "").toLowerCase() === locationAreaFilter);
     }
 
     if (currentFilter === "assigned") {
@@ -396,6 +439,17 @@ onAuthStateChanged(auth, async (user) => {
     try {
         currentDealerId = await getUserDealerId(user);
         await loadTechUsers(currentDealerId);
+
+        const shopLoadSnap = await getDocs(
+            query(collection(db, "settings"), where("dealerId", "==", currentDealerId))
+        );
+
+        shopLoadSnap.forEach((docSnap) => {
+            const data = docSnap.data() || {};
+            if (data.waiterCapacity) {
+                waiterCapacity = data.waiterCapacity;
+            }
+        });
 
         const q = query(
             collection(db, "ros"),

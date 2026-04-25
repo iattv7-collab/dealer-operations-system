@@ -274,7 +274,7 @@
                 title: "Move / Locate",
                 desc: "Find and update vehicle location across the lot.",
                 href: "/location.html",
-                defaultRoles: ["admin", "manager", "advisor", "valet", "wash", "staff", "booker", "qc"]
+                defaultRoles: ["admin", "manager", "advisor", "valet", "wash", "staff", "booker", "qc", "foreman", "tech"]
             },
             {
                 key: "advisor",
@@ -323,64 +323,71 @@
                 title: "Send to Wash",
                 desc: "Find a finished RO and send it into the wash flow.",
                 href: "/dropoff.html",
-                defaultRoles: ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"]
+                defaultRoles: ["admin", "manager", "advisor", "wash", "staff", "valet", "qc", "foreman", "tech"]
             },
             {
                 key: "settings",
-                title: "Settings",
-                desc: "System settings and wash configuration.",
+                title: "Wash Settings",
+                desc: "Wash system configuration and capacity.",
                 href: "/settings.html",
                 defaultRoles: ["admin", "manager"]
             },
             {
-                key: "booker",
+                key: "locationsettings",
+                title: "Location Settings",
+                desc: "Manage shop locations (Main / Annex, lots, areas).",
+                href: "/location-settings.html",
+                defaultRoles: ["admin", "manager"]
+            },
+        {
+            key: "booker",
                 title: "Booker",
-                desc: "Booking and dispatch work area.",
-                href: "/booker.html",
-                defaultRoles: ["admin", "manager", "booker"]
-            },
-            {
-                key: "qc",
+                    desc: "Booking and dispatch work area.",
+                        href: "/booker.html",
+                            defaultRoles: ["admin", "manager", "booker"]
+        },
+        {
+            key: "qc",
                 title: "QC",
-                desc: "Quality control review screen.",
-                href: "/qc.html",
-                defaultRoles: ["admin", "manager", "qc"]
-            },
-            {
-                key: "masterro",
+                    desc: "Quality control review screen.",
+                        href: "/qc.html",
+                            defaultRoles: ["admin", "manager", "qc"]
+        },
+        {
+            key: "masterro",
                 title: "Master RO",
-                desc: "Master repair order list.",
-                href: "/master-ro.html",
-                defaultRoles: ["admin", "manager", "advisor", "booker"]
-            },
-            {
-                key: "archive",
+                    desc: "Master repair order list.",
+                        href: "/master-ro.html",
+                            defaultRoles: ["admin", "manager", "advisor", "booker"]
+        },
+        {
+            key: "archive",
                 title: "Archive",
-                desc: "View archived tickets and history.",
-                href: "/archive.html",
-                defaultRoles: ["admin", "manager", "advisor", "booker"]
-            },
-            {
-                key: "rotracker",
+                    desc: "View archived tickets and history.",
+                        href: "/archive.html",
+                            defaultRoles: ["admin", "manager", "advisor", "booker"]
+        },
+        {
+            key: "rotracker",
                 title: "RO Tracker",
-                desc: "Open the RO tracker workspace.",
-                href: "/ro/index.html",
-                defaultRoles: ["admin", "manager", "advisor"]
-            },
-            {
-                key: "foreman",
+                    desc: "Open the RO tracker workspace.",
+                        href: "/ro/index.html",
+                            defaultRoles: ["admin", "manager", "advisor"]
+        },
+        {
+            key: "foreman",
                 title: "Foreman",
-                desc: "Assign techs, monitor work, control shop flow.",
-                href: "/foreman.html",
-                defaultRoles: ["admin", "manager", "foreman"]
-            },
-            {
-                key: "tech",
+                    desc: "Assign techs, monitor work, control shop flow.",
+                        href: "/foreman.html",
+                            defaultRoles: ["admin", "manager", "foreman"]
+        },
+        {
+            key: "tech",
                 title: "Tech",
-                desc: "Technician workspace for updates and notes.",
-                href: "/tech.html",
-                defaultRoles: ["admin", "manager", "tech"]
-            },
+                    desc: "Technician workspace for updates and notes.",
+                        href: "/tech.html",
+                            defaultRoles: ["admin", "manager", "tech"]
+        },
 
 
         ];

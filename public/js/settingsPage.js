@@ -1,14 +1,27 @@
 // public/js/settingsPage.js
-import { auth } from "./firebase.js";
+import { auth, db } from "./firebase.js";
 import { listenSystemSettings, setSystemSettings } from "./settings.js";
 import { getUserProfile } from "./guard.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+
+import {
+  collection,
+  addDoc,
+  onSnapshot,
+  updateDoc,
+  doc,
+  query,
+  where,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 // ---- helpers
 const $ = (id) => document.getElementById(id);
 
 // ✅ global permission flag used by BOTH applyWashDayPermission() and applyToUI()
 let canControlWashDay = false;
+let currentDealerId = null;
+let locationCatalogUnsub = null;
 
 function setSaveState(text, ok = true) {
   const el = $("saveState");
@@ -198,9 +211,121 @@ async function onSave() {
   }
 }
 
+function locationKeyFromLabel(label) {
+  return String(label || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function renderLocationCatalog(rows) {
+  const body = $("locationCatalogBody");
+  if (!body) return;
+
+  if (!rows.length) {
+    body.innerHTML = `
+      <tr>
+        <td colspan="3" class="muted">No locations yet.</td>
+      </tr>
+    `;
+    return;
+  }
+
+  body.innerHTML = "";
+
+  rows.forEach((loc) => {
+    const tr = document.createElement("tr");
+
+    const nameTd = document.createElement("td");
+    nameTd.textContent = loc.label || "";
+
+    const areaTd = document.createElement("td");
+    areaTd.textContent = loc.area === "annex" ? "Annex" : "Main Store";
+
+    const activeTd = document.createElement("td");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = loc.active !== false;
+
+    checkbox.addEventListener("change", async () => {
+      await updateDoc(doc(db, "locationCatalog", loc.id), {
+        active: checkbox.checked,
+        updatedAt: serverTimestamp()
+      });
+      setMsg("Location updated.");
+    });
+
+    activeTd.appendChild(checkbox);
+
+    tr.appendChild(nameTd);
+    tr.appendChild(areaTd);
+    tr.appendChild(activeTd);
+
+    body.appendChild(tr);
+  });
+}
+
+function listenLocationCatalog(dealerId) {
+  if (!dealerId) return;
+
+  if (locationCatalogUnsub) {
+    try { locationCatalogUnsub(); } catch { }
+  }
+
+  const q = query(
+    collection(db, "locationCatalog"),
+    where("dealerId", "==", dealerId)
+  );
+
+  locationCatalogUnsub = onSnapshot(q, (snap) => {
+    const rows = snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data()
+    }));
+
+    rows.sort((a, b) =>
+      String(a.label || "").localeCompare(String(b.label || ""), undefined, { numeric: true })
+    );
+
+    renderLocationCatalog(rows);
+  });
+}
+
+async function addLocation() {
+  const label = String($("locLabel")?.value || "").trim();
+  const area = String($("locArea")?.value || "main").trim();
+
+  if (!currentDealerId) {
+    setMsg("Dealer ID not loaded yet.", false);
+    return;
+  }
+
+  if (!label) {
+    setMsg("Enter a location name.", false);
+    return;
+  }
+
+  await addDoc(collection(db, "locationCatalog"), {
+    dealerId: currentDealerId,
+    label,
+    key: locationKeyFromLabel(label),
+    area,
+    active: true,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
+
+  $("locLabel").value = "";
+  setMsg("Location added.");
+}
+
 function init() {
   const saveBtn = $("saveSystemSettingsBtn");
   if (saveBtn) saveBtn.addEventListener("click", onSave);
+
+  const addLocBtn = $("addLocationBtn");
+  if (addLocBtn) addLocBtn.addEventListener("click", addLocation);
 
   const openBtn = $("openWashBtn");
   const closeBtn = $("closeWashBtn");
@@ -210,8 +335,12 @@ function init() {
   // Auth -> load profile -> apply permission
   onAuthStateChanged(auth, async (user) => {
     if (!user) return;
+
     const profile = await getUserProfile(user);
+    currentDealerId = Number(profile?.dealerId || 0);
+
     applyWashDayPermission(profile);
+    listenLocationCatalog(currentDealerId);
   });
 
   // live load settings

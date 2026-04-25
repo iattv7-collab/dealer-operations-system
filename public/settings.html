@@ -149,6 +149,44 @@
       <span id="systemSettingsMsg" class="muted"></span>
     </div>
 
+    <div class="card" style="margin-top:20px;">
+      <h3 style="margin-top:0;">Location Catalog</h3>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin-bottom:12px;">
+        <div>
+          <label class="muted">Location Name</label><br>
+          <input id="locLabel" placeholder="Example: Main Store - Lot 1" style="width:260px;">
+        </div>
+
+        <div>
+          <label class="muted">Area</label><br>
+          <select id="locArea">
+            <option value="main">Main Store</option>
+            <option value="annex">Annex</option>
+          </select>
+        </div>
+
+        <button id="addLocationBtn" type="button">Add Location</button>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Location</th>
+              <th>Area</th>
+              <th>Active</th>
+            </tr>
+          </thead>
+          <tbody id="locationCatalogBody">
+            <tr>
+              <td colspan="3" class="muted">No locations yet.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 
   <!-- FORCE LOGIN -->
@@ -189,7 +227,7 @@
   </script>
 
   <!-- LOGIC -->
-  <script type="module" src="./js/settingsPage.js"></script>
+  <script type="module" src="./js/settingsPage.js?v=1"></script>
 
 </body>
 

@@ -67,11 +67,19 @@ const TAB_CONFIG = [
     defaultRoles: ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"],
   },
   {
-    label: "Settings",
+    label: "Wash Settings",
     href: "/settings.html",
     key: "settings",
     defaultRoles: ["admin", "manager"],
   },
+
+  {
+    label: "Location Settings",
+    href: "/location-settings.html",
+    key: "locationsettings",
+    defaultRoles: ["admin", "manager"],
+  },
+
   {
     label: "Booker",
     href: "/booker.html",

@@ -16,7 +16,7 @@ import {
 
 document.getElementById("nav").innerHTML = renderNav("location");
 
-requireRole(["admin", "manager", "advisor", "wash", "valet", "staff", "dropoff", "booker", "qc"]);
+requireRole(["admin", "manager", "advisor", "wash", "valet", "staff", "dropoff", "booker", "qc", "foreman", "tech"]);
 
 const statusEl = document.getElementById("status");
 const msgEl = document.getElementById("msg");
@@ -47,6 +47,8 @@ let currentUser = null;
 let currentProfile = null;
 let currentTicket = null;
 let movingUnsub = null;
+let locationCatalog = [];
+let locationCatalogUnsub = null;
 
 function setMsg(text, ok = true) {
     if (!msgEl) return;
@@ -217,30 +219,121 @@ async function startMove() {
     }
 }
 
-function buildFinalLocation() {
-    const selected = String(finalLocationSelect.value || "").trim();
+function locationKeyFromLabel(label) {
+    return String(label || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+}
+
+function renderLocationDropdown() {
+    finalLocationSelect.innerHTML = "";
+
+    const empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "Select...";
+    finalLocationSelect.appendChild(empty);
+
+    const mainGroup = document.createElement("optgroup");
+    mainGroup.label = "Main Store";
+
+    const annexGroup = document.createElement("optgroup");
+    annexGroup.label = "Annex";
+
+    locationCatalog.forEach((loc) => {
+        const opt = document.createElement("option");
+        opt.value = loc.key || locationKeyFromLabel(loc.label);
+        opt.textContent = loc.label || "";
+        opt.dataset.area = loc.area || "";
+        opt.dataset.label = loc.label || "";
+
+        if (loc.area === "annex") {
+            annexGroup.appendChild(opt);
+        } else {
+            mainGroup.appendChild(opt);
+        }
+    });
+
+    if (mainGroup.children.length) finalLocationSelect.appendChild(mainGroup);
+    if (annexGroup.children.length) finalLocationSelect.appendChild(annexGroup);
+
+    const other = document.createElement("option");
+    other.value = "Other";
+    other.textContent = "Other";
+    finalLocationSelect.appendChild(other);
+}
+
+function startLocationCatalogListener(dealerId) {
+    if (!dealerId) return;
+
+    if (locationCatalogUnsub) {
+        try { locationCatalogUnsub(); } catch { }
+    }
+
+    const q = query(
+        collection(db, "locationCatalog"),
+        where("dealerId", "==", dealerId),
+        where("active", "==", true)
+    );
+
+    locationCatalogUnsub = onSnapshot(q, (snap) => {
+        locationCatalog = snap.docs.map((d) => ({
+            id: d.id,
+            ...d.data()
+        }));
+
+        locationCatalog.sort((a, b) =>
+            String(a.label || "").localeCompare(String(b.label || ""), undefined, { numeric: true })
+        );
+
+        renderLocationDropdown();
+    });
+}
+
+function buildFinalLocationInfo() {
+    const selectedKey = String(finalLocationSelect.value || "").trim();
     const custom = String(customLocationInput.value || "").trim();
 
-    if (selected === "Other") {
-        return custom;
+    if (selectedKey === "Other") {
+        if (!custom) return null;
+
+        return {
+            location: custom,
+            locationKey: locationKeyFromLabel(custom),
+            locationArea: "custom"
+        };
     }
 
-    if (selected && custom) {
-        return `${selected} - ${custom}`;
+    const selectedLoc = locationCatalog.find((l) =>
+        String(l.key || locationKeyFromLabel(l.label)) === selectedKey
+    );
+
+    if (selectedLoc) {
+        return {
+            location: custom ? `${selectedLoc.label} - ${custom}` : selectedLoc.label,
+            locationKey: selectedLoc.key || locationKeyFromLabel(selectedLoc.label),
+            locationArea: selectedLoc.area || ""
+        };
     }
 
-    if (selected) return selected;
-    if (custom) return custom;
+    if (custom) {
+        return {
+            location: custom,
+            locationKey: locationKeyFromLabel(custom),
+            locationArea: "custom"
+        };
+    }
 
-    return "";
+    return null;
 }
 
 async function saveFinalLocation() {
     if (!currentUser || !currentTicket) return;
 
-    const finalLocation = buildFinalLocation();
+    const finalLocationInfo = buildFinalLocationInfo();
 
-    if (!finalLocation) {
+    if (!finalLocationInfo?.location) {
         setMsg("Select or enter a final location.", false);
         return;
     }
@@ -251,18 +344,22 @@ async function saveFinalLocation() {
         const ref = doc(db, "ros", currentTicket.id);
 
         await updateDoc(ref, {
-            location: finalLocation,
+            location: finalLocationInfo.location,
+            locationKey: finalLocationInfo.locationKey,
+            locationArea: finalLocationInfo.locationArea,
             moveStatus: "idle",
             moveCompletedAt: serverTimestamp(),
             moveCompletedBy: currentUser.email || currentUser.uid || "",
             updatedAt: serverTimestamp(),
         });
 
-        currentTicket.location = finalLocation;
+        currentTicket.location = finalLocationInfo.location;
+        currentTicket.locationKey = finalLocationInfo.locationKey;
+        currentTicket.locationArea = finalLocationInfo.locationArea;
         currentTicket.moveStatus = "idle";
         currentTicket.moveCompletedBy = currentUser.email || currentUser.uid || "";
 
-        setMsg(`Vehicle moved to ${finalLocation}.`, true);
+        setMsg(`Vehicle moved to ${finalLocationInfo.location}.`, true);
 
         // Show confirmation briefly before clearing
         setTimeout(() => {
@@ -360,9 +457,11 @@ onAuthStateChanged(auth, async (user) => {
 
     currentProfile = await getUserProfile(user);
     const role = String(currentProfile?.role || "").toLowerCase();
+    const dealerId = Number(currentProfile?.dealerId || 0);
 
     statusEl.textContent = `${user.email || ""} · ${role}`;
 
+    startLocationCatalogListener(dealerId);
     startMovingListener();
     clearMsg();
 });  
