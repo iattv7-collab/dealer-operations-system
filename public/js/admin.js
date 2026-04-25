@@ -23,8 +23,8 @@ import { VIEW_KEYS, DEFAULT_COLUMNS_BY_VIEW, allColumnKeys } from "./ui/columnCa
 const pendingTable = document.getElementById("pendingTable");
 const usersTable = document.getElementById("usersTable");
 
-// Roles now (no tech)
-const ROLES = ["admin", "manager", "advisor", "wash", "valet", "staff", "dropoff", "booker", "qc", "pending"];
+
+const ROLES = ["admin", "manager", "advisor", "wash", "valet", "staff", "dropoff", "booker", "qc", "pending", "foreman", "tech"];
 const TAB_KEYS = [
   "home",
   "scanner",
@@ -42,6 +42,8 @@ const TAB_KEYS = [
   "masterro",
   "archive",
   "rotracker",
+  "foreman",
+  "tech",
 ];
 
 const TAB_LABELS = {
@@ -61,9 +63,11 @@ const TAB_LABELS = {
   masterro: "Master RO",
   archive: "Archive",
   rotracker: "RO Tracker",
+  foreman: "Foreman",
+  tech: "Tech",
 };
 
-const ROLES_FOR_TABS = ["admin", "manager", "advisor", "wash", "valet", "staff", "booker", "qc"];
+const ROLES_FOR_TABS = ["admin", "manager", "advisor", "wash", "valet", "staff", "booker", "qc", "foreman", "tech"];
 
 const DEFAULT_TAB_VISIBILITY = {
   home: ["admin", "manager", "advisor", "wash", "staff", "valet", "booker", "qc"],
@@ -82,6 +86,8 @@ const DEFAULT_TAB_VISIBILITY = {
   masterro: ["admin", "manager", "advisor", "booker"],
   archive: ["admin", "manager", "advisor", "booker"],
   rotracker: ["admin", "manager", "advisor"],
+  foreman: ["admin", "manager", "foreman"],
+  tech: ["admin", "manager", "tech"],
 };
 
 /* -----------------------------

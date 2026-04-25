@@ -14,6 +14,8 @@ export const VALID_ROLES = [
   "dropoff",
   "booker",
   "qc",
+  "foreman",
+  "tech",
   "pending"
 ];
 

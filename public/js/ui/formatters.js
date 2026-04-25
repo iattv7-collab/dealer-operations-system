@@ -19,9 +19,6 @@ export function priorityLabel(t) {
   return "NORMAL";
 }
 
-/**
- * Need-By Risk label:
- */
 export function needByRiskLabel(t, etaMap) {
   const needBy =
     typeof t.needByAtMs === "number" && t.needByAtMs > 0 ? t.needByAtMs : null;
@@ -36,10 +33,6 @@ export function needByRiskLabel(t, etaMap) {
   if (diff <= 15 * 60 * 1000) return "AT RISK";
   return "MISSED";
 }
-
-/* -----------------------------
-   DATE/TIME DISPLAY (GLOBAL RULE)
------------------------------- */
 
 function toMs(v) {
   if (!v) return null;
@@ -83,14 +76,24 @@ export function fmtShortWhen(msLike, nowMs = Date.now()) {
   return `${md} ${fmtClock(d)}`;
 }
 
-/* -----------------------------
-   CELL FORMATTER (GLOBAL VIEW)
------------------------------- */
-
 export function formatCell({ key, t, etaMap, fmtCreated, fmtTs, fmtTime }) {
-
   if (key === "tag") return t.tag || "";
   if (key === "ro") return t.ro || "";
+
+  // Foreman / Tech fields
+  if (key === "year") return t.year || "";
+  if (key === "model") return t.model || "";
+  if (key === "concern") return t.concern || "";
+  if (key === "assignedTech") return t.assignedTech || "";
+
+  if (key === "partsEta") {
+    const ms = toMs(t.partsEta);
+    return ms ? fmtShortWhen(ms) : (t.partsEta || "");
+  }
+
+  if (key === "techDone") return t.techDone ? "✅" : "";
+  if (key === "techComments") return t.techComments || "";
+  if (key === "foremanNotes") return t.foremanNotes || "";
 
   if (key === "priority") return priorityLabel(t);
 
@@ -114,16 +117,14 @@ export function formatCell({ key, t, etaMap, fmtCreated, fmtTs, fmtTime }) {
     return ms ? fmtShortWhen(ms) : "";
   }
 
-  if (key === "needByRisk") {
-    return needByRiskLabel(t, etaMap);
-  }
+  if (key === "needByRisk") return needByRiskLabel(t, etaMap);
 
   if (key === "bay") {
     const b = typeof t.scheduledBay === "number" ? t.scheduledBay : null;
     return b ? String(b) : "";
   }
 
-    if (key === "location") {
+  if (key === "location") {
     const moving = String(t.moveStatus || "").toLowerCase() === "moving";
     const loc = t.location || "";
 
@@ -133,6 +134,7 @@ export function formatCell({ key, t, etaMap, fmtCreated, fmtTs, fmtTime }) {
 
     return loc;
   }
+
   if (key === "status") return t.status || "";
 
   if (key === "created") {
@@ -145,11 +147,8 @@ export function formatCell({ key, t, etaMap, fmtCreated, fmtTs, fmtTime }) {
     return ms ? fmtShortWhen(ms) : (fmtTs ? fmtTs(t.washedAt) : "");
   }
 
-  /* ✅ LAST UPDATE (GLOBAL FORMAT APPLIED) */
   if (key === "updatedAt") {
-
     const ms = toMs(t.updatedAtMs) ?? toMs(t.updatedAt);
-
     if (!ms) return "";
 
     const when = fmtShortWhen(ms);
@@ -165,9 +164,7 @@ export function formatCell({ key, t, etaMap, fmtCreated, fmtTs, fmtTime }) {
         ? who.split("@")[0]
         : who;
 
-    return shortWho
-      ? `${shortWho} · ${when}`
-      : when;
+    return shortWho ? `${shortWho} · ${when}` : when;
   }
 
   if (key === "notes") return t.notes || "";

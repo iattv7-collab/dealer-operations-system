@@ -1,0 +1,65 @@
+<!--
+  File: /public/tech.html
+  Purpose: Technician module view for ArrowFlow.
+  Description: Shows only ROs assigned to the logged-in tech from the main ros collection.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tech</title>
+  <link rel="stylesheet" href="/css/arrowflow.css">
+</head>
+
+<body>
+
+  <div id="nav"></div>
+
+  <p id="status"></p>
+
+  <h2>Tech</h2>
+
+  <div class="card">
+    <div class="grid">
+      <div class="left-col">
+
+        <div class="muted">
+          Technician work view. Review assigned ROs, update tech notes, parts ETA, and completion status.
+        </div>
+
+        <div id="msg" class="muted" style="margin-top:10px;"></div>
+
+        <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+          <label for="searchInput" class="muted">Search:</label>
+          <input id="searchInput" type="text" placeholder="Tag or RO..." style="padding:6px 8px; width:240px;" />
+        </div>
+
+        <div class="table-scroll" style="margin-top:10px;">
+          <table id="ticketsTable"></table>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { requireRole } from "./js/guard.js";
+    import { renderNav } from "./js/nav.js";
+
+    document.getElementById("nav").innerHTML = `
+      <div>
+        <a href="/home.html">Home</a>
+      </div>
+    ` + renderNav("tech");
+
+    requireRole(["tech", "manager", "admin"]);
+  </script>
+
+  <script type="module" src="./js/tech.js"></script>
+
+</body>
+
+</html>

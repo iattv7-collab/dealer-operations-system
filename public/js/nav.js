@@ -102,6 +102,19 @@ const TAB_CONFIG = [
     key: "rotracker",
     defaultRoles: ["admin", "manager", "advisor"],
   },
+  {
+    label: "Foreman",
+    href: "/foreman.html",
+    key: "foreman",
+    defaultRoles: ["admin", "manager", "foreman"],
+  },
+  {
+    label: "Tech",
+    href: "/tech.html",
+    key: "tech",
+    defaultRoles: ["admin", "manager", "tech"],
+  },
+
 ];
 
 function escapeHtml(s) {

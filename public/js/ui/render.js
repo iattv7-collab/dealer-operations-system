@@ -1,10 +1,7 @@
 // File: public/js/ui/render.js
-// Purpose: Renders one ticket row, including placeholder cells for split action columns
+// Purpose: Renders one ticket row, including Foreman assigned-tech dropdown and split action placeholders.
 
-// public/js/ui/render.js
-
-import { auth, db } from "../firebase.js";
-import { capsFor } from "./roles.js";
+import { db } from "../firebase.js";
 import { el } from "./dom.js";
 import { formatCell } from "./formatters.js";
 import { fmtCreated, fmtTs, fmtTime } from "../rosWash.js";
@@ -15,12 +12,9 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 export function renderRow(t, role, cols, etaMap) {
-  const caps = capsFor(role);
   const tr = el("tr", { "data-id": t.id });
 
   cols.forEach((c) => {
-
-    // ✅ Split action placeholders (presentation only, no logic change)
     if (
       c.key === "requestRewash" ||
       c.key === "pickupRequestAction" ||
@@ -42,19 +36,12 @@ export function renderRow(t, role, cols, etaMap) {
       return;
     }
 
-
-    // ✅ RO is now ALWAYS read-only everywhere
     if (c.key === "ro") {
-      tr.appendChild(
-        el("td", { text: t.ro || "" })
-      );
+      tr.appendChild(el("td", { text: t.ro || "" }));
       return;
     }
 
-
-    // booked / qc indicators
     if (c.key === "cpBooked" || c.key === "wtyBooked" || c.key === "qcDone") {
-
       const td = el("td");
 
       let at = null;
@@ -76,49 +63,66 @@ export function renderRow(t, role, cols, etaMap) {
       }
 
       const isDone = !!at;
-
       td.textContent = isDone ? "✅" : "";
 
       if (isDone) {
-
         const when = fmtTs(at) || "";
-
-        td.title =
-          `By: ${by || "unknown"}${when ? " — " + when : ""}`;
-
+        td.title = `By: ${by || "unknown"}${when ? " — " + when : ""}`;
         td.style.cursor = "help";
-
       }
 
       tr.appendChild(td);
-
       return;
-
     }
 
+    if (c.key === "assignedTech" && role === "foreman") {
+      const td = el("td");
+      const select = document.createElement("select");
 
-    // default rendering
+      const empty = document.createElement("option");
+      empty.value = "";
+      empty.textContent = "--";
+      select.appendChild(empty);
+
+      const techList = ["Alex", "John", "Mike"];
+
+      techList.forEach((name) => {
+        const opt = document.createElement("option");
+        opt.value = name;
+        opt.textContent = name;
+        if (t.assignedTech === name) opt.selected = true;
+        select.appendChild(opt);
+      });
+
+      select.onchange = async () => {
+        try {
+          await updateDoc(doc(db, "ros", t.id), {
+            assignedTech: select.value,
+            updatedAt: serverTimestamp(),
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      };
+
+      td.appendChild(select);
+      tr.appendChild(td);
+      return;
+    }
+
     tr.appendChild(
-
       el("td", {
-
         text: formatCell({
-
           key: c.key,
           t,
           etaMap,
           fmtCreated,
           fmtTs,
           fmtTime
-
         })
-
       })
-
     );
-
   });
 
   return tr;
-
 }

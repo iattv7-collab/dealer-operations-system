@@ -33,7 +33,11 @@ export const ROLE_CAPS = {
   advisor: { canNeedBy: true, canRewash: true, canWashOps: false, canArchive: false, canEditRO: true },
 
   manager: { canNeedBy: true, canRewash: true, canWashOps: true, canArchive: true, canEditRO: true },
-  admin: { canNeedBy: true, canRewash: true, canWashOps: true, canArchive: true, canEditRO: true }
+  admin: { canNeedBy: true, canRewash: true, canWashOps: true, canArchive: true, canEditRO: true },
+
+  foreman: { canNeedBy: false, canRewash: false, canWashOps: false, canArchive: false, canEditRO: true },
+  tech: { canNeedBy: false, canRewash: false, canWashOps: false, canArchive: false, canEditRO: true },
+
 };
 
 export function capsFor(role) {

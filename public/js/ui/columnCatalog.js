@@ -273,6 +273,71 @@ export const COLUMN_CATALOG = {
     editRoles: [],
   },
 
+  year: {
+    key: "year",
+    label: "Year",
+    field: "year",
+    type: "text",
+    editRoles: ["advisor", "manager", "admin"],
+  },
+
+  model: {
+    key: "model",
+    label: "Model",
+    field: "model",
+    type: "text",
+    editRoles: ["advisor", "manager", "admin"],
+  },
+
+  concern: {
+    key: "concern",
+    label: "Concern",
+    field: "concern",
+    type: "text",
+    editRoles: ["advisor", "manager", "admin"],
+  },
+
+  assignedTech: {
+    key: "assignedTech",
+    label: "Tech",
+    field: "assignedTech",
+    type: "text",
+    editRoles: ["foreman", "manager", "admin"],
+  },
+
+  partsEta: {
+    key: "partsEta",
+    label: "Parts ETA",
+    field: "partsEta",
+    type: "time",
+    editRoles: ["foreman", "tech", "manager", "admin"],
+  },
+
+  techDone: {
+    key: "techDone",
+    label: "Tech Done",
+    field: "techDone",
+    type: "badge",
+    editRoles: ["tech", "foreman", "manager", "admin"],
+  },
+
+  techComments: {
+    key: "techComments",
+    label: "Tech Notes",
+    field: "techComments",
+    type: "text",
+    editRoles: ["tech", "manager", "admin"],
+  },
+
+  foremanNotes: {
+    key: "foremanNotes",
+    label: "Foreman Notes",
+    field: "foremanNotes",
+    type: "text",
+    editRoles: ["foreman", "manager", "admin"],
+  },
+
+
   // Add more columns later safely without touching views.
 };
 
@@ -406,6 +471,33 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "qcDone",
     "qcDoneAction",
   ],
+
+  foreman: [
+    "ro",
+    "tag",
+    "year",
+    "model",
+    "concern",
+    "assignedTech",
+    "location",
+    "partsEta",
+    "techDone",
+    "foremanNotes",
+  ],
+
+  tech: [
+    "ro",
+    "tag",
+    "year",
+    "model",
+    "concern",
+    "assignedTech",
+    "location",
+    "partsEta",
+    "techDone",
+    "techComments",
+  ],
+
 };
 
 // Helpers

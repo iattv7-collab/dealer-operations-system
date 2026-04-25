@@ -1,0 +1,66 @@
+<!--
+  File: /public/foreman.html
+  Purpose: Foreman module view for ArrowFlow.
+  Description: Shows the Foreman work list from the main RO list / ros collection.
+-->
+
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Foreman</title>
+    <link rel="stylesheet" href="/css/arrowflow.css">
+</head>
+
+<body>
+
+    <div id="nav"></div>
+
+    <p id="status"></p>
+
+    <h2>Foreman</h2>
+
+    <div class="card">
+        <div class="grid">
+            <div class="left-col">
+
+                <div class="muted">
+                    Foreman shop view. Assign techs, monitor work, and review RO progress.
+                </div>
+
+                <div id="msg" class="muted" style="margin-top:10px;"></div>
+
+                <div style="margin-top:10px; display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <label for="searchInput" class="muted">Find RO / Tag / Customer:</label>
+                    <input id="searchInput" type="text" placeholder="RO, tag, or customer..."
+                        style="padding:6px 8px; width:260px;" />
+                </div>
+
+                <div class="table-scroll" style="margin-top:10px;">
+                    <table id="ticketsTable"></table>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { requireRole } from "./js/guard.js";
+        import { renderNav } from "./js/nav.js";
+
+        document.getElementById("nav").innerHTML = `
+      <div>
+        <a href="/home.html">Home</a>
+      </div>
+    ` + renderNav("foreman");
+
+        requireRole(["foreman", "manager", "admin"]);
+    </script>
+
+    <script type="module" src="./js/foreman.js"></script>
+
+</body>
+
+</html>
