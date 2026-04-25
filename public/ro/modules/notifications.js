@@ -1,6 +1,6 @@
 // public/ro/modules/notifications.js
-import { db } from "../firebase.js";
-import { doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { db, auth } from "../firebase.js";
+import { doc, setDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 // Firebase Messaging (must already be configured in your firebase.js)
 import {
@@ -10,7 +10,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-messaging.js";
 
 // This is where you store the token (same as Settings)
-const PRIVATE_DOC = doc(db, "privateSettings", "me");
+
 
 // IMPORTANT:
 // Put your existing VAPID key here (the one you already use for getToken).
@@ -19,6 +19,17 @@ const VAPID_KEY =
 
 function $(id) {
   return document.getElementById(id);
+}
+
+function getDeviceType() {
+  const ua = navigator.userAgent || "";
+  return /Android|iPhone|iPad|iPod/i.test(ua) ? "mobile" : "desktop";
+}
+
+function currentDeviceDoc() {
+  const user = auth.currentUser;
+  if (!user) throw new Error("No signed-in user.");
+  return doc(db, "users", user.uid, "notificationDevices", getDeviceType());
 }
 
 /**
@@ -36,11 +47,11 @@ async function ensureServiceWorker() {
 
 async function loadRemoteToken() {
   try {
-    const snap = await getDoc(PRIVATE_DOC);
+    const snap = await getDoc(currentDeviceDoc());
     if (!snap.exists()) return [];
 
-    const d = snap.data() || {};
-    return Array.isArray(d.fcmTokens) ? d.fcmTokens : [];
+    const token = snap.data()?.token || "";
+    return token ? [token] : [];
   } catch {
     return [];
   }
@@ -49,20 +60,11 @@ async function loadRemoteToken() {
 async function saveRemoteToken(token) {
   if (!token) return;
 
-  const snap = await getDoc(PRIVATE_DOC);
-  const existing = snap.exists() ? (snap.data().fcmTokens || []) : [];
-
-  // prevent duplicates
-  const updated = Array.from(new Set([...existing, token]));
-
-  await setDoc(
-    PRIVATE_DOC,
-    {
-      fcmTokens: updated,
-      fcmTokenUpdatedAtMs: Date.now(),
-    },
-    { merge: true }
-  );
+  await setDoc(currentDeviceDoc(), {
+    token,
+    deviceType: getDeviceType(),
+    updatedAtMs: Date.now()
+  }, { merge: true });
 }
 
 function labelForState(state) {
@@ -115,15 +117,8 @@ async function disableThisDevice() {
   await unsubscribePushManager(reg);
 
   try {
-    const snap = await getDoc(PRIVATE_DOC);
-    const existing = snap.exists() ? (snap.data().fcmTokens || []) : [];
-    const updated = existing.filter(t => t !== currentToken);
-
     console.log("DISABLE → currentToken:", currentToken);
-    console.log("DISABLE → existing tokens:", existing);
-    console.log("DISABLE → updated tokens:", updated);
-
-    await setDoc(PRIVATE_DOC, { fcmTokens: updated }, { merge: true });
+    await deleteDoc(currentDeviceDoc());
   } catch {
     // ignore
   }
@@ -160,11 +155,9 @@ async function enableThisDevice() {
     alert("Could not get notification token.");
     return false;
   }
-
   await saveRemoteToken(token);
   return true;
 }
-
 /* ===========================
    BUTTON COLOR INDICATOR
 =========================== */
