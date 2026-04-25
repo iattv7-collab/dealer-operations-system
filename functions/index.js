@@ -250,35 +250,6 @@ exports.deleteUser = functions.https.onCall(async (data, context) => {
 // RO TRACKER PUSH NOTIFICATIONS (FIXED)
 // =====================================================
 
-async function removeFailedTokens(settingsRef, tokens, resp) {
-  try {
-    if (!resp || !Array.isArray(resp.responses) || !Array.isArray(tokens)) return tokens;
-
-    const badTokens = [];
-
-    resp.responses.forEach((r, idx) => {
-      if (r && r.success === false) {
-        badTokens.push(tokens[idx]);
-      }
-    });
-
-    if (!badTokens.length) return tokens;
-
-    const updated = tokens.filter(t => !badTokens.includes(t));
-
-    await settingsRef.set({
-      fcmTokens: updated,
-      fcmTokenCleanedAtMs: Date.now()
-    }, { merge: true });
-
-    console.log("Removed failed tokens:", badTokens.length);
-    return updated;
-  } catch (err) {
-    console.error("Failed token cleanup error:", err);
-    return tokens;
-  }
-}
-
 
 async function writeUserNotification(userId, payload) {
   try {
@@ -304,6 +275,45 @@ async function writeUserNotification(userId, payload) {
   }
 }
 
+async function getUserDeviceTokens(userId) {
+  if (!userId) return [];
+
+  const snap = await admin.firestore()
+    .collection("users")
+    .doc(String(userId))
+    .collection("notificationDevices")
+    .get();
+
+  const tokens = [];
+
+  snap.forEach((d) => {
+    const token = String(d.data()?.token || "").trim();
+    if (token) tokens.push(token);
+  });
+
+  return Array.from(new Set(tokens));
+}
+
+async function sendPushToUser(userId, payload) {
+  const tokens = await getUserDeviceTokens(userId);
+
+  if (!tokens.length) {
+    console.log("No device tokens for user:", userId);
+    return null;
+  }
+
+  return admin.messaging().sendEachForMulticast({
+    tokens,
+    notification: {
+      title: String(payload.title || "Notification"),
+      body: String(payload.body || "")
+    },
+    data: {
+      url: String(payload.url || "/ro/index.html")
+    }
+  });
+}
+
 const ARCHIVE_COLLECTIONS = ["followup", "tickets_archive"];
 
 exports.followUpScheduler = functions.pubsub
@@ -314,54 +324,24 @@ exports.followUpScheduler = functions.pubsub
     const now = Date.now();
 
     const settingsRef = db.doc("privateSettings/me");
-    const settingsSnap = await settingsRef.get();
-    if (!settingsSnap.exists) return null;
+const settingsSnap = await settingsRef.get();
+const settings = settingsSnap.exists ? (settingsSnap.data() || {}) : {};
 
-    const settings = settingsSnap.data() || {};
-    let tokens = Array.isArray(settings.fcmTokens)
-      ? settings.fcmTokens.filter(Boolean)
-      : [];
-
-    console.log("Scheduler start → tokens:", tokens.length);
-
-    if (!tokens.length) {
-      console.log("No tokens → exiting");
-      return null;
-    }
+console.log("Scheduler start");
 
     // =========================
     // TEST PUSH (5 sec button)
     // =========================
-    if (settings.followUpTestAtMs && settings.followUpTestAtMs <= now) {
-      console.log("Sending TEST push...");
+   if (settings.followUpTestAtMs && settings.followUpTestAtMs <= now) {
+  console.log("TEST push skipped after per-user notification change.");
 
-      try {
-        const resp = await admin.messaging().sendEachForMulticast({
-          tokens,
-          notification: {
-            title: "Test Notification",
-            body: "Push is working ✅"
-          },
-          data: {
-            url: "/ro/index.html"
-          }
-        });
+  await settingsRef.set({
+    followUpTestAtMs: null,
+    followUpLastTestSentAtMs: now
+  }, { merge: true });
 
-        console.log("TEST push result:", resp.successCount, resp.failureCount);
-
-        tokens = await removeFailedTokens(settingsRef, tokens, resp);
-
-        await settingsRef.set({
-          followUpTestAtMs: null,
-          followUpLastTestSentAtMs: now
-        }, { merge: true });
-
-      } catch (err) {
-        console.error("TEST push failed:", err);
-      }
-
-      return null;
-    }
+  return null;
+}
 
     // =========================
     // ARCHIVE FOLLOW-UP PUSH
@@ -385,20 +365,17 @@ exports.followUpScheduler = functions.pubsub
           const notifUrl = `/ro/index.html?fu=1&ro=${encodeURIComponent(ro)}&slot=archive`;
 
           try {
-            const resp = await admin.messaging().sendEachForMulticast({
-              tokens,
-              notification: {
-                title: "Follow Up Reminder",
-                body: `RO ${ro} needs follow-up`
-              },
-              data: {
-                url: notifUrl
-              }
-            });
+            if (d.advisorId) {
+  const resp = await sendPushToUser(d.advisorId, {
+    title: "Follow Up Reminder",
+    body: `RO ${ro} needs follow-up`,
+    url: notifUrl
+  });
 
-            console.log("Archive push result:", resp.successCount, resp.failureCount);
-
-            tokens = await removeFailedTokens(settingsRef, tokens, resp);
+  if (resp) {
+    console.log("Archive push result:", resp.successCount, resp.failureCount);
+  }
+}
 
             await docSnap.ref.set({
               pushAfterArchiveSentAtMs: now
@@ -447,18 +424,17 @@ exports.followUpScheduler = functions.pubsub
       const waiterUrl = `/ro/index.html?ro=${encodeURIComponent(ro)}&waiter=1`;
 
       try {
-        const resp = await admin.messaging().sendEachForMulticast({
-          tokens,
-          notification: {
-            title: "Waiter Reminder",
-            body: `RO ${ro} is still waiting`
-          },
-          data: {
-            url: waiterUrl
-          }
-        });
+        if (d.advisorId) {
+  const resp = await sendPushToUser(d.advisorId, {
+    title: "Waiter Reminder",
+    body: `RO ${ro} is still waiting`,
+    url: waiterUrl
+  });
 
-        tokens = await removeFailedTokens(settingsRef, tokens, resp);
+  if (resp) {
+    console.log("Waiter push result:", resp.successCount, resp.failureCount);
+  }
+}
 
         await docSnap.ref.set({
           waiterLastSentAtMs: now,
