@@ -317,6 +317,17 @@
       return "";
     }
 
+    function dateInputToMMDDYYYY(value) {
+      const s = String(value || "").trim();
+      if (!s) return "";
+
+      const parts = s.split("-");
+      if (parts.length !== 3) return s;
+
+      return `${parts[1]}/${parts[2]}/${parts[0]}`;
+    }
+
+
     async function existsByField(field, value) {
       const v = clean(value);
       if (!v) return false;
@@ -482,7 +493,7 @@
           customerName,
           phone,
           tag,
-          roDate,
+          roDate: dateInputToMMDDYYYY(roDate) || new Date().toLocaleDateString("en-US"),
           promiseDate,
           model,
           brand: clean(mBrand.value),
@@ -493,7 +504,7 @@
           notes: "",
           techVideo: false,
           readyCalled: false,
-          calledAtMs: null,
+          calledAtMs: Date.now(),
           nextUpdateAtMs: null,
           customerWaiting: false,
           hasLoaner: false,

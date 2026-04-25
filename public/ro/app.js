@@ -390,16 +390,21 @@ function rowClass(r) {
   if (videoSent && ready) return "row-ready";
   if (waiter) return "row-waiter";
 
-  const now = new Date();
+  const now = Date.now();
   const nextMs = r.nextUpdateAtMs || null;
 
   if (nextMs) {
-    const next = new Date(nextMs);
-    const nextOnly = new Date(next.getFullYear(), next.getMonth(), next.getDate());
-    const todayOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    if (nextMs < now) return "row-past";
 
-    if (nextOnly < todayOnly) return "row-past";
-    if (nextOnly.getTime() === todayOnly.getTime()) return "row-today";
+    const next = new Date(nextMs);
+    const today = new Date();
+
+    const sameDay =
+      next.getFullYear() === today.getFullYear() &&
+      next.getMonth() === today.getMonth() &&
+      next.getDate() === today.getDate();
+
+    if (sameDay) return "row-today";
   }
 
   return "";
@@ -652,7 +657,7 @@ function tdWaiter(r, tr) {
       await safeUpdate(r.ro, {
         customerWaiting: true,
         waiterMarkedAtMs: now,
-        waiterNextReminderAtMs: now + (2.5 * 60 * 60 * 1000),
+        waiterNextReminderAtMs: now + (1 * 60 * 60 * 1000),
         waiterReminderCount: 0,
         waiterLastSentAtMs: null
       });
