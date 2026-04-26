@@ -54,20 +54,6 @@
             </select>
           </label>
         </div>
-
-        <div>
-          <label>
-            Location (required)
-            <select id="location">
-              <option value="" selected>Select…</option>
-              <option value="Service Lane">Service Lane</option>
-              <option value="Wash Bay">Wash Bay</option>
-              <option value="Front Row">Front Row</option>
-              <option value="Back Lot">Back Lot</option>
-              <option value="Other">Other</option>
-            </select>
-          </label>
-        </div>
       </div>
 
       <label>
@@ -112,7 +98,7 @@
   <script type="module">
     import { auth, db } from "./js/firebase.js";
     import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
-    import { collection, getDocs, query, where } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+    import { collection, getDocs, query, where, onSnapshot } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
     import { requireRole, getUserDealerId } from "./js/guard.js";
     import { renderNav } from "./js/nav.js";
@@ -127,7 +113,6 @@
 
     const notesEl = document.getElementById("notes");
     const waiterEl = document.getElementById("waiter");
-    const locationEl = document.getElementById("location");
 
     const msgEl = document.getElementById("msg");
     const rowsEl = document.getElementById("rows");
@@ -147,7 +132,9 @@
     let currentUser = null;
     let selectedTicket = null;
 
-    onAuthStateChanged(auth, (u) => { currentUser = u; });
+    onAuthStateChanged(auth, async (u) => {
+      currentUser = u;
+    });
 
     function clean(v) {
       return String(v || "").trim();
@@ -169,7 +156,6 @@
 
       notesEl.value = "";
       waiterEl.value = "false";
-      locationEl.value = "";
     }
 
     function fillPreview(ticket) {
@@ -187,7 +173,6 @@
       pWaiter.textContent = ticket.customerWaiting ? "Yes" : "No";
 
       waiterEl.value = ticket.customerWaiting ? "true" : "false";
-      if (clean(ticket.location)) locationEl.value = clean(ticket.location);
 
       const alreadyInWash = ["queued", "washing"].includes(washStatus);
       alreadyInWashMsg.style.display = alreadyInWash ? "block" : "none";
@@ -211,6 +196,7 @@
 
       try {
         const dealerId = await getUserDealerId(currentUser);
+
         if (!dealerId) {
           msgEl.className = "err";
           msgEl.textContent = "Missing dealerId on user profile.";
@@ -291,16 +277,9 @@
         return;
       }
 
-      const location = clean(locationEl.value);
+      const location = clean(selectedTicket.location);
       const waiter = waiterEl.value === "true";
       const notes = clean(notesEl.value);
-
-      if (!location) {
-        msgEl.className = "err";
-        msgEl.textContent = "Location is required.";
-        locationEl.focus();
-        return;
-      }
 
       try {
         sendBtn.disabled = true;

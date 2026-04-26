@@ -365,6 +365,7 @@
     const reauth = url.searchParams.get("reauth");
 
     if (!reauth) {
+      sessionStorage.setItem("postLoginNext", "/admin.html?reauth=1");
       await signOut(auth);
       window.location.href = "/login.html?next=" + encodeURIComponent("/admin.html?reauth=1");
     }

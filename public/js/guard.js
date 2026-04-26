@@ -105,7 +105,14 @@ export function requireRole(requiredRoles = []) {
       }
 
       if (requiredRoles.length && !requiredRoles.includes(role)) {
-        window.location.href = "/index.html";
+        console.warn("Role blocked by requireRole:", {
+          role,
+          requiredRoles,
+          email: user.email,
+          path: window.location.pathname
+        });
+
+        window.location.href = "/home.html";
         return;
       }
 

@@ -270,7 +270,12 @@
           return;
         }
 
-        const nextPath = getNextPath();
+        const nextPath = getNextPath() || sessionStorage.getItem("postLoginNext");
+
+        if (nextPath) {
+          sessionStorage.removeItem("postLoginNext");
+        }
+
         window.location.href = nextPath || "/home.html";
       } catch (err) {
         errorEl.textContent = "Sign in failed. Please check your email and password.";
