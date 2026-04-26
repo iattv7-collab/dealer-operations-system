@@ -1,7 +1,10 @@
 // ==============================================
 // LOANER MODULE — VIN SCANNER (FRONTEND)
-// PURPOSE: Capture VIN from camera → send to backend
+// PURPOSE: Capture VIN from camera → send to backend OCR
 // ==============================================
+
+const SCAN_ENDPOINT =
+  "https://us-central1-dealer-wash-system.cloudfunctions.net/scanVIN";
 
 function normalizeVin(text = "") {
   return String(text)
@@ -36,9 +39,40 @@ export async function decodeVinLive(vin = "") {
   };
 }
 
+async function makeCropBlob(videoEl, zone, quality = 0.9) {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  const x = Math.max(0, Math.floor(zone.x));
+  const y = Math.max(0, Math.floor(zone.y));
+  const w = Math.max(1, Math.floor(zone.w));
+  const h = Math.max(1, Math.floor(zone.h));
+
+  canvas.width = w;
+  canvas.height = h;
+
+  ctx.drawImage(videoEl, x, y, w, h, 0, 0, w, h);
+
+  return await new Promise((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", quality)
+  );
+}
+
+async function sendBlob(blob, zoneName) {
+  const fd = new FormData();
+  fd.append("file", blob, `${zoneName}.jpg`);
+
+  const res = await fetch(SCAN_ENDPOINT, {
+    method: "POST",
+    body: fd
+  });
+
+  const json = await res.json().catch(() => null);
+  return normalizeVin(json?.vin || "");
+}
+
 // =========================
-// CAMERA → BACKEND SCAN
-// tries repeatedly for up to 10 seconds
+// CAMERA → BACKEND OCR SCAN
 // =========================
 export async function scanVinWithCamera(videoEl, statusEl) {
   if (!videoEl) throw new Error("scannerVideo not found");
@@ -46,10 +80,27 @@ export async function scanVinWithCamera(videoEl, statusEl) {
   if (statusEl) statusEl.textContent = "Opening camera...";
 
   const stream = await navigator.mediaDevices.getUserMedia({
-    video: { facingMode: "environment" }
+    video: {
+      facingMode: { ideal: "environment" },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      focusMode: { ideal: "continuous" },
+      exposureMode: { ideal: "continuous" },
+      whiteBalanceMode: { ideal: "continuous" }
+    },
+    audio: false
   });
 
+  videoEl.setAttribute("playsinline", "true");
+  videoEl.setAttribute("autoplay", "true");
+  videoEl.muted = true;
   videoEl.srcObject = stream;
+
+  await new Promise((resolve) => {
+    if (videoEl.readyState >= 1) return resolve();
+    videoEl.onloadedmetadata = () => resolve();
+  });
+
   await videoEl.play();
 
   const stopCamera = () => {
@@ -61,56 +112,55 @@ export async function scanVinWithCamera(videoEl, statusEl) {
 
   const start = Date.now();
   const timeoutMs = 10000;
-  const attemptDelayMs = 1200;
 
   try {
+    // Small focus settle
+    await new Promise((r) => setTimeout(r, 500));
+
     while (Date.now() - start < timeoutMs) {
+      const vw = videoEl.videoWidth;
+      const vh = videoEl.videoHeight;
+
+      if (!vw || !vh) {
+        await new Promise((r) => setTimeout(r, 300));
+        continue;
+      }
+
       if (statusEl) {
         const elapsed = Date.now() - start;
         const left = Math.max(1, Math.ceil((timeoutMs - elapsed) / 1000));
         statusEl.textContent = `Scanning VIN... ${left}s`;
       }
 
-      // let camera refocus before each attempt
-      await new Promise((r) => setTimeout(r, attemptDelayMs));
+      const zones = [
+        { name: "full", x: 0, y: 0, w: vw, h: vh },
+        { name: "center", x: vw * 0.08, y: vh * 0.12, w: vw * 0.84, h: vh * 0.76 },
+        { name: "upper", x: vw * 0.05, y: vh * 0.05, w: vw * 0.9, h: vh * 0.45 },
+        { name: "middle", x: vw * 0.05, y: vh * 0.35, w: vw * 0.9, h: vh * 0.35 },
+        { name: "lower", x: vw * 0.05, y: vh * 0.58, w: vw * 0.9, h: vh * 0.37 },
+        { name: "left", x: vw * 0.0, y: vh * 0.15, w: vw * 0.65, h: vh * 0.75 },
+        { name: "right", x: vw * 0.35, y: vh * 0.15, w: vw * 0.65, h: vh * 0.75 }
+      ];
 
-      const canvas = document.createElement("canvas");
-      canvas.width = videoEl.videoWidth;
-      canvas.height = videoEl.videoHeight;
+      for (const zone of zones) {
+        const blob = await makeCropBlob(videoEl, zone, 0.9);
+        if (!blob) continue;
 
-      const ctx = canvas.getContext("2d");
-      ctx.drawImage(videoEl, 0, 0);
+        if (statusEl) statusEl.textContent = `Reading VIN...`;
 
-      const blob = await new Promise((resolve) =>
-        canvas.toBlob(resolve, "image/jpeg", 0.9)
-      );
+        const vin = await sendBlob(blob, zone.name);
 
-      if (!blob) continue;
+        if (isValidVin(vin)) {
+          stopCamera();
 
-      const fd = new FormData();
-      fd.append("file", blob, "vin.jpg");
-
-      if (statusEl) statusEl.textContent = "Reading VIN...";
-
-      const res = await fetch(
-        "https://us-central1-dealer-wash-system.cloudfunctions.net/scanVIN",
-        {
-          method: "POST",
-          body: fd
+          return {
+            vin,
+            reason: "VIN detected"
+          };
         }
-      );
-
-      const data = await res.json().catch(() => ({}));
-      const vin = normalizeVin(data?.vin || "");
-
-      if (isValidVin(vin)) {
-        stopCamera();
-
-        return {
-          vin,
-          reason: "VIN detected"
-        };
       }
+
+      await new Promise((r) => setTimeout(r, 700));
     }
 
     stopCamera();

@@ -122,14 +122,37 @@
       font-weight: bold;
     }
 
-    .returns-grid th:nth-child(1) { width: 180px; }
-    .returns-grid th:nth-child(2) { width: 70px; }
-    .returns-grid th:nth-child(3) { width: 110px; }
-    .returns-grid th:nth-child(4) { width: 160px; }
-    .returns-grid th:nth-child(5) { width: 170px; }
-    .returns-grid th:nth-child(6) { width: 90px; }
-    .returns-grid th:nth-child(7) { width: 70px; }
-    .returns-grid th:nth-child(8) { width: 220px; }
+    .returns-grid th:nth-child(1) {
+      width: 180px;
+    }
+
+    .returns-grid th:nth-child(2) {
+      width: 70px;
+    }
+
+    .returns-grid th:nth-child(3) {
+      width: 110px;
+    }
+
+    .returns-grid th:nth-child(4) {
+      width: 160px;
+    }
+
+    .returns-grid th:nth-child(5) {
+      width: 170px;
+    }
+
+    .returns-grid th:nth-child(6) {
+      width: 90px;
+    }
+
+    .returns-grid th:nth-child(7) {
+      width: 70px;
+    }
+
+    .returns-grid th:nth-child(8) {
+      width: 220px;
+    }
   </style>
 </head>
 
@@ -169,7 +192,7 @@
         <input id="manualVin" placeholder="Enter VIN">
       </div>
 
-      <video id="scannerVideo" autoplay playsinline muted></video>
+      <video id="scannerVideo" autoplay playsinline muted style="display:none;"></video>
       <div id="scannerStatus" class="msg"></div>
 
       <div class="return-form">
@@ -217,7 +240,8 @@
     });
   </script>
 
-  <script type="module" src="/js/loanerReturns.js"></script>
+  <script type="module" src="/js/loanerReturns.js?v=4"></script>
 
 </body>
+
 </html>

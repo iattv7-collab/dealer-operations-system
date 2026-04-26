@@ -27,6 +27,33 @@ document.addEventListener("DOMContentLoaded", () => {
   const video = $("scannerVideo");
   const status = $("scannerStatus");
 
+  function openScannerFullscreen() {
+    if (!video) return;
+
+    video.style.display = "block";
+    video.style.position = "fixed";
+    video.style.top = "0";
+    video.style.left = "0";
+    video.style.width = "100vw";
+    video.style.height = "100vh";
+    video.style.objectFit = "cover";
+    video.style.zIndex = "9999";
+    video.style.background = "#000";
+
+    if (video.requestFullscreen) {
+      video.requestFullscreen().catch(() => { });
+    }
+  }
+
+  function closeScannerFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => { });
+    }
+
+    video.removeAttribute("style");
+    video.style.display = "none";
+  }
+
   // =========================
   // TIME STAMP
   // =========================
@@ -76,24 +103,26 @@ document.addEventListener("DOMContentLoaded", () => {
   // SCAN BUTTON (FIXED)
   // =========================
   $("scanReturnBtn").addEventListener("click", async () => {
-
     try {
-      status.textContent = "Opening camera...";
+      status.textContent = "Scanning VIN...";
+      openScannerFullscreen();
 
       const res = await scanVinWithCamera(video, status);
 
+      closeScannerFullscreen();
+
       if (res?.vin) {
         await fillReturnFromVin(res.vin);
-        status.textContent = "VIN captured";
+        status.textContent = "VIN captured. Verify before saving.";
       } else {
         status.textContent = res?.reason || "No VIN found";
       }
 
     } catch (err) {
+      closeScannerFullscreen();
       console.error("Scan failed:", err);
       status.textContent = err.message || "Camera error";
       $("returnMsg").textContent = err.message || "Camera error";
-      alert(err.message);
     }
   });
 
@@ -113,67 +142,67 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
   $("saveReturnBtn").addEventListener("click", async () => {
-  const vin = normalizeVin($("vin").value);
+    const vin = normalizeVin($("vin").value);
 
-  if (!vin) {
-    $("returnMsg").textContent = "VIN is required";
-    return;
-  }
+    if (!vin) {
+      $("returnMsg").textContent = "VIN is required";
+      return;
+    }
 
-  const returnedAtText = $("returnedAt")?.value || "";
-  const receivedBy = $("receivedBy")?.value || "";
-  const mileage = $("mileage")?.value || "";
-  const fuelLevel = $("fuelLevel")?.value || "";
-  const damageNotes = $("damageNotes")?.value || "";
-  const year = $("year")?.value || "";
-  const model = $("model")?.value || "";
+    const returnedAtText = $("returnedAt")?.value || "";
+    const receivedBy = $("receivedBy")?.value || "";
+    const mileage = $("mileage")?.value || "";
+    const fuelLevel = $("fuelLevel")?.value || "";
+    const damageNotes = $("damageNotes")?.value || "";
+    const year = $("year")?.value || "";
+    const model = $("model")?.value || "";
 
-  await addDoc(collection(db, "loanerReturns"), {
-    vin,
-    year,
-    model,
-    returnedAtText,
-    receivedBy,
-    mileage,
-    fuelLevel,
-    damageNotes,
-    createdAt: serverTimestamp()
+    await addDoc(collection(db, "loanerReturns"), {
+      vin,
+      year,
+      model,
+      returnedAtText,
+      receivedBy,
+      mileage,
+      fuelLevel,
+      damageNotes,
+      createdAt: serverTimestamp()
+    });
+
+    const fleetRef = doc(db, "loanerFleet", vin);
+    const fleetSnap = await getDoc(fleetRef);
+
+    if (fleetSnap.exists()) {
+      await setDoc(
+        fleetRef,
+        {
+          status: "At Wash",
+          assignedRo: "",
+          lastReturnedAt: returnedAtText,
+          lastReceivedBy: receivedBy,
+          lastMileage: mileage,
+          lastFuelLevel: fuelLevel,
+          lastDamageNotes: damageNotes,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+
+      $("returnMsg").textContent = "Saved and moved to At Wash";
+    } else {
+      $("returnMsg").textContent = "Return saved, but VIN was not found in Fleet";
+    }
+
+    [
+      "manualVin", "vin", "year", "model",
+      "returnedAt", "receivedBy",
+      "mileage", "fuelLevel", "damageNotes"
+    ].forEach(id => {
+      if ($(id)) $(id).value = "";
+    });
+
+    await load();
   });
-
-  const fleetRef = doc(db, "loanerFleet", vin);
-  const fleetSnap = await getDoc(fleetRef);
-
-  if (fleetSnap.exists()) {
-    await setDoc(
-      fleetRef,
-      {
-        status: "At Wash",
-        assignedRo: "",
-        lastReturnedAt: returnedAtText,
-        lastReceivedBy: receivedBy,
-        lastMileage: mileage,
-        lastFuelLevel: fuelLevel,
-        lastDamageNotes: damageNotes,
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
-
-    $("returnMsg").textContent = "Saved and moved to At Wash";
-  } else {
-    $("returnMsg").textContent = "Return saved, but VIN was not found in Fleet";
-  }
-
-  [
-    "manualVin", "vin", "year", "model",
-    "returnedAt", "receivedBy",
-    "mileage", "fuelLevel", "damageNotes"
-  ].forEach(id => {
-    if ($(id)) $(id).value = "";
-  });
-
-  await load();
-});
 
 
   // =========================

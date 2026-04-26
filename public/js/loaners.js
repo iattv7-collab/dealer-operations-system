@@ -1,4 +1,5 @@
 // ==============================================
+// /public/js/loaners.js
 // LOANER MODULE — FLEET PAGE LOGIC
 // PURPOSE: Create and manage live fleet records
 // ==============================================
@@ -28,18 +29,55 @@ document.addEventListener("DOMContentLoaded", () => {
   const video = $("scannerVideo");
   const status = $("scannerStatus");
 
+  function openScannerFullscreen() {
+    if (!video) return;
+
+    video.style.display = "block";
+    video.style.position = "fixed";
+    video.style.top = "0";
+    video.style.left = "0";
+    video.style.width = "100vw";
+    video.style.height = "100vh";
+    video.style.objectFit = "cover";
+    video.style.zIndex = "9999";
+    video.style.background = "#000";
+
+    if (video.requestFullscreen) {
+      video.requestFullscreen().catch(() => { });
+    }
+  }
+
+  function closeScannerFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(() => { });
+    }
+
+    video.removeAttribute("style");
+    video.style.display = "none";
+  }
+
   let fleetRows = [];
 
 
   $("scanFleetBtn").onclick = async () => {
-    status.textContent = "Scanning VIN...";
-    const res = await scanVinWithCamera(video, status);
+    try {
+      status.textContent = "Scanning VIN...";
+      openScannerFullscreen();
 
-    if (res?.vin) {
-      await fill(res.vin);
-      status.textContent = "VIN scanned";
-    } else {
-      status.textContent = res?.reason || "No VIN found";
+      const res = await scanVinWithCamera(video, status);
+
+      closeScannerFullscreen();
+
+      if (res?.vin) {
+        await fill(res.vin);
+        status.textContent = "VIN scanned. Please verify before saving.";
+      } else {
+        status.textContent = res?.reason || "No VIN found";
+      }
+    } catch (err) {
+      closeScannerFullscreen();
+      console.error("Scan failed:", err);
+      status.textContent = "Scan failed";
     }
   };
 
