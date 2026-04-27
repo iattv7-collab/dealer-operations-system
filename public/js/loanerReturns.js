@@ -202,8 +202,33 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     await load();
+    await updateCounts();
   });
 
+  // =========================
+  // LIVE LOANER COUNTS
+  // =========================
+  async function updateCounts() {
+    const snap = await getDocs(collection(db, "loanerFleet"));
+
+    let out = 0;
+    let available = 0;
+    let inShop = 0;
+
+    snap.forEach(d => {
+      const s = (d.data().status || "").toUpperCase();
+
+      if (s === "OUT") out++;
+      else if (s === "AVAILABLE") available++;
+      else if (s === "REMOVED") return;
+      else inShop++;
+    });
+
+    const el = $("loanerCounts");
+    if (el) {
+      el.textContent = `Out: ${out} | Available: ${available} | In Shop: ${inShop}`;
+    }
+  }
 
   // =========================
   // LOAD TABLE
@@ -246,5 +271,6 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   load();
+  updateCounts();
 
 });

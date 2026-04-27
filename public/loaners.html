@@ -9,7 +9,9 @@
   <link rel="stylesheet" href="/ro/styles.css">
 
   <style>
-    .loaner-wrap { padding: 16px; }
+    .loaner-wrap {
+      padding: 16px;
+    }
 
     .subtabs {
       display: flex;
@@ -34,7 +36,9 @@
       font-weight: bold;
     }
 
-    .section { margin: 16px 0; }
+    .section {
+      margin: 16px 0;
+    }
 
     .row {
       display: flex;
@@ -44,7 +48,9 @@
       align-items: center;
     }
 
-    input, button, select {
+    input,
+    button,
+    select {
       font-family: "Times New Roman", Times, serif;
       font-size: 13px;
       padding: 4px 6px;
@@ -104,8 +110,15 @@
       box-sizing: border-box;
     }
 
-    .mini-input { width: 100%; min-width: 0; }
-    .mini-select { width: 100%; min-width: 0; }
+    .mini-input {
+      width: 100%;
+      min-width: 0;
+    }
+
+    .mini-select {
+      width: 100%;
+      min-width: 0;
+    }
 
     .actions {
       display: flex;
@@ -119,22 +132,69 @@
       padding: 1px 5px;
     }
 
-    .col-unit     { width: 70px; }
-    .col-last8    { width: 75px; }
-    .col-year     { width: 60px; }
-    .col-make     { width: 75px; }
-    .col-model    { width: 95px; }
-    .col-plate    { width: 75px; }
-    .col-ro       { width: 80px; }
-    .col-status   { width: 85px; }
-    .col-location { width: 100px; }
-    .col-returned { width: 105px; }
-    .col-received { width: 95px; }
-    .col-mileage  { width: 75px; }
-    .col-fuel     { width: 60px; }
-    .col-damage   { width: 90px; }
-    .col-notes    { width: 140px; }
-    .col-actions  { width: 130px; }
+    .col-unit {
+      width: 70px;
+    }
+
+    .col-last8 {
+      width: 75px;
+    }
+
+    .col-year {
+      width: 60px;
+    }
+
+    .col-make {
+      width: 75px;
+    }
+
+    .col-model {
+      width: 95px;
+    }
+
+    .col-plate {
+      width: 75px;
+    }
+
+    .col-ro {
+      width: 80px;
+    }
+
+    .col-status {
+      width: 85px;
+    }
+
+    .col-location {
+      width: 100px;
+    }
+
+    .col-returned {
+      width: 105px;
+    }
+
+    .col-received {
+      width: 95px;
+    }
+
+    .col-mileage {
+      width: 75px;
+    }
+
+    .col-fuel {
+      width: 60px;
+    }
+
+    .col-damage {
+      width: 90px;
+    }
+
+    .col-notes {
+      width: 140px;
+    }
+
+    .col-actions {
+      width: 130px;
+    }
   </style>
 </head>
 
@@ -165,14 +225,16 @@
     <div class="subtabs">
       <a href="/loaners.html" class="active">Fleet</a>
       <a href="/loaner-returns.html">Returns</a>
+      <div id="loanerCounts" style="margin:10px 0; font-weight:bold;">
+        Out: 0 | Available: 0 | In Shop: 0
+      </div>
     </div>
 
     <!-- SEARCH -->
     <div class="section">
       <h2>Find Loaner</h2>
       <div class="row">
-        <input id="fleetSearch"
-          placeholder="Search by VIN, last 8, unit #, plate, model, status, location or RO">
+        <input id="fleetSearch" placeholder="Search by VIN, last 8, unit #, plate, model, status, location or RO">
         <label style="display:flex; gap:6px; align-items:center;">
           <input type="checkbox" id="skipRemoveConfirm">
           Skip remove confirmation
@@ -276,7 +338,8 @@
   </script>
 
   <!-- MAIN JS -->
-  <script type="module" src="/js/loaners.js?v=4"></script>
+  <script type="module" src="/js/loaners.js?v=6"></script>
 
 </body>
+
 </html>

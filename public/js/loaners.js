@@ -297,25 +297,81 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function saveRow(vin) {
-    const cleanVin = normalizeVin(vin);
-    if (!cleanVin) return;
+  const cleanVin = normalizeVin(vin);
+  if (!cleanVin) return;
 
-    const safeId = makeSafeId(cleanVin);
+  const safeId = makeSafeId(cleanVin);
+
+  const assignedRo = document.getElementById(`ro-${safeId}`)?.value.trim() || "";
+  const location = document.getElementById(`location-${safeId}`)?.value.trim() || "";
+  const notes = document.getElementById(`notes-${safeId}`)?.value.trim() || "";
+  let status = document.getElementById(`status-${safeId}`)?.value || "";
+
+  const fleetRow = fleetRows.find(x => normalizeVin(x.vin) === cleanVin) || {};
+  const previousRo = String(fleetRow.assignedRo || "").trim();
+
+  // If RO is entered, confirm it exists in RO Tracker
+  if (assignedRo) {
+    const roRef = doc(db, "ros", assignedRo);
+    const roSnap = await getDoc(roRef);
+
+    if (!roSnap.exists()) {
+      alert(`RO # ${assignedRo} was not found in RO Tracker.`);
+      return;
+    }
+
+    // Business rule: assigned loaner = Out
+    status = "Out";
 
     await setDoc(
-      doc(db, "loanerFleet", cleanVin),
+      roRef,
       {
-        assignedRo: document.getElementById(`ro-${safeId}`)?.value.trim() || "",
-        status: document.getElementById(`status-${safeId}`)?.value || "",
-        location: document.getElementById(`location-${safeId}`)?.value.trim() || "",
-        notes: document.getElementById(`notes-${safeId}`)?.value.trim() || "",
+        hasLoaner: true,
+        loanerUnitNumber: fleetRow.unitNumber || "",
+        loanerVin: cleanVin,
+        loanerStatus: "Out",
+        loanerAssignedAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       },
       { merge: true }
     );
-
-    await load();
   }
+
+  // If loaner was previously assigned to another RO, clear old RO loaner info
+  if (previousRo && previousRo !== assignedRo) {
+    await setDoc(
+      doc(db, "ros", previousRo),
+      {
+        hasLoaner: false,
+        loanerUnitNumber: "",
+        loanerVin: "",
+        loanerStatus: "",
+        loanerAssignedAt: null,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+  }
+
+  // If RO was cleared, clear status unless user selected something else
+  if (!assignedRo && previousRo) {
+    status = status || "Available";
+  }
+
+  await setDoc(
+    doc(db, "loanerFleet", cleanVin),
+    {
+      assignedRo,
+      status,
+      location,
+      notes,
+      updatedAt: serverTimestamp()
+    },
+    { merge: true }
+  );
+
+  await load();
+}
 
   async function removeRow(vin) {
     const cleanVin = normalizeVin(vin);
@@ -367,6 +423,27 @@ document.addEventListener("DOMContentLoaded", () => {
     return escapeHtml(s);
   }
 
+  function updateCounts() {
+    let out = 0;
+    let available = 0;
+    let inShop = 0;
+
+    fleetRows.forEach(x => {
+      const s = (x.status || "").toUpperCase();
+
+      if (s === "OUT") out++;
+      else if (s === "AVAILABLE") available++;
+      else if (s === "REMOVED") return;
+      else inShop++;
+    });
+
+    const el = $("loanerCounts");
+    if (el) {
+      el.textContent = `Out: ${out} | Available: ${available} | In Shop: ${inShop}`;
+    }
+  }
+
+
   async function load() {
     try {
       console.log("loading loanerFleet...");
@@ -389,6 +466,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
       console.log("rendering rows:", fleetRows.length);
       renderFleetTable();
+      updateCounts();
     } catch (err) {
       console.error("load() failed:", err);
     }

@@ -980,7 +980,11 @@ function renderRows(rows) {
     tr.appendChild(tdWaiter(r, tr));
 
     // 16) Loaner Last 6 (view only for now; later from Loaner Module)
-    tr.appendChild(tdHover(r.loanerVinLast6 || ""));
+    const loanerDisplay = r.loanerVin
+      ? String(r.loanerVin).slice(-8)
+      : "";
+
+    tr.appendChild(tdHover(loanerDisplay));
 
     // 17) Repair Complete (view only for now; later from Dispatch/Tech)
     tr.appendChild(tdHover(r.repairCompleted ? "✅" : ""));
