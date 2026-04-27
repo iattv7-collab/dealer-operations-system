@@ -191,17 +191,12 @@
 
   <div id="status">Idle</div>
 
-  <h3>HTTP</h3>
-  <pre id="httpOut">(nothing yet)</pre>
-
-  <h3>Raw Response</h3>
-  <pre id="rawOut">(nothing yet)</pre>
-
-  <h3>Parsed JSON (if any)</h3>
-  <pre id="jsonOut">(nothing yet)</pre>
-
-  <h3>Errors</h3>
-  <pre id="errOut">(none)</pre>
+  <div style="display:none;">
+    <pre id="httpOut"></pre>
+    <pre id="rawOut"></pre>
+    <pre id="jsonOut"></pre>
+    <pre id="errOut"></pre>
+  </div>
 
   <script type="module">
     import { renderNav } from "/js/nav.js";
