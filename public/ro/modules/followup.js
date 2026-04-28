@@ -6,6 +6,8 @@ import { addDaysAtTime, firstNameFromCustomer, fmtDue, renderTemplate, smsHref }
 import { loadSettings } from "./settings.js";
 import { COL_ARCHIVE } from "./firestore.js";
 import { createUserNotification } from "./notification-center.js";
+import { setDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+
 function ensureFollowupStyles() {
   if (document.getElementById("__rt_followup_styles")) return;
   const st = document.createElement("style");
@@ -18,15 +20,157 @@ function ensureFollowupStyles() {
     .rt-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:14px;}
     .rt-toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:8px 0 12px;flex-wrap:wrap;}
     .rt-search{font-family:"Times New Roman", Times, serif;padding:8px 10px;border:1px solid #c8d0d9;border-radius:8px;font-size:14px;min-width:280px;}
-    .rt-btn{font-family:"Times New Roman", Times, serif;padding:8px 12px;border-radius:10px;border:1px solid #888;background:#fff;cursor:pointer;}
-    .rt-list{width:100%;border-collapse:collapse;}
-    .rt-list th,.rt-list td{border-bottom:1px solid #eee;padding:8px;text-align:left;}
-    .rt-list td.center{text-align:center;}
-    .rt-pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:6px;border:1px solid #0b3d91;color:#0b3d91;}
-    .rt-pill.ready{background:#e8f0ff;}
+
+    .rt-btn{
+      font-family:"Times New Roman", Times, serif;
+      padding:6px 10px;
+      font-size:12px;
+      border-radius:10px;
+      border:1px solid #888;
+      background:#fff;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+
+    .rt-btn:hover{
+      background:#eef4ff;
+      border-color:#0b3d91;
+    }
+
+    .rt-list{
+  width:100%;
+  min-width:980px;
+  border-collapse:collapse;
+  table-layout:auto;
+  font-size:13px;
+}
+
+    .rt-list th,
+    .rt-list td{
+      border-bottom:1px solid #eee;
+      padding:7px 8px;
+      text-align:left;
+      vertical-align:middle;
+    }
+
+    .rt-list td{
+      font-size:13px;
+      color:#000;
+    }
+
+    .rt-list td:nth-child(1){
+      font-size:13px;
+      color:#000;
+    }
+
+    .rt-list thead th{
+  background:#0b3d91;
+  color:white;
+  font-weight:bold;
+}
+
+    .rt-list tbody tr:nth-child(even){
+      background:#f7f7f7;
+    }
+
+    .rt-list tbody tr:first-child,
+    .rt-list tbody tr:nth-child(2),
+    .rt-list tbody tr:nth-child(3){
+      background:#e8f0ff;
+    }
+
+    .rt-list tbody tr:hover{
+      background:#fff8c6;
+    }
+
+    .rt-list td.center{
+      text-align:center;
+      white-space:nowrap;
+    }
+
+   .rt-list th:nth-child(1),
+.rt-list td:nth-child(1){
+  width:140px;
+  min-width:140px;
+}
+
+.rt-list th:nth-child(2),
+.rt-list td:nth-child(2){
+  width:180px;
+  max-width:180px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.rt-list th:nth-child(3),
+.rt-list td:nth-child(3){
+  width:130px;
+  white-space:nowrap;
+}
+
+.rt-list th:nth-child(4),
+.rt-list td:nth-child(4){
+  width:180px;
+  max-width:180px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.rt-list th:nth-child(5),
+.rt-list td:nth-child(5){
+  width:55px;
+  min-width:55px;
+  max-width:55px;
+  white-space:nowrap;
+  text-align:center;
+}
+
+.rt-list th:nth-child(6){
+  width:135px;
+  white-space:nowrap;
+  color:white;
+}
+
+.rt-list td:nth-child(6){
+  width:135px;
+  white-space:nowrap;
+  font-size:13px;
+  color:#000;
+}
+
+.rt-list th:nth-child(7),
+.rt-list td:nth-child(7){
+  width:110px;
+  white-space:nowrap;
+}
+
+.rt-list th:nth-child(8),
+.rt-list td:nth-child(8){
+  width:130px;
+  white-space:nowrap;
+}
+
+    .rt-pill{
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:999px;
+      font-size:11px;
+      margin-left:6px;
+      border:1px solid #0b3d91;
+      color:#0b3d91;
+      background:#fff;
+      white-space:nowrap;
+    }
+
+    .rt-pill.ready{
+      background:#e8f0ff;
+    }
   `;
   document.head.appendChild(st);
 }
+
 function openModal(titleText, buildFn) {
   ensureFollowupStyles();
   const backdrop = document.createElement("div");
@@ -48,6 +192,7 @@ function openModal(titleText, buildFn) {
   document.body.appendChild(backdrop);
   return backdrop;
 }
+
 function computeDueListForArchived(docData, settings) {
   const ts = docData?.archivedAt;
   const archivedMs = ts?.toMillis ? ts.toMillis() : (typeof ts === "number" ? ts : null);
@@ -55,14 +200,12 @@ function computeDueListForArchived(docData, settings) {
 
   const out = [];
 
-  // 🔥 TEST MODE (minutes after archive)
   if (settings.followUpQuickMin && Number(settings.followUpQuickMin) > 0) {
     const quickMs = archivedMs + (Number(settings.followUpQuickMin) * 60 * 1000);
     out.push({ slot: 1, dueMs: quickMs });
     return out;
   }
 
-  // NORMAL MODE
   if (Number(settings.followUpDay1 || 0) > 0) {
     out.push({
       slot: 1,
@@ -79,9 +222,8 @@ function computeDueListForArchived(docData, settings) {
 
   return out.sort((a, b) => a.dueMs - b.dueMs);
 }
+
 function openReadyUpModal(followupDocs) {
-
-
   const settings = loadSettings();
   const nowMs = Date.now();
   const queueItems = [];
@@ -96,47 +238,55 @@ function openReadyUpModal(followupDocs) {
         const alreadySent = !!d[sentKey];
 
         if (!alreadySent) {
-  const isDueNow = dueMs <= nowMs;
+          const isDueNow = dueMs <= nowMs;
 
-  queueItems.push({
-    doc: d,
-    slot,
-    dueMs,
-    isDue: isDueNow
-  });
+          queueItems.push({
+            doc: d,
+            slot,
+            dueMs,
+            isDue: isDueNow
+          });
 
-  // 🔥 CREATE NOTIFICATION (ONLY WHEN DUE)
-  if (isDueNow && !d.__notifCreated) {
-    d.__notifCreated = true;
+          if (isDueNow) {
+            const notifId = `followup_${d.ro || d.id}`;
+            const notifRef = doc(db, "users", auth.currentUser.uid, "notifications", notifId);
 
-    createUserNotification({
-      userId: auth.currentUser.uid,
-      title: "Follow-up Due",
-      body: `RO ${d.ro || d.id} is ready for follow-up`,
-      url: `/ro/index.html?ro=${d.ro || d.id}`,
-      type: "followup",
-      roId: d.ro || d.id
-    });
-  }
-}
+            getDoc(notifRef).then((snap) => {
+              if (!snap.exists()) {
+                const name = d.customerName || "";
+                const model = d.model || "";
+
+                setDoc(notifRef, {
+                  title: "Follow-up Due",
+                  body: `RO ${d.ro || d.id} – ${name} – ${model}`,
+                  url: `/ro/index.html?ro=${d.ro || d.id}`,
+                  type: "followup",
+                  roId: d.ro || d.id,
+                  read: false,
+                  dismissed: false,
+                  createdAt: Date.now()
+                });
+              }
+            });
+          }
+        }
       });
     });
 
   queueItems.sort((a, b) => {
-    if (a.isDue !== b.isDue) return a.isDue ? -1 : 1;
-    if (a.dueMs !== b.dueMs) return a.dueMs - b.dueMs;
-    return String(a.doc?.ro || a.doc?.id || "").localeCompare(
-      String(b.doc?.ro || b.doc?.id || ""),
-      undefined,
-      { numeric: true }
-    );
-  });
+    const aArchived =
+      a.doc?.archivedAt?.toMillis ? a.doc.archivedAt.toMillis() : 0;
 
+    const bArchived =
+      b.doc?.archivedAt?.toMillis ? b.doc.archivedAt.toMillis() : 0;
+
+    return aArchived - bArchived;
+  });
 
   openModal("Follow Up Queue", (body, close) => {
     const note = document.createElement("div");
     note.className = "rt-mini";
-    note.textContent = "Rows turn yellow when follow-up is due. Due items appear first, waiting items stay below. Use Text or Mark Done to remove them from this queue.";
+    note.textContent = "Rows turn yellow when follow-up is due. Use Text or Mark Done to remove them from this queue.";
     body.appendChild(note);
 
     const toolbar = document.createElement("div");
@@ -155,7 +305,6 @@ function openReadyUpModal(followupDocs) {
     const thead = document.createElement("thead");
     thead.innerHTML = `<tr><th>RO</th><th>Name</th><th>Phone</th><th>Model</th><th>Advisor #</th><th>Due</th><th>Status</th><th class="center">Action</th></tr>`;
     table.appendChild(thead);
-
 
     const tbody = document.createElement("tbody");
 
@@ -189,7 +338,7 @@ function openReadyUpModal(followupDocs) {
 
       filtered.forEach(({ doc: d, slot, dueMs, isDue }) => {
         const tr = document.createElement("tr");
-        tr.style.background = isDue ? "#fff59d" : "#fff";
+        tr.style.background = isDue ? "#fff59d" : "";
         const name = String(d.customerName || "");
         const phone = String(d.phone || "");
         const ro = String(d.ro || d.id || "");
@@ -200,6 +349,7 @@ function openReadyUpModal(followupDocs) {
         pill.textContent = isDue ? `READY (slot ${slot})` : `WAITING (slot ${slot})`;
 
         const tdRO = document.createElement("td");
+        tdRO.style.fontWeight = "bold";
         tdRO.appendChild(document.createTextNode(ro + " "));
         tdRO.appendChild(pill);
 
@@ -211,6 +361,7 @@ function openReadyUpModal(followupDocs) {
 
         const tdModel = document.createElement("td");
         tdModel.textContent = model;
+        tdModel.title = model;
 
         const tdDue = document.createElement("td");
         tdDue.textContent = fmtDue(dueMs);
@@ -291,9 +442,9 @@ function openReadyUpModal(followupDocs) {
     search.addEventListener("input", () => renderRows(search.value));
     renderRows();
 
-
     table.appendChild(tbody);
     body.appendChild(table);
+
     const actions = document.createElement("div");
     actions.className = "rt-actions";
     const btnClose = document.createElement("button");
@@ -305,12 +456,14 @@ function openReadyUpModal(followupDocs) {
     body.appendChild(actions);
   });
 }
+
 async function handleFollowUpLaunchFromUrl() {
   const params = new URLSearchParams(window.location.search);
   if (params.get("fu") !== "1") return;
   const ro = String(params.get("ro") || "").trim();
   const slot = String(params.get("slot") || "").trim();
   if (!ro) return;
+
   try {
     const ref = doc(db, COL_ARCHIVE, ro);
     const snap = await getDoc(ref);
@@ -326,7 +479,6 @@ async function handleFollowUpLaunchFromUrl() {
     const sentAt = Date.now();
 
     setTimeout(async () => {
-      // If push came from "archive" (or "quick"), do NOT mark followup1/followup2 as sent.
       if (slot === "archive" || slot === "quick") {
         await updateDoc(ref, {
           pushOpenedAtMs: sentAt,
@@ -343,16 +495,16 @@ async function handleFollowUpLaunchFromUrl() {
         followupLastSentAtMs: sentAt
       });
     }, 500);
-
-
   } catch (e) {
     alert(String(e?.message || e));
   } finally {
     history.replaceState({}, document.title, window.location.pathname);
   }
 }
+
 let FOLLOWUP_CACHE = [];
 let unsubFollowup = null;
+
 export function initFollowUp() {
   handleFollowUpLaunchFromUrl();
 
@@ -370,7 +522,6 @@ export function initFollowUp() {
 
       let refOrQuery = collection(db, COL_ARCHIVE);
 
-      // Advisors only see their own archived ROs in Follow Up
       if (role === "advisor" && advisorNo) {
         refOrQuery = query(
           collection(db, COL_ARCHIVE),

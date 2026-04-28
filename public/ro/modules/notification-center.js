@@ -1,4 +1,5 @@
 // public/ro/modules/notification-center.js
+import { COL_ARCHIVE } from "./firestore.js";
 import { db } from "../firebase.js";
 import {
   collection,
@@ -6,6 +7,7 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -74,26 +76,17 @@ function cardHtml(n) {
 
       ${body ? `<div class="af-notif-body">${body}</div>` : ""}
 
-      <div class="af-notif-meta">
-        ${ro ? `<span class="af-notif-chip">RO: ${ro}</span>` : ""}
-        ${unread ? `<span class="af-notif-chip unread-chip">Unread</span>` : `<span class="af-notif-chip">Read</span>`}
-        ${dismissed ? `<span class="af-notif-chip">Dismissed</span>` : ""}
-      </div>
-
       <div class="af-notif-actions">
-        ${url
-      ? `<button type="button" class="smallbtn af-open-btn" data-url="${url}">Open</button>`
-      : ""
+  ${n.type === "followup"
+      ? `
+    <button type="button" class="smallbtn af-text-btn">Text</button>
+    <button type="button" class="smallbtn af-no-followup-btn">No Follow Up Needed</button>
+  `
+      : `
+    <button type="button" class="smallbtn af-clear-btn">Clear</button>
+  `
     }
-        ${unread
-      ? `<button type="button" class="smallbtn af-read-btn">Mark Read</button>`
-      : ""
-    }
-        <button type="button" class="smallbtn af-dismiss-btn">
-          ${dismissed ? "Undismiss" : "Dismiss"}
-        </button>
-        <button type="button" class="smallbtn af-delete-btn">Delete</button>
-      </div>
+</div>
     </div>
   `;
 }
@@ -278,7 +271,7 @@ export function initNotificationCenter({
         <span class="af-notif-count" id="${mountId}__count">Notifications</span>
       </div>
       <div class="af-notif-right">
-        <button type="button" class="smallbtn" id="${mountId}__markAll">Mark All Read</button>
+        
       </div>
     </div>
     <div class="af-notif-list" id="${mountId}__list"></div>
@@ -287,7 +280,6 @@ export function initNotificationCenter({
   const countEl = $(`${mountId}__count`);
   const listEl = $(`${mountId}__list`);
   const badgeEl = badgeId ? $(badgeId) : null;
-  const markAllBtn = $(`${mountId}__markAll`);
 
   let latestDocs = [];
 
@@ -321,46 +313,60 @@ export function initNotificationCenter({
 
     listEl.innerHTML = visible.map(cardHtml).join("");
 
-    listEl.querySelectorAll(".af-open-btn").forEach((btn) => {
+    listEl.querySelectorAll(".af-text-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const card = btn.closest(".af-notif-card");
         const id = card?.dataset?.id || "";
-        const url = btn.dataset.url || "/";
-        await markNotificationRead(userId, id);
-        window.location.href = url;
+        const notif = latestDocs.find((n) => n.id === id);
+        if (!notif) return;
+
+        const ro = notif.roId || "";
+        if (!ro) return;
+
+        await deleteNotification(userId, id);
+        window.location.href = `/ro/index.html?fu=1&ro=${encodeURIComponent(ro)}&slot=1`;
       });
     });
 
-    listEl.querySelectorAll(".af-read-btn").forEach((btn) => {
+    listEl.querySelectorAll(".af-clear-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const card = btn.closest(".af-notif-card");
         const id = card?.dataset?.id || "";
-        await markNotificationRead(userId, id);
-      });
-    });
+        if (!id) return;
 
-    listEl.querySelectorAll(".af-dismiss-btn").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const card = btn.closest(".af-notif-card");
-        const id = card?.dataset?.id || "";
-        const current = latestDocs.find((n) => n.id === id);
-        await toggleNotificationDismissed(userId, id, !current?.dismissed);
-      });
-    });
-
-    listEl.querySelectorAll(".af-delete-btn").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const card = btn.closest(".af-notif-card");
-        const id = card?.dataset?.id || "";
-        const ok = confirm("Delete this notification?");
-        if (!ok) return;
         await deleteNotification(userId, id);
       });
     });
-  });
 
-  markAllBtn.addEventListener("click", async () => {
-    await markAllNotificationsRead(userId, latestDocs);
+    listEl.querySelectorAll(".af-no-followup-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const card = btn.closest(".af-notif-card");
+        const id = card?.dataset?.id || "";
+        const notif = latestDocs.find((n) => n.id === id);
+        if (!notif) return;
+
+        const ro = notif.roId || "";
+        if (!ro) return;
+
+        try {
+          const ref = doc(db, COL_ARCHIVE, ro);
+
+          const snap = await getDoc(ref);
+
+          if (snap.exists()) {
+            await updateDoc(ref, {
+              followupStatus: "done",
+              followupCompletedAtMs: Date.now()
+            });
+          }
+
+          // always remove notification
+          await deleteNotification(userId, id);
+        } catch (e) {
+          alert(String(e?.message || e));
+        }
+      });
+    });
   });
 
   return {
