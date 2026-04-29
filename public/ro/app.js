@@ -531,7 +531,7 @@ function tdDateTimePicker(ms, onCommit, opts = {}) {
   inp.value = ms ? formatNoYearDateTime(ms) : "";
 
   inp.addEventListener("click", async () => {
-    const picked = await pickDateTimeMs("Select date/time", ms, stepMin, { showNow });
+    const picked = await pickDateTimeMs("Select date/time", ms, stepMin, opts);
     if (picked) {
       inp.value = formatNoYearDateTime(picked);
       onCommit(picked);
@@ -962,7 +962,15 @@ function renderRows(rows) {
     tr.appendChild(tdDateTimePicker(
       r.calledAtMs || null,
       (ms) => safeUpdate(r.ro, { calledAtMs: ms }),
-      { showNow: true, stepMin: 5 }
+      {
+        showNow: true,
+        stepMin: 5,
+        schedule: {
+          monFri: { start: "07:30", end: "18:00" },
+          sat: { start: "08:00", end: "15:00" },
+          sun: null
+        }
+      }
     ));
 
     // 14) Next Update
@@ -973,7 +981,15 @@ function renderRows(rows) {
         tr.className = rowClass(r);
         return safeUpdate(r.ro, { nextUpdateAtMs: ms });
       },
-      { showNow: false, stepMin: 15 }
+      {
+        showNow: false,
+        stepMin: 15,
+        schedule: {
+          monFri: { start: "07:30", end: "18:00" },
+          sat: { start: "08:00", end: "15:00" },
+          sun: null
+        }
+      }
     ));
 
     // 15) Waiter
