@@ -106,18 +106,27 @@ export async function scanVinWithCamera(videoEl, statusEl) {
   const stopCamera = () => {
     try {
       stream.getTracks().forEach((t) => t.stop());
-    } catch {}
+    } catch { }
     videoEl.srcObject = null;
   };
 
-  const start = Date.now();
-  const timeoutMs = 10000;
+  const timeoutMs = 15000;
+  let stopped = false;
+
+  setTimeout(() => {
+    stopped = true;
+    stopCamera();
+    if (statusEl) statusEl.textContent = "Scanner stopped (timeout)";
+  }, timeoutMs);
 
   try {
     // Small focus settle
     await new Promise((r) => setTimeout(r, 500));
 
-    while (Date.now() - start < timeoutMs) {
+    while (!stopped) {
+
+      if (stopped) break;
+
       const vw = videoEl.videoWidth;
       const vh = videoEl.videoHeight;
 
