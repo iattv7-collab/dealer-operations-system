@@ -139,8 +139,13 @@ async function loadAdvisorProfiles(dealerId) {
   populateAdvisorFilter();
 }
 
-async function tagExistsElsewhere(tag, currentDocId) {
-  const q = query(collection(db, "ros"), where("tag", "==", tag));
+async function tagExistsElsewhere(tag, currentDocId, dealerId) {
+  const q = query(
+    collection(db, "ros"),
+    where("dealerId", "==", dealerId),
+    where("tag", "==", tag)
+  );
+
   const snap = await getDocsSafe(q);
   return snap.some((d) => d.id !== currentDocId);
 }
@@ -243,7 +248,7 @@ function renderEditRow(tr, docSnap) {
       const currentId = docSnap.id;
       const currentData = docSnap.data();
 
-      const tagConflict = await tagExistsElsewhere(tag, currentId);
+      const tagConflict = await tagExistsElsewhere(tag, currentId, currentData.dealerId);
       if (tagConflict) throw new Error(`Tag # ${tag} already exists.`);
 
       if (newRo === currentId) {

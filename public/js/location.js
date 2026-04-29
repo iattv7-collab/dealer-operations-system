@@ -40,6 +40,7 @@ const startMoveBtn = document.getElementById("startMoveBtn");
 const finalLocationSelect = document.getElementById("finalLocationSelect");
 const customLocationInput = document.getElementById("customLocationInput");
 const saveFinalLocationBtn = document.getElementById("saveFinalLocationBtn");
+const cancelMoveBtn = document.getElementById("cancelMoveBtn");
 
 const movingTableBody = document.getElementById("movingTableBody");
 
@@ -144,16 +145,40 @@ function renderTicket() {
     }
 }
 
-async function findTicketByRoOrTag(value) {
-    const qByRo = query(collection(db, "ros"), where("ro", "==", value));
+async function findTicketByRoOrTag(value, dealerId) {
+    const cleanValue = String(value || "").trim().toUpperCase();
+
+    const qByRo = query(
+        collection(db, "ros"),
+        where("dealerId", "==", dealerId),
+        where("ro", "==", cleanValue)
+    );
+
     let snap = await getDocs(qByRo);
     if (!snap.empty) return snap.docs[0];
 
-    const qByTag = query(collection(db, "ros"), where("tag", "==", value));
+    const qByTag = query(
+        collection(db, "ros"),
+        where("dealerId", "==", dealerId),
+        where("tag", "==", cleanValue)
+    );
+
     snap = await getDocs(qByTag);
     if (!snap.empty) return snap.docs[0];
 
-    return null;
+    const qByVin = query(
+        collection(db, "ros"),
+        where("dealerId", "==", dealerId)
+    );
+
+    snap = await getDocs(qByVin);
+
+    const match = snap.docs.find((d) => {
+        const vin = String(d.data()?.vin || "").toUpperCase();
+        return vin && vin.endsWith(cleanValue);
+    });
+
+    return match || null;
 }
 
 async function searchTicket() {
@@ -169,7 +194,8 @@ async function searchTicket() {
     setMsg("Searching...", true);
 
     try {
-        const found = await findTicketByRoOrTag(value);
+        const dealerId = Number(currentProfile?.dealerId || 0);
+        const found = await findTicketByRoOrTag(value, dealerId);
 
         if (!found) {
             resetPreview();
@@ -218,6 +244,37 @@ async function startMove() {
         setMsg(err?.message || "Could not start move.", false);
     }
 }
+
+async function cancelMove() {
+    if (!currentUser || !currentTicket) return;
+
+    try {
+        clearMsg();
+
+        const ref = doc(db, "ros", currentTicket.id);
+
+        await updateDoc(ref, {
+            moveStatus: "idle",
+            moveStartedAt: null,
+            moveStartedBy: "",
+            moveCompletedAt: null,
+            moveCompletedBy: "",
+            updatedAt: serverTimestamp(),
+        });
+
+        currentTicket.moveStatus = "idle";
+        currentTicket.moveStartedBy = "";
+        currentTicket.moveStartedAt = null;
+
+        renderTicket();
+        setMsg("Move cancelled.", true);
+
+    } catch (err) {
+        console.error(err);
+        setMsg(err?.message || "Could not cancel move.", false);
+    }
+}
+
 
 function locationKeyFromLabel(label) {
     return String(label || "")
@@ -398,12 +455,16 @@ function renderMovingRows(rows) {
   `).join("");
 }
 
-function startMovingListener() {
+function startMovingListener(dealerId) {
     if (movingUnsub) {
         try { movingUnsub(); } catch { }
     }
 
-    const q = query(collection(db, "ros"), where("moveStatus", "==", "moving"));
+    const q = query(
+        collection(db, "ros"),
+        where("dealerId", "==", dealerId),
+        where("moveStatus", "==", "moving")
+    );
 
     movingUnsub = onSnapshot(q, (snap) => {
         const rows = snap.docs.map((d) => ({
@@ -445,6 +506,7 @@ searchInput.addEventListener("keydown", (e) => {
 
 startMoveBtn.addEventListener("click", startMove);
 saveFinalLocationBtn.addEventListener("click", saveFinalLocation);
+cancelMoveBtn.addEventListener("click", cancelMove);
 
 onAuthStateChanged(auth, async (user) => {
     currentUser = user || null;
@@ -462,6 +524,6 @@ onAuthStateChanged(auth, async (user) => {
     statusEl.textContent = `${user.email || ""} · ${role}`;
 
     startLocationCatalogListener(dealerId);
-    startMovingListener();
+    startMovingListener(dealerId);
     clearMsg();
 });  
