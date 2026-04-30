@@ -51,6 +51,7 @@ const searchBtn = document.getElementById("searchBtn");
 
 const locRo = document.getElementById("locRo");
 const locTag = document.getElementById("locTag");
+const locBlockedByTag = document.getElementById("locBlockedByTag");
 
 const locModel = document.getElementById("locModel");
 const locAdvisor = document.getElementById("locAdvisor");
@@ -64,6 +65,7 @@ const moveActiveSection = document.getElementById("moveActiveSection");
 const startMoveBtn = document.getElementById("startMoveBtn");
 const finalLocationSelect = document.getElementById("finalLocationSelect");
 const customLocationInput = document.getElementById("customLocationInput");
+const blocksTagInput = document.getElementById("blocksTagInput");
 const saveFinalLocationBtn = document.getElementById("saveFinalLocationBtn");
 const cancelMoveBtn = document.getElementById("cancelMoveBtn");
 
@@ -128,7 +130,7 @@ function resetPreview() {
 
     locRo.textContent = "";
     locTag.textContent = "";
-
+    locBlockedByTag.textContent = "—";
     locModel.textContent = "";
     locAdvisor.textContent = "";
     locCurrentLocation.textContent = "";
@@ -141,6 +143,7 @@ function resetPreview() {
 
     finalLocationSelect.value = "";
     customLocationInput.value = "";
+    if (blocksTagInput) blocksTagInput.value = "";
 }
 
 function renderTicket() {
@@ -151,6 +154,46 @@ function renderTicket() {
 
     locRo.textContent = currentTicket.ro || "";
     locTag.textContent = currentTicket.tag || "";
+
+    // Find full blocking chain for THIS car
+    (async () => {
+        try {
+            const dealerId = Number(currentProfile?.dealerId || 0);
+
+            const result = [];
+            let toCheck = [currentTicket.tag];
+
+            while (toCheck.length) {
+                const next = [];
+
+                for (const tag of toCheck) {
+                    const q = query(
+                        collection(db, "ros"),
+                        where("dealerId", "==", dealerId),
+                        where("blocksTag", "==", tag)
+                    );
+
+                    const snap = await getDocs(q);
+
+                    snap.forEach((d) => {
+                        const blockerTag = d.data()?.tag;
+
+                        if (blockerTag && !result.includes(blockerTag)) {
+                            result.push(blockerTag);
+                            next.push(blockerTag);
+                        }
+                    });
+                }
+
+                toCheck = next;
+            }
+
+            locBlockedByTag.textContent = result.length ? result.join(", ") : "—";
+        } catch (err) {
+            console.error(err);
+            locBlockedByTag.textContent = "—";
+        }
+    })();
 
     locModel.textContent = currentTicket.model || currentTicket.yearModel || "";
     locAdvisor.textContent = getAdvisorDisplay(currentTicket);
@@ -167,6 +210,7 @@ function renderTicket() {
     if (!moving) {
         finalLocationSelect.value = "";
         customLocationInput.value = "";
+        if (blocksTagInput) blocksTagInput.value = "";
     }
 }
 
@@ -414,6 +458,7 @@ async function saveFinalLocation() {
     if (!currentUser || !currentTicket) return;
 
     const finalLocationInfo = buildFinalLocationInfo();
+    const blocksTag = String(blocksTagInput?.value || "").trim();
 
     if (!finalLocationInfo?.location) {
         setMsg("Select or enter a final location.", false);
@@ -429,6 +474,7 @@ async function saveFinalLocation() {
             location: finalLocationInfo.location,
             locationKey: finalLocationInfo.locationKey,
             locationArea: finalLocationInfo.locationArea,
+            blocksTag: blocksTag || null,
             moveStatus: "idle",
             moveCompletedAt: serverTimestamp(),
             moveCompletedBy: currentUser.email || currentUser.uid || "",
@@ -438,18 +484,16 @@ async function saveFinalLocation() {
         currentTicket.location = finalLocationInfo.location;
         currentTicket.locationKey = finalLocationInfo.locationKey;
         currentTicket.locationArea = finalLocationInfo.locationArea;
+        currentTicket.blocksTag = blocksTag || null;
         currentTicket.moveStatus = "idle";
         currentTicket.moveCompletedBy = currentUser.email || currentUser.uid || "";
 
         setMsg(`Vehicle moved to ${finalLocationInfo.location}.`, true);
 
-        // Show confirmation briefly before clearing
         setTimeout(() => {
             resetPreview();
             searchInput.value = "";
             searchInput.focus();
-
-            // ✅ clear success message also
             clearMsg();
         }, 3000);
     } catch (err) {

@@ -56,6 +56,9 @@
       <div style="margin-top:6px; font-size:18px;">
         Status: <span id="locMoveStatus"></span>
       </div>
+      <div style="margin-top:6px; font-size:18px;">
+        Blocked by: <span id="locBlockedByTag">—</span>
+      </div>
       <button id="toggleDetailsBtn" type="button" style="margin-top:12px; width:100%;">
         More Info
       </button>
@@ -110,6 +113,11 @@
         </div>
 
         <div>
+          <label for="blocksTagInput" class="muted">Blocking Tag</label>
+          <input id="blocksTagInput" type="text" placeholder="Optional" style="padding:6px 8px; width:140px;" />
+        </div>
+
+        <div>
           <button id="saveFinalLocationBtn" type="button">Save Final Location</button>
         </div>
         <div>
@@ -142,14 +150,14 @@
         </thead>
         <tbody id="movingTableBody">
           <tr>
-            <td colspan="6" class="muted">No moving vehicles.</td>
+            <td colspan="5" class="muted">No moving vehicles.</td>
           </tr>
         </tbody>
       </table>
     </div>
   </div>
 
-  <script type="module" src="/js/location.js?v=4"></script>
+  <script type="module" src="/js/location.js?v=10"></script>
 
 </body>
 
