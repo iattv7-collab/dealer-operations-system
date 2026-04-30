@@ -1,5 +1,4 @@
 import { auth, db } from "./firebase.js";
-import { renderNav } from "./nav.js";
 import { requireRole, getUserProfile } from "./guard.js";
 
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
@@ -14,7 +13,33 @@ import {
     serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-document.getElementById("nav").innerHTML = renderNav("location");
+document.getElementById("nav").innerHTML = `
+  <div style="
+    background:#0b3d91;
+    color:#fff;
+    padding:12px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    border-bottom:4px solid #00a8c6;
+  ">
+    <button onclick="window.location.href='/home.html'"
+      style="
+        background:#fff;
+        color:#0b3d91;
+        border:none;
+        padding:8px 12px;
+        border-radius:8px;
+        font-weight:bold;
+      ">
+      ← Home
+    </button>
+
+    <div style="font-weight:bold;">
+      Location
+    </div>
+  </div>
+`;
 
 requireRole(["admin", "manager", "advisor", "wash", "valet", "staff", "dropoff", "booker", "qc", "foreman", "tech"]);
 
@@ -26,7 +51,7 @@ const searchBtn = document.getElementById("searchBtn");
 
 const locRo = document.getElementById("locRo");
 const locTag = document.getElementById("locTag");
-const locCustomer = document.getElementById("locCustomer");
+
 const locModel = document.getElementById("locModel");
 const locAdvisor = document.getElementById("locAdvisor");
 const locCurrentLocation = document.getElementById("locCurrentLocation");
@@ -103,7 +128,7 @@ function resetPreview() {
 
     locRo.textContent = "";
     locTag.textContent = "";
-    locCustomer.textContent = "";
+
     locModel.textContent = "";
     locAdvisor.textContent = "";
     locCurrentLocation.textContent = "";
@@ -126,7 +151,7 @@ function renderTicket() {
 
     locRo.textContent = currentTicket.ro || "";
     locTag.textContent = currentTicket.tag || "";
-    locCustomer.textContent = currentTicket.customerName || "";
+
     locModel.textContent = currentTicket.model || currentTicket.yearModel || "";
     locAdvisor.textContent = getAdvisorDisplay(currentTicket);
     locCurrentLocation.textContent = currentTicket.location || "—";
@@ -437,7 +462,7 @@ function renderMovingRows(rows) {
     if (!Array.isArray(rows) || !rows.length) {
         movingTableBody.innerHTML = `
       <tr>
-        <td colspan="6" class="muted">No moving vehicles.</td>
+        <td colspan="5" class="muted">No moving vehicles.</td>
       </tr>
     `;
         return;
@@ -447,7 +472,6 @@ function renderMovingRows(rows) {
     <tr data-id="${t.id}">
       <td>${t.tag || ""}</td>
       <td>${t.ro || ""}</td>
-      <td>${t.customerName || ""}</td>
       <td>${t.location || "—"}</td>
       <td>${t.moveStartedBy || "—"}</td>
       <td>${fmtTs(t.moveStartedAt) || "—"}</td>
@@ -489,7 +513,7 @@ function startMovingListener(dealerId) {
         console.error(err);
         movingTableBody.innerHTML = `
       <tr>
-        <td colspan="6" class="err">Could not load moving vehicles.</td>
+        <td colspan="5" class="err">Could not load moving vehicles.</td>
       </tr>
     `;
     });
@@ -507,6 +531,15 @@ searchInput.addEventListener("keydown", (e) => {
 startMoveBtn.addEventListener("click", startMove);
 saveFinalLocationBtn.addEventListener("click", saveFinalLocation);
 cancelMoveBtn.addEventListener("click", cancelMove);
+
+const toggleDetailsBtn = document.getElementById("toggleDetailsBtn");
+const vehicleDetails = document.getElementById("vehicleDetails");
+
+toggleDetailsBtn.addEventListener("click", () => {
+    const open = vehicleDetails.style.display !== "none";
+    vehicleDetails.style.display = open ? "none" : "block";
+    toggleDetailsBtn.textContent = open ? "More Info" : "Less Info";
+});
 
 onAuthStateChanged(auth, async (user) => {
     currentUser = user || null;

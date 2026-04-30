@@ -23,15 +23,14 @@
       Search by RO or Tag, start the move, then save the final location when the vehicle arrives.
     </div>
 
-    <div style="display:flex; gap:10px; align-items:end; flex-wrap:wrap;">
-      <div>
-        <label for="searchInput" class="muted">Search by RO or Tag</label>
-        <input id="searchInput" type="text" placeholder="Enter RO # or Tag #" style="padding:6px 8px; width:220px;" />
-      </div>
+    <div style="display:flex; gap:8px; align-items:center;">
 
-      <div>
-        <button id="searchBtn" type="button">Find Vehicle</button>
-      </div>
+      <input id="searchInput" type="text" placeholder="RO / Tag / VIN" style="flex:1; padding:10px; font-size:16px;" />
+
+      <button id="searchBtn" type="button" style="padding:10px 14px; font-size:16px;">
+        Find
+      </button>
+
     </div>
   </div>
 
@@ -40,46 +39,35 @@
 
     <div id="msg" class="muted" style="margin-bottom:10px;"></div>
 
-    <table style="width:100%;">
-      <tbody>
-        <tr>
-          <td style="width:180px;"><b>RO:</b></td>
-          <td id="locRo"></td>
-        </tr>
-        <tr>
-          <td><b>Tag:</b></td>
-          <td id="locTag"></td>
-        </tr>
-        <tr>
-          <td><b>Customer:</b></td>
-          <td id="locCustomer"></td>
-        </tr>
-        <tr>
-          <td><b>Model:</b></td>
-          <td id="locModel"></td>
-        </tr>
-        <tr>
-          <td><b>Advisor:</b></td>
-          <td id="locAdvisor"></td>
-        </tr>
-        <tr>
-          <td><b>Current Location:</b></td>
-          <td id="locCurrentLocation"></td>
-        </tr>
-        <tr>
-          <td><b>Move Status:</b></td>
-          <td id="locMoveStatus"></td>
-        </tr>
-        <tr>
-          <td><b>Move Started By:</b></td>
-          <td id="locMoveStartedBy"></td>
-        </tr>
-        <tr>
-          <td><b>Move Started At:</b></td>
-          <td id="locMoveStartedAt"></td>
-        </tr>
-      </tbody>
-    </table>
+    <div style="border:1px solid #ddd; border-radius:12px; padding:14px;">
+
+      <div style="font-size:36px; font-weight:bold;">
+        TAG <span id="locTag">—</span>
+      </div>
+
+      <div style="font-size:18px; margin-top:6px;">
+        RO <span id="locRo">—</span>
+      </div>
+
+      <div style="margin-top:12px; font-size:18px;">
+        Location: <span id="locCurrentLocation"></span>
+      </div>
+
+      <div style="margin-top:6px; font-size:18px;">
+        Status: <span id="locMoveStatus"></span>
+      </div>
+      <button id="toggleDetailsBtn" type="button" style="margin-top:12px; width:100%;">
+        More Info
+      </button>
+
+      <div id="vehicleDetails" style="display:none; margin-top:10px;">
+        <div><b>Model:</b> <span id="locModel"></span></div>
+        <div><b>Advisor:</b> <span id="locAdvisor"></span></div>
+        <div><b>Started By:</b> <span id="locMoveStartedBy"></span></div>
+        <div><b>Started At:</b> <span id="locMoveStartedAt"></span></div>
+      </div>
+
+    </div>
   </div>
 
   <div class="card" style="margin-top:16px;">
@@ -147,7 +135,6 @@
           <tr>
             <th>Tag</th>
             <th>RO</th>
-            <th>Customer</th>
             <th>Current Location</th>
             <th>Started By</th>
             <th>Started At</th>
@@ -162,7 +149,7 @@
     </div>
   </div>
 
-  <script type="module" src="/js/location.js?v=3"></script>
+  <script type="module" src="/js/location.js?v=4"></script>
 
 </body>
 

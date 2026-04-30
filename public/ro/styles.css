@@ -416,3 +416,35 @@ tr.row-selected td {
   justify-content: center;
   box-shadow: 0 0 0 2px white;
 }
+
+/* MOBILE FIX - Location Moving Table */
+#movingTable {
+  width: 100%;
+  table-layout: fixed;
+  min-width: 0; /* IMPORTANT: overrides your global 1550px */
+}
+
+#movingTable th,
+#movingTable td {
+  font-size: 14px;
+  padding: 4px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Control each column width */
+#movingTable th:nth-child(1),
+#movingTable td:nth-child(1) { width: 40px; }   /* Tag */
+
+#movingTable th:nth-child(2),
+#movingTable td:nth-child(2) { width: 50px; }   /* RO */
+
+#movingTable th:nth-child(3),
+#movingTable td:nth-child(3) { width: 60px; }   /* Location */
+
+#movingTable th:nth-child(4),
+#movingTable td:nth-child(4) { width: 70px; }  /* Started By */
+
+#movingTable th:nth-child(5),
+#movingTable td:nth-child(5) { width: 70px; }  /* Started At */
