@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Vehicle Requests</title>
+  <link rel="stylesheet" href="/css/arrowflow.css">
+</head>
+
+<body>
+
+  <div id="nav"></div>
+
+  <h2>Vehicle Requests</h2>
+  <p id="status"></p>
+
+  <div class="card">
+    <h3>Request Vehicle Move</h3>
+
+    <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:end;">
+      <div>
+        <label class="muted">RO / Tag / VIN</label><br>
+        <input id="requestSearchInput" placeholder="Search vehicle" style="padding:8px; width:220px;">
+      </div>
+
+      <button id="requestSearchBtn" type="button">Find</button>
+    </div>
+
+    <div id="vehicleBox" style="display:none; margin-top:14px;">
+      <div><b>RO:</b> <span id="reqRo"></span></div>
+      <div><b>Tag:</b> <span id="reqTag"></span></div>
+      <div><b>Customer:</b> <span id="reqCustomer"></span></div>
+      <div><b>Current Location:</b> <span id="reqLocation"></span></div>
+
+      <hr>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:end;">
+        <div>
+          <label class="muted">Request Type</label><br>
+          <select id="requestType" style="padding:8px; min-width:220px;">
+            <option value="">Select...</option>
+            <option value="customerPickup">Customer Pickup</option>
+            <option value="bringToShop">Bring to Shop</option>
+            <option value="moveToAnnex">Move to Annex</option>
+            <option value="moveToMain">Move to Main Store</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="muted">Destination Area</label><br>
+          <select id="toArea" style="padding:8px; min-width:180px;">
+            <option value="">Select...</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="muted">Destination Location</label><br>
+          <select id="toLocation" style="padding:8px; min-width:220px;">
+            <option value="">Select area first...</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="muted">Note</label><br>
+          <input id="requestNote" placeholder="Optional" style="padding:8px; width:220px;">
+        </div>
+
+        <button id="submitRequestBtn" type="button">Submit Request</button>
+      </div>
+    </div>
+
+    <div id="msg" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="card" style="margin-top:16px;">
+    <h3>Open Requests</h3>
+
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>RO</th>
+            <th>Tag</th>
+            <th>Type</th>
+            <th>From</th>
+            <th>To</th>
+            <th>Status</th>
+            <th>Requested By</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="requestsBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script type="module">
+    import { renderNav } from "./js/nav.js";
+    document.getElementById("nav").innerHTML = renderNav("requests");
+  </script>
+
+  <script type="module" src="/js/requests.js?v=1"></script>
+
+</body>
+
+</html>

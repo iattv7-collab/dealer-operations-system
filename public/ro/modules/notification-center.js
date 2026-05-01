@@ -77,6 +77,11 @@ function cardHtml(n) {
       ${body ? `<div class="af-notif-body">${body}</div>` : ""}
 
       <div class="af-notif-actions">
+
+  ${n.type === "valetRequest" && n.url
+      ? `<button type="button" class="smallbtn af-open-request-btn">Open Request</button>`
+      : ""}
+
   ${n.type === "followup"
       ? `
     <button type="button" class="smallbtn af-text-btn">Text</button>
@@ -86,6 +91,7 @@ function cardHtml(n) {
     <button type="button" class="smallbtn af-clear-btn">Clear</button>
   `
     }
+
 </div>
     </div>
   `;
@@ -325,6 +331,22 @@ export function initNotificationCenter({
 
         await deleteNotification(userId, id);
         window.location.href = `/ro/index.html?fu=1&ro=${encodeURIComponent(ro)}&slot=1`;
+      });
+    });
+
+    listEl.querySelectorAll(".af-open-request-btn").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const card = btn.closest(".af-notif-card");
+        const id = card?.dataset?.id || "";
+        const notif = latestDocs.find((n) => n.id === id);
+        if (!notif) return;
+
+        const url = notif.url || "";
+        if (!url) return;
+
+        await markNotificationRead(userId, id);
+
+        window.location.href = url;
       });
     });
 

@@ -25,6 +25,12 @@ const TAB_CONFIG = [
     defaultRoles: ["admin", "manager", "advisor", "valet", "wash", "staff", "booker", "qc"],
   },
   {
+    label: "Requests",
+    href: "/requests.html",
+    key: "requests",
+    defaultRoles: ["admin", "manager", "advisor", "valet", "foreman", "tech"],
+  },
+  {
     label: "Advisor",
     href: "/advisor.html",
     key: "advisor",
