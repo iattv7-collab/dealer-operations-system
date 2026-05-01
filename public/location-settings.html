@@ -13,12 +13,13 @@
 
     <h2>Location Settings</h2>
 
+    <!-- ACTIVE LOCATIONS -->
     <div class="card">
 
         <h3>Add Location</h3>
 
         <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px;">
-            <input id="locLabel" placeholder="Location name (ex: Main - Lot 1)" style="width:260px;">
+            <input id="locLabel" placeholder="Location name (ex: Lot 1)" style="width:260px;">
 
             <select id="locArea">
                 <option value="main">Main Store</option>
@@ -26,6 +27,10 @@
             </select>
 
             <button id="addLocationBtn">Add Location</button>
+
+            <button id="saveAllBtn" disabled style="opacity:0.4; background:#0b3d91; color:#fff; font-weight:600;">
+                Save All Changes
+            </button>
         </div>
 
         <div class="table-scroll">
@@ -34,11 +39,36 @@
                     <tr>
                         <th>Location</th>
                         <th>Area</th>
-                        <th>Active</th>
+                        <th>Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
-                <tbody id="locationCatalogBody"></tbody>
+                <tbody id="activeLocationCatalogBody"></tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <!-- INACTIVE LOCATIONS -->
+    <div class="card" style="margin-top:16px;">
+
+        <h3>Inactive Locations</h3>
+
+        <div class="muted" style="margin-bottom:10px;">
+            These are hidden from Move / Locate.
+        </div>
+
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Location</th>
+                        <th>Area</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="inactiveLocationCatalogBody"></tbody>
             </table>
         </div>
 
@@ -49,7 +79,7 @@
         document.getElementById("nav").innerHTML = renderNav("locationsettings");
     </script>
 
-    <script type="module" src="/js/locationSettings.js?v=2"></script>
+    <script type="module" src="/js/locationSettings.js?v=7"></script>
 
 </body>
 

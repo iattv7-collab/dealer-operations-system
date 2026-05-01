@@ -1,13 +1,4 @@
 // File: /public/js/locationSettings.js
-// Purpose: Manage dealership location catalog (Main Store / Annex / custom lots).
-// Description:
-// - Loads all locations for the current dealer from Firestore (locationCatalog)
-// - Allows inline editing of location name, area, and active status
-// - Save button is disabled until changes are made (dirty state)
-// - Updates label, key, area, and active fields safely
-// - Prevents accidental overwrite by requiring explicit Save action
-// - Used by Location module (Move/Locate) and Foreman filtering (Main vs Annex)
-
 
 import { auth, db } from "./firebase.js";
 import { getUserDealerId } from "./guard.js";
@@ -17,6 +8,7 @@ import {
   addDoc,
   onSnapshot,
   updateDoc,
+  deleteDoc,
   doc,
   query,
   where,
@@ -26,9 +18,14 @@ import {
 const locLabel = document.getElementById("locLabel");
 const locArea = document.getElementById("locArea");
 const addBtn = document.getElementById("addLocationBtn");
-const body = document.getElementById("locationCatalogBody");
+const saveAllBtn = document.getElementById("saveAllBtn");
+
+const activeBody = document.getElementById("activeLocationCatalogBody");
+const inactiveBody = document.getElementById("inactiveLocationCatalogBody");
 
 let dealerId = null;
+let locationCatalog = [];
+let dirtyRows = new Map();
 
 function locationKeyFromLabel(label) {
   return String(label || "")
@@ -38,84 +35,139 @@ function locationKeyFromLabel(label) {
     .replace(/^_+|_+$/g, "");
 }
 
-function render(rows) {
-  body.innerHTML = "";
+function updateSaveAllButton() {
+  const hasChanges = dirtyRows.size > 0;
 
+  saveAllBtn.disabled = !hasChanges;
+  saveAllBtn.style.opacity = hasChanges ? "1" : "0.4";
+  saveAllBtn.textContent = hasChanges
+    ? `Save All Changes (${dirtyRows.size})`
+    : "Save All Changes";
+}
+
+/* =========================
+   RENDER
+========================= */
+
+function render(rows) {
+  activeBody.innerHTML = "";
+  inactiveBody.innerHTML = "";
+
+  const activeRows = rows.filter(l => l.active !== false);
+  const inactiveRows = rows.filter(l => l.active === false);
+
+  renderTable(activeBody, activeRows, true);
+  renderTable(inactiveBody, inactiveRows, false);
+
+  updateSaveAllButton();
+}
+
+function renderTable(targetBody, rows, isActiveTable) {
   if (!rows.length) {
-    body.innerHTML = `<tr><td colspan="4">No locations</td></tr>`;
+    targetBody.innerHTML = `
+      <tr>
+        <td colspan="4">
+          ${isActiveTable ? "No active locations" : "No inactive locations"}
+        </td>
+      </tr>
+    `;
     return;
   }
 
   rows.forEach((l) => {
     const tr = document.createElement("tr");
 
+    const dirty = dirtyRows.get(l.id);
+
+    const displayLabel = dirty?.label ?? l.label ?? "";
+    const displayArea = dirty?.area ?? l.area ?? "main";
+
     tr.innerHTML = `
-      <td><input value="${l.label || ""}" style="width:220px;"></td>
+      <td><input value="${displayLabel}" style="width:220px;"></td>
 
       <td>
         <select>
-          <option value="main" ${l.area === "main" ? "selected" : ""}>Main Store</option>
-          <option value="annex" ${l.area === "annex" ? "selected" : ""}>Annex</option>
+          <option value="main" ${displayArea === "main" ? "selected" : ""}>Main Store</option>
+          <option value="annex" ${displayArea === "annex" ? "selected" : ""}>Annex</option>
         </select>
       </td>
 
-      <td><input type="checkbox" ${l.active !== false ? "checked" : ""}></td>
+      <td>${isActiveTable ? "Active" : "Inactive"}</td>
 
-      <td><button disabled style="opacity:0.4;">Save</button></td>
+      <td>
+        <button type="button" class="toggleBtn" style="margin-left:6px;">
+          ${isActiveTable ? "Deactivate" : "Restore"}
+        </button>
+
+        <button type="button" class="deleteBtn" style="margin-left:6px; background:#8a0018; color:#ffffff; font-weight:700; letter-spacing:0.3px; text-shadow: 0 0 0.5px rgba(0,0,0,0.3);">
+          Delete
+        </button>
+      </td>
     `;
 
     const labelInput = tr.children[0].querySelector("input");
     const areaSelect = tr.children[1].querySelector("select");
-    const activeCheckbox = tr.children[2].querySelector("input");
-    const saveBtn = tr.children[3].querySelector("button");
+    const toggleBtn = tr.querySelector(".toggleBtn");
+    const deleteBtn = tr.querySelector(".deleteBtn");
 
     function markDirty() {
-      saveBtn.disabled = false;
-      saveBtn.style.opacity = "1";
-      saveBtn.textContent = "Save";
+      const newLabel = labelInput.value.trim();
+      const newArea = areaSelect.value;
+
+      if (!newLabel) return;
+
+      dirtyRows.set(l.id, {
+        label: newLabel,
+        area: newArea
+      });
+
+      updateSaveAllButton();
     }
 
     labelInput.addEventListener("input", markDirty);
     areaSelect.addEventListener("change", markDirty);
-    activeCheckbox.addEventListener("change", markDirty);
 
-    saveBtn.onclick = async () => {
-      const newLabel = labelInput.value.trim();
-      const newArea = areaSelect.value;
-      const newActive = activeCheckbox.checked;
+    toggleBtn.onclick = async () => {
+      const action = isActiveTable ? "deactivate" : "restore";
 
-      if (!newLabel) return;
+      const ok = confirm(`Are you sure you want to ${action} this location?`);
+      if (!ok) return;
 
-      try {
-        saveBtn.disabled = true;
-        saveBtn.textContent = "Saving...";
+      dirtyRows.delete(l.id);
+      updateSaveAllButton();
 
-        await updateDoc(doc(db, "locationCatalog", l.id), {
-          label: newLabel,
-          key: locationKeyFromLabel(newLabel),
-          area: newArea,
-          active: newActive,
-          updatedAt: serverTimestamp()
-        });
-
-        saveBtn.textContent = "Saved";
-        saveBtn.style.opacity = "0.4";
-
-        setTimeout(() => {
-          saveBtn.textContent = "Save";
-          saveBtn.disabled = true;
-        }, 900);
-      } catch (e) {
-        console.error(e);
-        saveBtn.textContent = "Error";
-        saveBtn.disabled = false;
-        saveBtn.style.opacity = "1";
-      }
+      await updateDoc(doc(db, "locationCatalog", l.id), {
+        active: !isActiveTable,
+        updatedAt: serverTimestamp()
+      });
     };
 
-    body.appendChild(tr);
+    deleteBtn.onclick = async () => {
+      const firstConfirm = confirm(
+        `WARNING: You are about to delete "${l.label}".\n\nThis should only be done during testing.\n\nContinue?`
+      );
+
+      if (!firstConfirm) return;
+
+      const secondConfirm = confirm(
+        `FINAL CONFIRMATION:\n\nDelete "${l.label}" permanently?`
+      );
+
+      if (!secondConfirm) return;
+
+      dirtyRows.delete(l.id);
+      updateSaveAllButton();
+
+      await deleteDoc(doc(db, "locationCatalog", l.id));
+    };
+
+    targetBody.appendChild(tr);
   });
 }
+
+/* =========================
+   LOAD DATA
+========================= */
 
 onAuthStateChanged(auth, async (user) => {
   if (!user) return;
@@ -128,21 +180,38 @@ onAuthStateChanged(auth, async (user) => {
   );
 
   onSnapshot(q, (snap) => {
-    const rows = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    locationCatalog = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    rows.sort((a, b) =>
-      String(a.label || "").localeCompare(String(b.label || ""), undefined, { numeric: true })
-    );
+    locationCatalog.sort((a, b) => {
+      const areaCompare = String(a.area || "").localeCompare(String(b.area || ""));
+      if (areaCompare !== 0) return areaCompare;
 
-    render(rows);
+      return String(a.label || "").localeCompare(String(b.label || ""), undefined, { numeric: true });
+    });
+
+    render(locationCatalog);
   });
 });
+
+/* =========================
+   ADD LOCATION
+========================= */
 
 addBtn.onclick = async () => {
   const label = locLabel.value.trim();
   const area = locArea.value;
 
   if (!label) return;
+
+  const exists = locationCatalog.some(l =>
+    l.area === area &&
+    l.label.toLowerCase().trim() === label.toLowerCase().trim()
+  );
+
+  if (exists) {
+    alert("This location already exists in that area.");
+    return;
+  }
 
   await addDoc(collection(db, "locationCatalog"), {
     dealerId,
@@ -155,4 +224,45 @@ addBtn.onclick = async () => {
   });
 
   locLabel.value = "";
+};
+
+/* =========================
+   SAVE ALL
+========================= */
+
+saveAllBtn.onclick = async () => {
+  if (!dirtyRows.size) return;
+
+  try {
+    saveAllBtn.disabled = true;
+    saveAllBtn.textContent = "Saving all...";
+
+    const saves = [];
+
+    dirtyRows.forEach((pending, id) => {
+      saves.push(
+        updateDoc(doc(db, "locationCatalog", id), {
+          label: pending.label,
+          key: locationKeyFromLabel(pending.label),
+          area: pending.area,
+          updatedAt: serverTimestamp()
+        })
+      );
+    });
+
+    await Promise.all(saves);
+
+    dirtyRows.clear();
+    updateSaveAllButton();
+
+    saveAllBtn.textContent = "Saved All";
+
+    setTimeout(() => {
+      updateSaveAllButton();
+    }, 900);
+  } catch (e) {
+    console.error(e);
+    alert("Could not save all changes. Check console.");
+    updateSaveAllButton();
+  }
 };

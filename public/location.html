@@ -90,26 +90,17 @@
 
       <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
         <div>
-          <label for="finalLocationSelect" class="muted">Final Location</label>
-          <select id="finalLocationSelect" style="padding:6px 8px; min-width:220px;">
+          <label for="moveAreaSelect" class="muted">Moved To</label>
+          <select id="moveAreaSelect" style="padding:6px 8px; min-width:180px;">
             <option value="">Select...</option>
-            <option value="Service Lane">Service Lane</option>
-            <option value="Wash">Wash</option>
-            <option value="QC">QC</option>
-            <option value="Front">Front</option>
-            <option value="Delivery">Delivery</option>
-            <option value="Lot 1">Lot 1</option>
-            <option value="Lot 2">Lot 2</option>
-            <option value="Lot 3">Lot 3</option>
-            <option value="Back Lot">Back Lot</option>
-            <option value="Other">Other</option>
           </select>
         </div>
 
         <div>
-          <label for="customLocationInput" class="muted">Custom / Spot / Detail</label>
-          <input id="customLocationInput" type="text" placeholder="Example: A12 or custom location"
-            style="padding:6px 8px; width:240px;" />
+          <label for="finalLocationSelect" class="muted">Location / Spot</label>
+          <select id="finalLocationSelect" style="padding:6px 8px; min-width:220px;">
+            <option value="">Select area first...</option>
+          </select>
         </div>
 
         <div>
@@ -118,14 +109,14 @@
         </div>
 
         <div>
-          <button id="saveFinalLocationBtn" type="button">Save Final Location</button>
+          <button id="saveFinalLocationBtn" type="button">Save Location</button>
         </div>
+
         <div>
           <button id="cancelMoveBtn" type="button" style="background:#444;">
             Cancel Move
           </button>
         </div>
-
       </div>
     </div>
   </div>
@@ -157,7 +148,7 @@
     </div>
   </div>
 
-  <script type="module" src="/js/location.js?v=10"></script>
+  <script type="module" src="/js/location.js?v=11"></script>
 
 </body>
 

@@ -64,7 +64,7 @@ const moveIdleSection = document.getElementById("moveIdleSection");
 const moveActiveSection = document.getElementById("moveActiveSection");
 const startMoveBtn = document.getElementById("startMoveBtn");
 const finalLocationSelect = document.getElementById("finalLocationSelect");
-const customLocationInput = document.getElementById("customLocationInput");
+const moveAreaSelect = document.getElementById("moveAreaSelect");
 const blocksTagInput = document.getElementById("blocksTagInput");
 const saveFinalLocationBtn = document.getElementById("saveFinalLocationBtn");
 const cancelMoveBtn = document.getElementById("cancelMoveBtn");
@@ -141,8 +141,8 @@ function resetPreview() {
     moveIdleSection.style.display = "block";
     moveActiveSection.style.display = "none";
 
-    finalLocationSelect.value = "";
-    customLocationInput.value = "";
+    moveAreaSelect.value = "";
+    finalLocationSelect.innerHTML = `<option value="">Select area first...</option>`;
     if (blocksTagInput) blocksTagInput.value = "";
 }
 
@@ -208,8 +208,8 @@ function renderTicket() {
     moveActiveSection.style.display = moving ? "block" : "none";
 
     if (!moving) {
-        finalLocationSelect.value = "";
-        customLocationInput.value = "";
+        moveAreaSelect.value = "";
+        finalLocationSelect.innerHTML = `<option value="">Select area first...</option>`;
         if (blocksTagInput) blocksTagInput.value = "";
     }
 }
@@ -353,41 +353,32 @@ function locationKeyFromLabel(label) {
         .replace(/^_+|_+$/g, "");
 }
 
-function renderLocationDropdown() {
-    finalLocationSelect.innerHTML = "";
+function renderAreaDropdown() {
+    const moveAreaSelect = document.getElementById("moveAreaSelect");
 
-    const empty = document.createElement("option");
-    empty.value = "";
-    empty.textContent = "Select...";
-    finalLocationSelect.appendChild(empty);
+    moveAreaSelect.innerHTML = `<option value="">Select...</option>`;
 
-    const mainGroup = document.createElement("optgroup");
-    mainGroup.label = "Main Store";
+    const areas = [...new Set(locationCatalog.map(l => l.area))];
 
-    const annexGroup = document.createElement("optgroup");
-    annexGroup.label = "Annex";
-
-    locationCatalog.forEach((loc) => {
+    areas.forEach(area => {
         const opt = document.createElement("option");
-        opt.value = loc.key || locationKeyFromLabel(loc.label);
-        opt.textContent = loc.label || "";
-        opt.dataset.area = loc.area || "";
-        opt.dataset.label = loc.label || "";
-
-        if (loc.area === "annex") {
-            annexGroup.appendChild(opt);
-        } else {
-            mainGroup.appendChild(opt);
-        }
+        opt.value = area;
+        opt.textContent = area === "annex" ? "Annex" : "Main Store";
+        moveAreaSelect.appendChild(opt);
     });
+}
 
-    if (mainGroup.children.length) finalLocationSelect.appendChild(mainGroup);
-    if (annexGroup.children.length) finalLocationSelect.appendChild(annexGroup);
+function renderLocationDropdownByArea(area) {
+    finalLocationSelect.innerHTML = `<option value="">Select...</option>`;
 
-    const other = document.createElement("option");
-    other.value = "Other";
-    other.textContent = "Other";
-    finalLocationSelect.appendChild(other);
+    const filtered = locationCatalog.filter(l => l.area === area);
+
+    filtered.forEach(loc => {
+        const opt = document.createElement("option");
+        opt.value = loc.key;
+        opt.textContent = loc.label;
+        finalLocationSelect.appendChild(opt);
+    });
 }
 
 function startLocationCatalogListener(dealerId) {
@@ -413,45 +404,29 @@ function startLocationCatalogListener(dealerId) {
             String(a.label || "").localeCompare(String(b.label || ""), undefined, { numeric: true })
         );
 
-        renderLocationDropdown();
+        renderAreaDropdown();
+        finalLocationSelect.innerHTML = `<option value="">Select area first...</option>`;
     });
 }
 
 function buildFinalLocationInfo() {
+    const area = moveAreaSelect.value;
     const selectedKey = String(finalLocationSelect.value || "").trim();
-    const custom = String(customLocationInput.value || "").trim();
 
-    if (selectedKey === "Other") {
-        if (!custom) return null;
-
-        return {
-            location: custom,
-            locationKey: locationKeyFromLabel(custom),
-            locationArea: "custom"
-        };
-    }
+    if (!area || !selectedKey) return null;
 
     const selectedLoc = locationCatalog.find((l) =>
-        String(l.key || locationKeyFromLabel(l.label)) === selectedKey
+        String(l.key || locationKeyFromLabel(l.label)) === selectedKey &&
+        l.area === area
     );
 
-    if (selectedLoc) {
-        return {
-            location: custom ? `${selectedLoc.label} - ${custom}` : selectedLoc.label,
-            locationKey: selectedLoc.key || locationKeyFromLabel(selectedLoc.label),
-            locationArea: selectedLoc.area || ""
-        };
-    }
+    if (!selectedLoc) return null;
 
-    if (custom) {
-        return {
-            location: custom,
-            locationKey: locationKeyFromLabel(custom),
-            locationArea: "custom"
-        };
-    }
-
-    return null;
+    return {
+        location: selectedLoc.label,
+        locationKey: selectedLoc.key || locationKeyFromLabel(selectedLoc.label),
+        locationArea: area
+    };
 }
 
 async function saveFinalLocation() {
@@ -461,7 +436,7 @@ async function saveFinalLocation() {
     const blocksTag = String(blocksTagInput?.value || "").trim();
 
     if (!finalLocationInfo?.location) {
-        setMsg("Select or enter a final location.", false);
+        setMsg("Select where the vehicle was moved to and the location/spot.", false);
         return;
     }
 
@@ -562,6 +537,11 @@ function startMovingListener(dealerId) {
     `;
     });
 }
+
+moveAreaSelect.addEventListener("change", () => {
+    renderLocationDropdownByArea(moveAreaSelect.value);
+});
+
 
 searchBtn.addEventListener("click", searchTicket);
 
