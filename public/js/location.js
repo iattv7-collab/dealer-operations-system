@@ -21,9 +21,15 @@ const msgEl = document.getElementById("msg");
 const searchInput = document.getElementById("searchInput");
 const searchBtn = document.getElementById("searchBtn");
 
+const searchModeToggleBtn = document.getElementById("searchModeToggleBtn");
+let searchMode = "number"; // default
+
 const locRo = document.getElementById("locRo");
 const locTag = document.getElementById("locTag");
 const locBlockedByTag = document.getElementById("locBlockedByTag");
+
+const locCustomer = document.getElementById("locCustomer");
+const locVin = document.getElementById("locVin");
 
 const locModel = document.getElementById("locModel");
 const locAdvisor = document.getElementById("locAdvisor");
@@ -103,6 +109,8 @@ function resetPreview() {
     locRo.textContent = "";
     locTag.textContent = "";
     locBlockedByTag.textContent = "—";
+    locCustomer.textContent = "";
+    locVin.textContent = "";
     locModel.textContent = "";
     locAdvisor.textContent = "";
     locCurrentLocation.textContent = "";
@@ -126,6 +134,9 @@ function renderTicket() {
 
     locRo.textContent = currentTicket.ro || "";
     locTag.textContent = currentTicket.tag || "";
+
+    locCustomer.textContent = currentTicket.customerName || "";
+    locVin.textContent = currentTicket.vin || "";
 
     // Find full blocking chain for THIS car
     (async () => {
@@ -262,6 +273,17 @@ async function searchTicket() {
 
         renderTicket();
         setMsg("Vehicle found.", true);
+
+        setTimeout(() => {
+            const isMobile = window.innerWidth < 700;
+
+            const offset = isMobile ? 260 : 200;
+
+            window.scrollTo({
+                top: window.scrollY + offset,
+                behavior: "smooth"
+            });
+        }, 400);
     } catch (err) {
         console.error(err);
         setMsg(err?.message || "Search failed.", false);
@@ -592,6 +614,25 @@ moveAreaSelect.addEventListener("change", () => {
     renderLocationDropdownByArea(moveAreaSelect.value);
 });
 
+function updateSearchModeUI() {
+    if (searchMode === "number") {
+        searchInput.type = "tel";
+        searchInput.inputMode = "numeric";
+        searchInput.pattern = "[0-9]*";
+        searchInput.placeholder = "Tag / RO";
+
+        searchModeToggleBtn.textContent = "By VIN";
+        searchModeToggleBtn.classList.remove("active");
+    } else {
+        searchInput.type = "text";
+        searchInput.inputMode = "text";
+        searchInput.removeAttribute("pattern");
+        searchInput.placeholder = "VIN last 6 / 8 / full VIN";
+
+        searchModeToggleBtn.textContent = "By Tag";
+        searchModeToggleBtn.classList.add("active");
+    }
+}
 
 searchBtn.addEventListener("click", searchTicket);
 
@@ -600,6 +641,13 @@ searchInput.addEventListener("keydown", (e) => {
         e.preventDefault();
         searchTicket();
     }
+});
+
+searchModeToggleBtn.addEventListener("click", () => {
+    searchMode = searchMode === "number" ? "vin" : "number";
+    updateSearchModeUI();
+    searchInput.value = "";
+    searchInput.focus();
 });
 
 startMoveBtn.addEventListener("click", startMove);
@@ -612,7 +660,7 @@ const vehicleDetails = document.getElementById("vehicleDetails");
 toggleDetailsBtn.addEventListener("click", () => {
     const open = vehicleDetails.style.display !== "none";
     vehicleDetails.style.display = open ? "none" : "block";
-    toggleDetailsBtn.textContent = open ? "More Info" : "Less Info";
+    toggleDetailsBtn.textContent = open ? "Details" : "Hide";
 });
 
 onAuthStateChanged(auth, async (user) => {
@@ -628,9 +676,12 @@ onAuthStateChanged(auth, async (user) => {
     const role = String(currentProfile?.role || "").toLowerCase();
     const dealerId = Number(currentProfile?.dealerId || 0);
 
-    statusEl.textContent = `${user.email || ""} · ${role}`;
+    statusEl.textContent = "";
 
     startLocationCatalogListener(dealerId);
     startMovingListener(dealerId);
     clearMsg();
-});  
+});
+
+// Set default search mode on page load
+updateSearchModeUI();

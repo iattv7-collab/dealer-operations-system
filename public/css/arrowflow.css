@@ -314,3 +314,62 @@ body>div:not(#nav):not(#manualControls) {
     margin: 6px 12px 10px 12px !important;
   }
 }
+
+/* ===== SEARCH MODE TOGGLE ===== */
+.search-mode-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.mode-btn.small {
+  padding: 6px 10px;
+  font-size: 13px;
+  background: #e5e7eb;
+  color: #111;
+  border: 1px solid #bbb;
+}
+
+.mode-btn.active {
+  background: var(--blue);
+  color: #fff;
+  border-color: var(--blue);
+}
+
+/* ===== BUTTON SYSTEM ===== */
+.btn {
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid #b9c1cc;
+  background: #f8fafc;
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--font-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn:hover {
+  background: #e5e7eb;
+}
+
+.btn.small {
+  padding: 3px 8px;
+  font-size: 12px;
+  min-height: 28px;
+}
+
+/* ===== VEHICLE PREVIEW TYPOGRAPHY ===== */
+.preview-tag {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.preview-ro {
+  font-size: 14px;
+}
+
+.preview-line {
+  font-size: 14px;
+}

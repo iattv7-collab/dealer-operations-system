@@ -17,17 +17,26 @@
   <h2>Move & Locate</h2>
 
   <div class="card">
-    <h3 style="margin-top:0;">Find Vehicle / Move Vehicle</h3>
+    <h3 style="margin:0 0 4px 0;">Find Vehicle / Move Vehicle</h3>
 
-    <div class="muted" style="margin-bottom:10px;">
-      Search by RO or Tag, start the move, then save the final location when the vehicle arrives.
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+
+      <div class="muted">
+        Search by RO, Tag, or VIN
+      </div>
+
+      <button id="searchModeToggleBtn" class="btn small" type="button">
+        By VIN
+      </button>
+
     </div>
 
-    <div style="display:flex; gap:8px; align-items:center;">
+    <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
 
-      <input id="searchInput" type="text" placeholder="RO / Tag / VIN" style="flex:1; padding:10px; font-size:16px;" />
+      <input id="searchInput" type="tel" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="Tag / RO"
+        style="flex:1;" />
 
-      <button id="searchBtn" type="button" style="padding:10px 14px; font-size:16px;">
+      <button id="searchBtn" class="btn" type="button">
         Find
       </button>
 
@@ -41,29 +50,39 @@
 
     <div style="border:1px solid #ddd; border-radius:12px; padding:14px;">
 
-      <div style="font-size:36px; font-weight:bold;">
-        TAG <span id="locTag">—</span>
-      </div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
 
-      <div style="font-size:18px; margin-top:6px;">
-        RO <span id="locRo">—</span>
-      </div>
+        <div style="flex:1;">
+          <div class="preview-tag">
+            TAG <span id="locTag">—</span>
+          </div>
 
-      <div style="margin-top:12px; font-size:18px;">
-        Location: <span id="locCurrentLocation"></span>
-      </div>
+          <div class="preview-ro" style="margin-top:6px;">
+            RO <span id="locRo">—</span>
+          </div>
 
-      <div style="margin-top:6px; font-size:18px;">
-        Status: <span id="locMoveStatus"></span>
+          <div class="preview-line" style="margin-top:10px;">
+            Location: <span id="locCurrentLocation"></span>
+          </div>
+
+          <div class="preview-line" style="margin-top:6px;">
+            Status: <span id="locMoveStatus"></span>
+          </div>
+
+          <div class="preview-line" style="margin-top:6px;">
+            Blocked by: <span id="locBlockedByTag">—</span>
+          </div>
+        </div>
+
+        <button id="toggleDetailsBtn" class="btn small" type="button">
+          Details
+        </button>
+
       </div>
-      <div style="margin-top:6px; font-size:18px;">
-        Blocked by: <span id="locBlockedByTag">—</span>
-      </div>
-      <button id="toggleDetailsBtn" type="button" style="margin-top:12px; width:100%;">
-        More Info
-      </button>
 
       <div id="vehicleDetails" style="display:none; margin-top:10px;">
+        <div><b>Customer:</b> <span id="locCustomer"></span></div>
+        <div><b>VIN:</b> <span id="locVin"></span></div>
         <div><b>Model:</b> <span id="locModel"></span></div>
         <div><b>Advisor:</b> <span id="locAdvisor"></span></div>
         <div><b>Started By:</b> <span id="locMoveStartedBy"></span></div>
@@ -105,7 +124,8 @@
 
         <div>
           <label for="blocksTagInput" class="muted">Blocking Tag</label>
-          <input id="blocksTagInput" type="text" placeholder="Optional" style="padding:6px 8px; width:140px;" />
+          <input id="blocksTagInput" type="tel" inputmode="numeric" pattern="[0-9]*" autocomplete="off"
+            placeholder="Optional" style="padding:10px 12px; width:150px; font-size:18px;" />
         </div>
 
         <div>
@@ -153,7 +173,7 @@
     document.getElementById("nav").innerHTML = renderNav("location");
   </script>
 
-  <script type="module" src="/js/location.js?v=12"></script>
+  <script type="module" src="/js/location.js?v=18"></script>
 
 </body>
 
