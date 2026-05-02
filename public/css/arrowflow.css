@@ -7,6 +7,14 @@
   --text: #1f2937;
   --muted: #6b7280;
   --danger: #b42318;
+
+  --font-base: 16px;
+  --font-nav: 14px;
+  --font-title: 22px;
+  --font-h2: 20px;
+  --font-h3: 17px;
+  --font-table: 14px;
+  --font-small: 13px;
 }
 
 * {
@@ -18,6 +26,7 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
+  font-size: var(--font-base);
   font-family: "Times New Roman", Times, serif;
   background:
     linear-gradient(135deg, rgba(11, 61, 145, 0.08), rgba(0, 168, 198, 0.08)),
@@ -32,7 +41,7 @@ body {
 
 button {
   font-family: inherit;
-  font-size: 16px;
+  font-size: var(--font-base);
 }
 
 /* ===== CARD ===== */
@@ -58,6 +67,7 @@ td {
   padding: 8px;
   vertical-align: top;
   white-space: nowrap;
+  font-size: var(--font-table);
 }
 
 th {
@@ -68,6 +78,7 @@ th {
 /* ===== TEXT ===== */
 .muted {
   color: var(--muted);
+  font-size: var(--font-small);
 }
 
 .ok {
@@ -107,18 +118,12 @@ th {
 
 /* ===== NAV BAR ===== */
 #nav {
+  position: relative;
   background: var(--blue);
   color: #fff;
   padding: 14px 18px 10px;
   border-bottom: 4px solid var(--teal);
   margin-bottom: 16px;
-}
-
-#nav > div {
-  display: flex;
-  gap: 10px;
-  margin-bottom: 0;
-  flex-wrap: wrap;
 }
 
 #nav a {
@@ -136,13 +141,20 @@ th {
   background: rgba(255, 255, 255, 0.18);
 }
 
+.app-title {
+  font-size: var(--font-title);
+  margin: 0 0 8px 0;
+  font-weight: bold;
+  color: #fff;
+}
+
 /* ===== ACTIVE TAB ===== */
 #nav a.active {
   background: #ffffff;
   color: var(--blue);
   border: 2px solid var(--teal);
   font-weight: bold;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 /* ===== SEARCH ===== */
@@ -169,6 +181,7 @@ th {
 h2 {
   color: var(--blue);
   margin-top: 0;
+  font-size: var(--font-h2);
 }
 
 /* ===== CONTROL PANEL ===== */
@@ -184,13 +197,15 @@ h2 {
 }
 
 /* ===== GLOBAL SPACING ===== */
-body > h2,
-body > .card,
-body > p:not(#status),
-body > div:not(#nav):not(#manualControls) {
+body>h2,
+body>.card,
+body>p:not(#status),
+body>div:not(#nav):not(#manualControls) {
   margin-left: 16px;
   margin-right: 16px;
 }
+
+
 
 /* ===== MOBILE ===== */
 @media (max-width: 768px) {
@@ -200,12 +215,6 @@ body > div:not(#nav):not(#manualControls) {
 
   #nav {
     padding: 14px 12px 10px;
-  }
-
-  #nav > div {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
   }
 
   #nav a {
@@ -231,13 +240,17 @@ body > div:not(#nav):not(#manualControls) {
   }
 
   h2 {
-    font-size: 20px;
+    font-size: var(--font-h2);
     margin-top: 10px;
     margin-bottom: 10px;
   }
 
+  h3 {
+    font-size: var(--font-h3);
+  }
+
   .muted {
-    font-size: 13px;
+    font-size: var(--font-small);
   }
 
   #searchInput {
@@ -278,7 +291,7 @@ body > div:not(#nav):not(#manualControls) {
 
   th,
   td {
-    font-size: 12px;
+    font-size: var(--font-table);
     padding: 7px 6px;
     white-space: nowrap;
   }
@@ -289,10 +302,10 @@ body > div:not(#nav):not(#manualControls) {
     padding-right: 10px;
   }
 
-  body > h2,
-  body > .card,
-  body > p:not(#status),
-  body > div:not(#nav):not(#manualControls) {
+  body>h2,
+  body>.card,
+  body>p:not(#status),
+  body>div:not(#nav):not(#manualControls) {
     margin-left: 12px;
     margin-right: 12px;
   }

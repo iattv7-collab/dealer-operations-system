@@ -1,263 +1,82 @@
-// public/js/nav.js
 import { auth } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getUserProfile } from "./guard.js";
-import { db } from "./firebase.js";
-import { doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-const TAB_CONFIG = [
-  {
-    label: "Home",
-    href: "/home.html",
-    key: "home",
-    defaultRoles: ["admin", "manager", "advisor", "wash", "staff", "valet", "booker", "qc"],
-  },
-  {
-    label: "New RO",
-    href: "/ro/scan.html",
-    key: "scanner",
-    defaultRoles: ["admin", "manager", "advisor"],
-  },
-  {
-    label: "Location",
-    href: "/location.html",
-    key: "location",
-    defaultRoles: ["admin", "manager", "advisor", "valet", "wash", "staff", "booker", "qc"],
-  },
-  {
-    label: "Requests",
-    href: "/requests.html",
-    key: "requests",
-    defaultRoles: ["admin", "manager", "advisor", "valet", "foreman", "tech"],
-  },
-  {
-    label: "Advisor",
-    href: "/advisor.html",
-    key: "advisor",
-    defaultRoles: ["admin", "manager", "advisor"],
-  },
-  {
-    label: "Valet",
-    href: "/valet.html",
-    key: "valet",
-    defaultRoles: ["admin", "manager", "valet"],
-  },
-  {
-    label: "Wash",
-    href: "/wash.html",
-    key: "wash",
-    defaultRoles: ["admin", "manager", "wash"],
-  },
-  {
-    label: "Loaners",
-    href: "/loaners.html",
-    key: "loaners",
-    defaultRoles: ["admin", "manager", "advisor", "wash"],
-  },
-  {
-    label: "Manager",
-    href: "/manager.html",
-    key: "manager",
-    defaultRoles: ["admin", "manager"],
-  },
-  {
-    label: "Admin",
-    href: "/admin.html",
-    key: "admin",
-    defaultRoles: ["admin"],
-  },
-  {
-    label: "Send to Wash",
-    href: "/dropoff.html",
-    key: "dropoff",
-    defaultRoles: ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"],
-  },
-  {
-    label: "Wash Settings",
-    href: "/settings.html",
-    key: "settings",
-    defaultRoles: ["admin", "manager"],
-  },
-
-  {
-    label: "Location Settings",
-    href: "/location-settings.html",
-    key: "locationsettings",
-    defaultRoles: ["admin", "manager"],
-  },
-
-  {
-    label: "Booker",
-    href: "/booker.html",
-    key: "booker",
-    defaultRoles: ["admin", "manager", "booker"],
-  },
-  {
-    label: "QC",
-    href: "/qc.html",
-    key: "qc",
-    defaultRoles: ["admin", "manager", "qc"],
-  },
-  {
-    label: "Master RO",
-    href: "/master-ro.html",
-    key: "masterro",
-    defaultRoles: ["admin", "manager", "advisor", "booker"], // qc removed by default
-  },
-  {
-    label: "Archive",
-    href: "/archive.html",
-    key: "archive",
-    defaultRoles: ["admin", "manager", "advisor", "booker"],
-  },
-  {
-    label: "RO Tracker",
-    href: "/ro/index.html",
-    key: "rotracker",
-    defaultRoles: ["admin", "manager", "advisor"],
-  },
-  {
-    label: "Foreman",
-    href: "/foreman.html",
-    key: "foreman",
-    defaultRoles: ["admin", "manager", "foreman"],
-  },
-  {
-    label: "Tech",
-    href: "/tech.html",
-    key: "tech",
-    defaultRoles: ["admin", "manager", "tech"],
-  },
-
-];
-
-function escapeHtml(s) {
-  return String(s).replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#039;",
-  }[c]));
-}
-
-function normalizeRole(role) {
-  return String(role || "pending").trim().toLowerCase();
-}
-
-/*
-  Placeholder for future admin toggle system.
-
-  Later this can come from Firestore, for example:
-  {
-    masterro: {
-      addRoles: ["qc"],
-      removeRoles: []
-    }
-  }
-*/
-
-function canRoleSeeTab(tab, role, tabVisibility) {
-  const configuredRoles = Array.isArray(tabVisibility?.[tab.key])
-    ? tabVisibility[tab.key].map(normalizeRole)
-    : tab.defaultRoles.map(normalizeRole);
-
-  return configuredRoles.includes(role);
-}
-
-function getAllowedTabsForRole(role, tabVisibility = {}) {
-  return TAB_CONFIG.filter((tab) => canRoleSeeTab(tab, role, tabVisibility));
-}
-
-export function renderNav(active = "") {
+export function renderNav() {
   const shell = `
-    <style>
-      .topnav { margin: 6px 0 10px 0; }
-      .topnav a {
-        display: inline-block;
-        padding: 6px 10px;
-        margin-right: 6px;
-        margin-bottom: 6px;
-        border: 1px solid #bbb;
-        border-radius: 6px;
-        text-decoration: none;
-        color: #00f;
-        background: #fff;
-      }
-      .topnav a.active {
-        color: #000;
-        background: #ffeaa7;
-        border-color: #888;
-        font-weight: bold;
-      }
-    </style>
+  <style>
+    .af-nav {
+      background: #0b3d91;
+      color: #fff;
+      padding: 14px 16px;
+      border-bottom: 4px solid #00a8c6;
+    }
 
-    <h1>Dealer Wash System</h1>
-    <div id="nav-links" class="topnav">Loading...</div>
-    <p id="nav-user"></p>
-    <hr />
-  `;
+    /* ROW 1 */
+    .af-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .af-title {
+      font-size: 22px;
+      font-weight: bold;
+    }
+
+    .af-name {
+      font-weight: bold;
+    }
+
+    /* ROW 2 */
+    .af-bottom {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+
+    .af-nav a {
+      color: #fff;
+      text-decoration: none;
+      padding: 8px 10px;
+      border: 1px solid rgba(255,255,255,0.35);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.08);
+    }
+  </style>
+
+  <div class="af-nav">
+    <div class="af-top">
+      <div class="af-title">Arrow Flow</div>
+      <div id="nav-name" class="af-name"></div>
+    </div>
+
+    <div class="af-bottom">
+      <a href="/home.html">Home</a>
+      <a href="#" id="nav-signout">Sign out</a>
+    </div>
+  </div>
+`;
 
   onAuthStateChanged(auth, async (user) => {
-    const linksEl = document.getElementById("nav-links");
-    const userEl = document.getElementById("nav-user");
-    if (!linksEl || !userEl) return;
+    const nameEl = document.getElementById("nav-name");
+    const signoutEl = document.getElementById("nav-signout");
 
-    if (!user) {
-      linksEl.innerHTML = `<a href="/login.html">Login</a>`;
-      userEl.textContent = "";
-      return;
-    }
+    if (!user) return;
 
-    let role = "pending";
     try {
       const profile = await getUserProfile(user);
-      role = normalizeRole(profile?.role || "pending");
-    } catch (e) {
-      console.error("Failed to load user profile for nav:", e);
-      role = "pending";
+      nameEl.textContent = profile?.name || user.email?.split("@")[0] || "";
+    } catch {
+      nameEl.textContent = user.email?.split("@")[0] || "";
     }
 
-    if (role === "pending") {
-      linksEl.textContent = "Awaiting approval...";
-    } else {
-      let tabVisibility = {};
-      try {
-        const snap = await getDoc(doc(db, "settings", "tabVisibility"));
-        if (snap.exists()) {
-          tabVisibility = snap.data();
-        }
-      } catch (e) {
-        console.error("Failed to load tab visibility:", e);
-      }
-
-      const allowedTabs = getAllowedTabsForRole(role, tabVisibility);
-
-      linksEl.innerHTML = allowedTabs
-        .map((tab) => {
-          const cls = tab.key === active ? "active" : "";
-          return `<a class="${cls}" href="${tab.href}">${tab.label}</a>`;
-        })
-        .join("");
-    }
-
-    userEl.innerHTML = `${escapeHtml(user.email || "")} (${escapeHtml(role)}) · <a href="#" id="nav-signout">Sign out</a>`;
-
-    const signoutEl = document.getElementById("nav-signout");
-    if (signoutEl) {
-      signoutEl.addEventListener("click", async (e) => {
-        e.preventDefault();
-        try {
-          await signOut(auth);
-          window.location.href = "/login.html";
-        } catch (err) {
-          console.error("Sign out failed:", err);
-        }
-      });
-    }
+    signoutEl.addEventListener("click", async (e) => {
+      e.preventDefault();
+      await signOut(auth);
+      window.location.href = "/login.html";
+    });
   });
 
   return shell;
 }
-
-export { TAB_CONFIG, getAllowedTabsForRole, canRoleSeeTab };

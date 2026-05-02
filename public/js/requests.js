@@ -35,6 +35,8 @@ const requestNote = $("requestNote");
 const submitRequestBtn = $("submitRequestBtn");
 const requestsBody = $("requestsBody");
 
+
+
 let currentUser = null;
 let currentProfile = null;
 let currentVehicle = null;
@@ -140,10 +142,24 @@ async function searchVehicle() {
     reqRo.textContent = found.ro || "";
     reqTag.textContent = found.tag || "";
     reqCustomer.textContent = found.customerName || "";
+    $("reqVin").textContent = found.vin || "";
+    $("reqDescription").textContent = found.model || "";
     reqLocation.textContent = found.location || "—";
 
     vehicleBox.style.display = "block";
     setMsg("Vehicle found.", true);
+
+    const toggleBtn = $("toggleDetailsBtn");
+    const detailsBox = $("vehicleDetails");
+
+    if (toggleBtn && detailsBox) {
+        toggleBtn.onclick = () => {
+            const isOpen = detailsBox.style.display === "block";
+            detailsBox.style.display = isOpen ? "none" : "block";
+            toggleBtn.textContent = isOpen ? "Details" : "Hide";
+        };
+    }
+
 }
 
 function renderAreaDropdown() {
@@ -544,7 +560,7 @@ onAuthStateChanged(auth, async (user) => {
     const role = String(currentProfile?.role || "").toLowerCase();
     const dealerId = Number(currentProfile?.dealerId || 0);
 
-    statusEl.textContent = `${user.email || ""} · ${role}`;
+    statusEl.textContent = "";
 
     await loadLocationCatalog(dealerId);
     listenRequests(dealerId);

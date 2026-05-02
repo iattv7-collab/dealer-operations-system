@@ -13,34 +13,6 @@ import {
     serverTimestamp,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
-document.getElementById("nav").innerHTML = `
-  <div style="
-    background:#0b3d91;
-    color:#fff;
-    padding:12px;
-    display:flex;
-    align-items:center;
-    justify-content:space-between;
-    border-bottom:4px solid #00a8c6;
-  ">
-    <button onclick="window.location.href='/home.html'"
-      style="
-        background:#fff;
-        color:#0b3d91;
-        border:none;
-        padding:8px 12px;
-        border-radius:8px;
-        font-weight:bold;
-      ">
-      ← Home
-    </button>
-
-    <div style="font-weight:bold;">
-      Location
-    </div>
-  </div>
-`;
-
 requireRole(["admin", "manager", "advisor", "wash", "valet", "staff", "dropoff", "booker", "qc", "foreman", "tech"]);
 
 const statusEl = document.getElementById("status");

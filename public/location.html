@@ -14,7 +14,7 @@
 
   <p id="status"></p>
 
-  <h2>Location</h2>
+  <h2>Move & Locate</h2>
 
   <div class="card">
     <h3 style="margin-top:0;">Find Vehicle / Move Vehicle</h3>
@@ -148,7 +148,12 @@
     </div>
   </div>
 
-  <script type="module" src="/js/location.js?v=11"></script>
+  <script type="module">
+    import { renderNav } from "./js/nav.js";
+    document.getElementById("nav").innerHTML = renderNav("location");
+  </script>
+
+  <script type="module" src="/js/location.js?v=12"></script>
 
 </body>
 
