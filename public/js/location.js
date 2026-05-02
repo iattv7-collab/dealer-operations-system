@@ -148,9 +148,20 @@ function renderTicket() {
                     const snap = await getDocs(q);
 
                     snap.forEach((d) => {
-                        const blockerTag = d.data()?.tag;
+                        const blocker = d.data();
 
-                        if (blockerTag && !result.includes(blockerTag)) {
+                        const blockerTag = String(blocker?.tag || "").trim();
+                        const blockerLocation = String(blocker?.location || "").trim();
+                        const blockerLocationKey = String(blocker?.locationKey || "").trim();
+                        const blockerLocationArea = String(blocker?.locationArea || "").trim();
+
+                        if (
+                            blockerTag &&
+                            blockerLocation &&
+                            blockerLocationKey &&
+                            blockerLocationArea &&
+                            !result.includes(blockerTag)
+                        ) {
                             result.push(blockerTag);
                             next.push(blockerTag);
                         }
@@ -405,7 +416,7 @@ async function saveFinalLocation() {
     if (!currentUser || !currentTicket) return;
 
     const finalLocationInfo = buildFinalLocationInfo();
-    const blocksTag = String(blocksTagInput?.value || "").trim();
+    const blocksTag = String(blocksTagInput?.value || "").trim().toUpperCase();
 
     if (!finalLocationInfo?.location) {
         setMsg("Select where the vehicle was moved to and the location/spot.", false);
@@ -414,6 +425,73 @@ async function saveFinalLocation() {
 
     try {
         clearMsg();
+
+        const dealerId = Number(currentProfile?.dealerId || 0);
+
+        if (blocksTag) {
+
+            const currentTag = String(currentTicket.tag || "").trim().toUpperCase();
+
+            if (blocksTag === currentTag) {
+                setMsg("A vehicle cannot block itself.", false);
+                return;
+            }
+
+            const qBlocked = query(
+                collection(db, "ros"),
+                where("dealerId", "==", dealerId),
+                where("tag", "==", blocksTag)
+            );
+
+            const blockedSnap = await getDocs(qBlocked);
+
+            if (blockedSnap.empty) {
+                setMsg(`Tag ${blocksTag} was not found. Choose another blocked vehicle.`, false);
+                return;
+            }
+
+            const blockedDoc = blockedSnap.docs[0];
+            const blockedTicket = blockedDoc.data();
+
+            const qAlreadyBlocked = query(
+                collection(db, "ros"),
+                where("dealerId", "==", dealerId),
+                where("blocksTag", "==", blocksTag)
+            );
+
+            const alreadyBlockedSnap = await getDocs(qAlreadyBlocked);
+
+            const existingBlocker = alreadyBlockedSnap.docs.find((d) => d.id !== currentTicket.id);
+
+            if (existingBlocker) {
+                const existingTag = existingBlocker.data()?.tag || "another vehicle";
+                setMsg(`Tag ${blocksTag} is already blocked by Tag ${existingTag}. Cancel or move the existing blocker first.`, false);
+                return;
+            }
+
+            const blockedLocationKey = String(blockedTicket.locationKey || "").trim();
+            const blockedLocationArea = String(blockedTicket.locationArea || "").trim();
+            const blockedLocation = String(blockedTicket.location || "").trim().toLowerCase();
+
+            const newLocationKey = String(finalLocationInfo.locationKey || "").trim();
+            const newLocationArea = String(finalLocationInfo.locationArea || "").trim();
+            const newLocation = String(finalLocationInfo.location || "").trim().toLowerCase();
+
+            if (
+                !blockedLocationKey ||
+                !blockedLocationArea ||
+                !blockedLocation ||
+                blockedLocationKey !== newLocationKey ||
+                blockedLocationArea !== newLocationArea ||
+                blockedLocation !== newLocation
+            ) {
+                setMsg(
+                    `Tag ${blocksTag} is not parked in ${finalLocationInfo.location}. Choose another blocked vehicle or move Tag ${blocksTag} first.`,
+                    false
+                );
+                return;
+            }
+        }
 
         const ref = doc(db, "ros", currentTicket.id);
 
