@@ -263,8 +263,8 @@ async function submitRequest() {
     const area = toArea.value;
     const locationKey = toLocation.value;
 
-    if (!type || !area) {
-        setMsg("Select request type and destination area.", false);
+    if (!type || !area || !locationKey) {
+        setMsg("Select request type, destination area, and destination location.", false);
         return;
     }
 
@@ -312,7 +312,7 @@ async function submitRequest() {
 
     const data = {
         dealerId,
-        roId: String(currentVehicle.ro || ""),
+        roId: currentVehicle.id,
         ro: String(currentVehicle.ro || ""),
         tag: String(currentVehicle.tag || ""),
         customerName: String(currentVehicle.customerName || ""),
@@ -390,6 +390,8 @@ function renderRequests(rows) {
             const id = tr?.dataset?.id;
             if (!id) return;
 
+            const request = rows.find(r => r.id === id);
+
             await updateDoc(doc(db, "valetRequests", id), {
                 status: "inRoute",
                 startedAt: serverTimestamp(),
@@ -397,15 +399,61 @@ function renderRequests(rows) {
                 startedByName: currentProfile?.name || currentUser.email || currentUser.uid,
                 updatedAt: serverTimestamp()
             });
+
+            // 🔥 LINK TO MOVE & LOCATE
+            if (request?.roId) {
+                await updateDoc(doc(db, "ros", request.roId), {
+                    moveStatus: "moving",
+                    moveStartedAt: serverTimestamp(),
+                    moveStartedBy: currentProfile?.name || currentUser.email || currentUser.uid,
+                    activeMoveRequestId: id,
+                    requestedDestinationArea: request.toArea || "",
+                    requestedDestinationKey: request.toLocationKey || "",
+                    requestedDestinationLabel: request.toLocationLabel || "",
+                    updatedAt: serverTimestamp()
+                });
+            };
         };
     });
 
     requestsBody.querySelectorAll(".completeBtn").forEach((btn) => {
-        btn.onclick = async () => {
-            const tr = btn.closest("tr");
-            const id = tr?.dataset?.id;
-            if (!id) return;
+    btn.onclick = async () => {
+        const tr = btn.closest("tr");
+        const id = tr?.dataset?.id;
+        if (!id) return;
 
+        const request = rows.find(r => r.id === id);
+
+        if (!request) {
+            alert("Request not found in current rows.");
+            return;
+        }
+
+        console.log("COMPLETE REQUEST:", request);
+
+        const locationUpdate = {
+            location: request.toLocationLabel || "",
+            locationKey: request.toLocationKey || "",
+            locationArea: request.toArea || "",
+            moveStatus: "idle",
+            activeValetRequestId: null,
+            activeValetRequestType: null,
+            activeValetRequestStatus: null,
+            activeMoveRequestId: null,
+            requestedDestinationArea: null,
+            requestedDestinationKey: null,
+            requestedDestinationLabel: null,
+            updatedAt: serverTimestamp()
+        };
+
+        console.log("LOCATION UPDATE:", locationUpdate);
+
+        try {
+            // 1. Update RO location first
+            await updateDoc(doc(db, "ros", request.roId), locationUpdate);
+            console.log("RO UPDATED:", request.roId);
+
+            // 2. Then close request
             await updateDoc(doc(db, "valetRequests", id), {
                 status: "delivered",
                 completedAt: serverTimestamp(),
@@ -413,8 +461,14 @@ function renderRequests(rows) {
                 completedByName: currentProfile?.name || currentUser.email || currentUser.uid,
                 updatedAt: serverTimestamp()
             });
-        };
-    });
+
+            console.log("REQUEST DELIVERED:", id);
+        } catch (err) {
+            console.error("COMPLETE FAILED:", err);
+            alert(err?.message || "Could not complete request.");
+        }
+    };
+});
 
     requestsBody.querySelectorAll(".cancelBtn").forEach((btn) => {
         btn.onclick = async () => {
@@ -513,7 +567,7 @@ requestType.addEventListener("change", () => {
         );
 
         if (match) {
-            toLocation.value = match.key;
+            toLocation.value = match.key || locationKeyFromLabel(match.label);
         }
     }
 

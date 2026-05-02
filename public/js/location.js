@@ -126,11 +126,24 @@ function resetPreview() {
     if (blocksTagInput) blocksTagInput.value = "";
 }
 
+function prefillRequestedDestination() {
+    const area = String(currentTicket?.requestedDestinationArea || "").trim();
+    const key = String(currentTicket?.requestedDestinationKey || "").trim();
+
+    if (!area || !key) return;
+
+    moveAreaSelect.value = area;
+    renderLocationDropdownByArea(area);
+    finalLocationSelect.value = key;
+}
+
 function renderTicket() {
     if (!currentTicket) {
         resetPreview();
         return;
     }
+
+
 
     locRo.textContent = currentTicket.ro || "";
     locTag.textContent = currentTicket.tag || "";
@@ -205,6 +218,10 @@ function renderTicket() {
         moveAreaSelect.value = "";
         finalLocationSelect.innerHTML = `<option value="">Select area first...</option>`;
         if (blocksTagInput) blocksTagInput.value = "";
+    }
+
+    if (moving) {
+        prefillRequestedDestination();
     }
 }
 
@@ -525,8 +542,30 @@ async function saveFinalLocation() {
             moveStatus: "idle",
             moveCompletedAt: serverTimestamp(),
             moveCompletedBy: currentUser.email || currentUser.uid || "",
+
+            // 🔥 clear active move + request link
+            activeMoveRequestId: null,
+            requestedDestinationArea: null,
+            requestedDestinationKey: null,
+            requestedDestinationLabel: null,
+
             updatedAt: serverTimestamp(),
         });
+
+        // 🔥 complete related valet request
+        if (currentTicket?.activeMoveRequestId) {
+            try {
+                await updateDoc(doc(db, "valetRequests", currentTicket.activeMoveRequestId), {
+                    status: "delivered",
+                    completedAt: serverTimestamp(),
+                    completedByUid: currentUser.uid,
+                    completedByName: currentProfile?.name || currentUser.email || currentUser.uid,
+                    updatedAt: serverTimestamp()
+                });
+            } catch (err) {
+                console.error("Could not complete valet request:", err);
+            }
+        }
 
         currentTicket.location = finalLocationInfo.location;
         currentTicket.locationKey = finalLocationInfo.locationKey;
