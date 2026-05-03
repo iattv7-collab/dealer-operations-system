@@ -258,6 +258,50 @@ export async function markAllNotificationsRead(userId, docs) {
   await batch.commit();
 }
 
+function showNotificationBanner(n) {
+  // REMOVE existing banner if any
+  const existing = document.getElementById("af-banner");
+  if (existing) existing.remove();
+
+  const banner = document.createElement("div");
+  banner.id = "af-banner";
+
+  banner.innerHTML = `
+    <div class="af-banner-inner">
+      <div class="af-banner-text">
+        <div class="af-banner-title">${esc(n.title || "Notification")}</div>
+        <div class="af-banner-body">${esc(n.body || "")}</div>
+      </div>
+      <button class="af-banner-btn">Open</button>
+    </div>
+  `;
+
+  document.body.appendChild(banner);
+
+  // OPEN REQUEST BUTTON
+  banner.querySelector(".af-banner-btn").onclick = () => {
+    if (n.url) {
+      window.location.href = n.url;
+    }
+  };
+
+  // AUTO HIDE
+  setTimeout(() => {
+    banner.remove();
+  }, 5000);
+
+  // 🔊 SOUND
+  try {
+    const audio = new Audio("/sounds/notify.mp3");
+    audio.play().catch(() => {});
+  } catch {}
+
+  // 📳 VIBRATION (mobile only)
+  if (navigator.vibrate) {
+    navigator.vibrate([200, 100, 200]);
+  }
+}
+
 export function initNotificationCenter({
   userId,
   mountId,
@@ -301,7 +345,7 @@ export function initNotificationCenter({
     if (!firstLoad && newDocs.length) {
       newDocs.forEach((n) => {
         if (!n.dismissed && n.type === "valetRequest") {
-          alert(`${n.title || "Notification"}\n${n.body || ""}`);
+          showNotificationBanner(n);
         }
       });
     }

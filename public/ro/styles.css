@@ -448,3 +448,56 @@ tr.row-selected td {
 
 #movingTable th:nth-child(5),
 #movingTable td:nth-child(5) { width: 70px; }  /* Started At */
+
+#af-banner {
+  position: fixed;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0b3d91;
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  z-index: 9999;
+  width: 90%;
+  max-width: 420px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  animation: slideDown 0.3s ease;
+}
+
+.af-banner-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.af-banner-title {
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.af-banner-body {
+  font-size: 13px;
+}
+
+.af-banner-btn {
+  background: white;
+  color: #0b3d91;
+  border: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -20px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}

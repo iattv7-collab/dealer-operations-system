@@ -253,6 +253,35 @@ async function notifyValets(requestId, requestData) {
     return usersSnap.size;
 }
 
+async function dismissValetRequestNotifications(requestId, requestData) {
+    const usersSnap = await getDocs(query(
+        collection(db, "users"),
+        where("dealerId", "==", requestData.dealerId),
+        where("role", "==", "valet"),
+        where("valetGroup", "==", requestData.valetGroup)
+    ));
+
+    const url = `/requests.html?requestId=${encodeURIComponent(requestId)}`;
+    const promises = [];
+
+    for (const userDoc of usersSnap.docs) {
+        const notifSnap = await getDocs(query(
+            collection(db, "users", userDoc.id, "notifications"),
+            where("type", "==", "valetRequest"),
+            where("url", "==", url)
+        ));
+
+        notifSnap.forEach((n) => {
+            promises.push(updateDoc(doc(db, "users", userDoc.id, "notifications", n.id), {
+                read: true,
+                dismissed: true
+            }));
+        });
+    }
+
+    await Promise.all(promises);
+}
+
 async function submitRequest() {
     if (!currentVehicle) {
         setMsg("Find a vehicle first.", false);
@@ -376,10 +405,16 @@ function renderRequests(rows) {
         ${r.status === "requested"
             ? `<button type="button" class="startBtn">Start</button>`
             : ""}
-       ${r.status === "inRoute"
+
+        ${r.status === "inRoute" && r.startedByUid === currentUser?.uid
             ? `<button type="button" class="completeBtn">Complete</button>`
             : ""}
-       <button type="button" class="cancelBtn">Cancel</button>
+
+        ${r.status === "inRoute" && r.startedByUid !== currentUser?.uid
+            ? `<span class="muted">Claimed by ${r.startedByName || "another valet"}</span>`
+            : ""}
+
+  <button type="button" class="cancelBtn">Cancel</button>
       </td>
     </tr>
   `).join("");
@@ -399,6 +434,8 @@ function renderRequests(rows) {
                 startedByName: currentProfile?.name || currentUser.email || currentUser.uid,
                 updatedAt: serverTimestamp()
             });
+
+            await dismissValetRequestNotifications(id, request);
 
             // 🔥 LINK TO MOVE & LOCATE
             if (request?.roId) {
@@ -627,9 +664,9 @@ onAuthStateChanged(auth, async (user) => {
     renderRequestTypeOptions();
 
     initNotificationCenter({
-    userId: user.uid,
-    mountId: "notifMount",
-    showDismissed: false,
-    filterType: "valetRequest"
-});
+        userId: user.uid,
+        mountId: "notifMount",
+        showDismissed: false,
+        filterType: "valetRequest"
+    });
 });
