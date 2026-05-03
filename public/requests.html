@@ -14,33 +14,8 @@
     <style>
         /* REQUEST PAGE ONLY */
 
-        .req-search,
-        .req-form {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        .req-search input,
-        .req-search button,
-        .req-form input,
-        .req-form select,
-        .req-form button {
-            width: 100%;
-            box-sizing: border-box;
-            padding: 12px;
-            font-size: 16px;
-        }
-
         #msg {
             margin-top: 12px;
-            padding: 10px 12px;
-            border-radius: 8px;
-            background: #e8f8ee;
-            border: 1px solid #4caf50;
-            color: #147a35;
-            font-weight: bold;
-            font-size: 18px;
         }
 
         #msg:empty {
@@ -49,133 +24,119 @@
 
         #vehicleBox {
             margin-top: 12px;
-            padding: 12px;
-            border-radius: 10px;
-            background: #f2fff6;
-            border: 1px solid #4caf50;
-            font-size: 15px;
         }
 
         #vehicleBox hr {
             margin: 12px 0;
-        }
-
-        .table-scroll {
-            overflow-x: auto;
-        }
-
-        @media (min-width: 700px) {
-
-            .req-search,
-            .req-form {
-                flex-direction: row;
-                flex-wrap: wrap;
-                align-items: end;
-            }
-
-            .req-search input {
-                width: 220px;
-            }
-
-            .req-search button {
-                width: auto;
-            }
-
-            .req-form select,
-            .req-form input {
-                width: 220px;
-            }
-
-            .req-form button {
-                width: auto;
-            }
         }
     </style>
 </head>
 
 <body>
 
-    <!-- ✅ KEEP UNIVERSAL NAV -->
     <div id="nav"></div>
 
     <h2>Vehicle Requests</h2>
     <p id="status"></p>
 
+    <div id="notifMount"></div>
+
     <div class="card">
-        <h3>Request Vehicle Move</h3>
+        <h3 style="margin:0 0 4px 0;">Request Vehicle Move</h3>
 
-        <div class="req-search">
-            <div>
-                <label class="muted">RO / Tag / VIN</label><br>
-                <input id="requestSearchInput" placeholder="Search vehicle">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+            <div class="muted">
+                Search by RO, Tag, or VIN
             </div>
-
-            <button id="requestSearchBtn" type="button">Find</button>
         </div>
 
-        <div id="msg"></div>
+        <div style="display:flex; gap:8px; align-items:center; margin-top:6px;">
+            <input id="requestSearchInput" placeholder="Tag / RO / VIN" style="flex:1;" />
+
+            <button id="requestSearchBtn" class="btn" type="button">
+                Find
+            </button>
+        </div>
+
+        <div id="msg" class="muted"></div>
 
         <div id="vehicleBox" style="display:none;">
-            <div style="display:flex; justify-content:space-between; align-items:start; gap:10px;">
+            <div style="border:1px solid #ddd; border-radius:12px; padding:14px;">
 
-                <div>
-                    <div><b>RO:</b> <span id="reqRo"></span></div>
-                    <div><b>Tag:</b> <span id="reqTag"></span></div>
-                    <div><b>Current Location:</b> <span id="reqLocation"></span></div>
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+
+                    <div style="flex:1;">
+                        <div class="preview-tag">
+                            TAG <span id="reqTag"></span>
+                        </div>
+
+                        <div class="preview-ro" style="margin-top:6px;">
+                            RO <span id="reqRo"></span>
+                        </div>
+
+                        <div class="preview-line" style="margin-top:10px;">
+                            Current Location: <span id="reqLocation"></span>
+                        </div>
+                    </div>
+
+                    <button type="button" id="toggleDetailsBtn" class="btn small">
+                        Details
+                    </button>
+
                 </div>
 
-                <button type="button" id="toggleDetailsBtn" style="height:36px;">
-                    Details
-                </button>
-
-            </div>
-
-            <div id="vehicleDetails" style="display:none; margin-top:10px;">
-                <div><b>Customer:</b> <span id="reqCustomer"></span></div>
-                <div><b>VIN:</b> <span id="reqVin"></span></div>
-                <div><b>Description:</b> <span id="reqDescription"></span></div>
-            </div>
-
-            <hr>
-
-            <div class="req-form">
-                <div>
-                    <label class="muted">Request Type</label><br>
-                    <select id="requestType">
-                        <option value="">Select...</option>
-                        <option value="customerPickup">Customer Pickup</option>
-                        <option value="bringToShop">Bring to Shop</option>
-                        <option value="moveToAnnex">Move to Annex</option>
-                        <option value="moveToMain">Move to Main Store</option>
-                    </select>
+                <div id="vehicleDetails" style="display:none; margin-top:10px;">
+                    <div><b>Customer:</b> <span id="reqCustomer"></span></div>
+                    <div><b>VIN:</b> <span id="reqVin"></span></div>
+                    <div><b>Description:</b> <span id="reqDescription"></span></div>
                 </div>
 
-                <div>
-                    <label class="muted">Destination Area</label><br>
-                    <select id="toArea">
-                        <option value="">Select...</option>
-                    </select>
+                <hr>
+
+                <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:end;">
+                    <div>
+                        <label class="muted">Request Type</label><br>
+                        <select id="requestType" style="padding:6px 8px; min-width:180px;">
+                            <option value="">Select...</option>
+                            <option value="customerPickup">Customer Pickup</option>
+                            <option value="bringToShop">Bring to Shop</option>
+                            <option value="moveToAnnex">Move to Annex</option>
+                            <option value="moveToMain">Move to Main Store</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="muted">Destination Area</label><br>
+                        <select id="toArea" style="padding:6px 8px; min-width:180px;">
+                            <option value="">Select...</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="muted">Destination Location</label><br>
+                        <select id="toLocation" style="padding:6px 8px; min-width:220px;">
+                            <option value="">Select area first...</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="muted">Note</label><br>
+                        <input id="requestNote" placeholder="Optional" style="padding:10px 12px; width:180px;" />
+                    </div>
+
+                    <div>
+                        <button id="submitRequestBtn" class="btn" type="button">
+                            Submit Request
+                        </button>
+                    </div>
                 </div>
 
-                <div>
-                    <label class="muted">Destination Location</label><br>
-                    <select id="toLocation">
-                        <option value="">Select area first...</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label class="muted">Note</label><br>
-                    <input id="requestNote" placeholder="Optional">
-                </div>
-
-                <button id="submitRequestBtn" type="button">Submit Request</button>
             </div>
         </div>
     </div>
 
     <div class="card" style="margin-top:16px;">
-        <h3>Open Requests</h3>
+        <h3 style="margin-top:0;">Open Requests</h3>
 
         <div class="table-scroll">
             <table>
@@ -196,13 +157,12 @@
         </div>
     </div>
 
-    <!-- ✅ RESTORE NAV SYSTEM -->
     <script type="module">
         import { renderNav } from "./js/nav.js";
         document.getElementById("nav").innerHTML = renderNav("requests");
     </script>
 
-    <script type="module" src="/js/requests.js?v=1"></script>
+    <script type="module" src="/js/requests.js?v=9"></script>
 
 </body>
 

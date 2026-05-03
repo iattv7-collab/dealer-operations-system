@@ -263,6 +263,7 @@ export function initNotificationCenter({
   mountId,
   badgeId = "",
   showDismissed = true,
+  filterType = "",
 }) {
   if (!userId) throw new Error("initNotificationCenter requires userId");
 
@@ -288,20 +289,43 @@ export function initNotificationCenter({
   const badgeEl = badgeId ? $(badgeId) : null;
 
   let latestDocs = [];
+  let firstLoad = true;
 
   const q = query(notificationsCol(userId), orderBy("createdAt", "desc"));
 
   const unsub = onSnapshot(q, (snap) => {
+    const newDocs = snap.docChanges()
+      .filter(c => c.type === "added")
+      .map(c => ({ id: c.doc.id, ...c.doc.data() }));
+
+    if (!firstLoad && newDocs.length) {
+      newDocs.forEach((n) => {
+        if (!n.dismissed && n.type === "valetRequest") {
+          alert(`${n.title || "Notification"}\n${n.body || ""}`);
+        }
+      });
+    }
+
+    firstLoad = false;
+
     latestDocs = snap.docs.map((d) => ({
       id: d.id,
       ...d.data(),
     }));
 
-    const visible = showDismissed
+    let visible = showDismissed
       ? latestDocs
       : latestDocs.filter((n) => !n.dismissed);
 
-    const unreadCount = latestDocs.filter((n) => !n.read && !n.dismissed).length;
+    if (filterType) {
+      visible = visible.filter((n) => n.type === filterType);
+    }
+
+    const countSource = filterType
+      ? latestDocs.filter((n) => n.type === filterType)
+      : latestDocs;
+
+    const unreadCount = countSource.filter((n) => !n.read && !n.dismissed).length;
 
     countEl.textContent = unreadCount
       ? `Notifications (${unreadCount} unread)`
@@ -313,9 +337,11 @@ export function initNotificationCenter({
     }
 
     if (!visible.length) {
-      listEl.innerHTML = `<div class="af-notif-empty">No notifications.</div>`;
+      mount.style.display = "none";
       return;
     }
+
+    mount.style.display = "";
 
     listEl.innerHTML = visible.map(cardHtml).join("");
 
@@ -345,6 +371,19 @@ export function initNotificationCenter({
         if (!url) return;
 
         await markNotificationRead(userId, id);
+
+        const targetUrl = new URL(url, window.location.origin);
+        const requestId = targetUrl.searchParams.get("requestId");
+
+        if (window.location.pathname.includes("requests.html") && requestId) {
+          const row = document.querySelector(`tr[data-id="${CSS.escape(requestId)}"]`);
+
+          if (row) {
+            row.scrollIntoView({ block: "center", behavior: "smooth" });
+            row.style.outline = "3px solid #0b3d91";
+            return;
+          }
+        }
 
         window.location.href = url;
       });

@@ -12,7 +12,7 @@ import {
     onSnapshot,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { createUserNotification } from "../ro/modules/notification-center.js";
+import { createUserNotification, initNotificationCenter } from "../ro/modules/notification-center.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -417,58 +417,64 @@ function renderRequests(rows) {
     });
 
     requestsBody.querySelectorAll(".completeBtn").forEach((btn) => {
-    btn.onclick = async () => {
-        const tr = btn.closest("tr");
-        const id = tr?.dataset?.id;
-        if (!id) return;
+        btn.onclick = async () => {
+            const tr = btn.closest("tr");
+            const id = tr?.dataset?.id;
+            if (!id) return;
 
-        const request = rows.find(r => r.id === id);
+            const request = rows.find(r => r.id === id);
 
-        if (!request) {
-            alert("Request not found in current rows.");
-            return;
-        }
+            if (!request) {
+                alert("Request not found.");
+                return;
+            }
 
-        console.log("COMPLETE REQUEST:", request);
+            try {
+                const roSnap = await getDocs(query(
+                    collection(db, "ros"),
+                    where("dealerId", "==", Number(request.dealerId || 0)),
+                    where("tag", "==", String(request.tag || ""))
+                ));
 
-        const locationUpdate = {
-            location: request.toLocationLabel || "",
-            locationKey: request.toLocationKey || "",
-            locationArea: request.toArea || "",
-            moveStatus: "idle",
-            activeValetRequestId: null,
-            activeValetRequestType: null,
-            activeValetRequestStatus: null,
-            activeMoveRequestId: null,
-            requestedDestinationArea: null,
-            requestedDestinationKey: null,
-            requestedDestinationLabel: null,
-            updatedAt: serverTimestamp()
+                if (roSnap.empty) {
+                    alert("Vehicle not found in Master RO.");
+                    return;
+                }
+
+                const roDoc = roSnap.docs[0];
+
+                await updateDoc(doc(db, "ros", roDoc.id), {
+                    location: request.toLocationLabel || "",
+                    locationKey: request.toLocationKey || "",
+                    locationArea: request.toArea || "",
+                    moveStatus: "idle",
+
+                    activeValetRequestId: null,
+                    activeValetRequestType: null,
+                    activeValetRequestStatus: null,
+                    activeMoveRequestId: null,
+                    requestedDestinationArea: null,
+                    requestedDestinationKey: null,
+                    requestedDestinationLabel: null,
+
+                    updatedAt: serverTimestamp()
+                });
+
+                await updateDoc(doc(db, "valetRequests", id), {
+                    status: "delivered",
+                    completedAt: serverTimestamp(),
+                    completedByUid: currentUser.uid,
+                    completedByName: currentProfile?.name || currentUser.email || currentUser.uid,
+                    updatedAt: serverTimestamp()
+                });
+
+            } catch (err) {
+                console.error("Complete failed:", err);
+                alert(err?.message || "Could not complete request.");
+            }
         };
 
-        console.log("LOCATION UPDATE:", locationUpdate);
-
-        try {
-            // 1. Update RO location first
-            await updateDoc(doc(db, "ros", request.roId), locationUpdate);
-            console.log("RO UPDATED:", request.roId);
-
-            // 2. Then close request
-            await updateDoc(doc(db, "valetRequests", id), {
-                status: "delivered",
-                completedAt: serverTimestamp(),
-                completedByUid: currentUser.uid,
-                completedByName: currentProfile?.name || currentUser.email || currentUser.uid,
-                updatedAt: serverTimestamp()
-            });
-
-            console.log("REQUEST DELIVERED:", id);
-        } catch (err) {
-            console.error("COMPLETE FAILED:", err);
-            alert(err?.message || "Could not complete request.");
-        }
-    };
-});
+    });
 
     requestsBody.querySelectorAll(".cancelBtn").forEach((btn) => {
         btn.onclick = async () => {
@@ -619,4 +625,11 @@ onAuthStateChanged(auth, async (user) => {
     await loadLocationCatalog(dealerId);
     listenRequests(dealerId);
     renderRequestTypeOptions();
+
+    initNotificationCenter({
+    userId: user.uid,
+    mountId: "notifMount",
+    showDismissed: false,
+    filterType: "valetRequest"
+});
 });
