@@ -12,7 +12,7 @@ import {
     onSnapshot,
     serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { createUserNotification, initNotificationCenter } from "../ro/modules/notification-center.js";
+import { initNotificationCenter } from "../ro/modules/notification-center.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -225,34 +225,6 @@ async function loadLocationCatalog(dealerId) {
     renderAreaDropdown();
 }
 
-async function notifyValets(requestId, requestData) {
-    const usersSnap = await getDocs(query(
-        collection(db, "users"),
-        where("dealerId", "==", requestData.dealerId),
-        where("role", "==", "valet"),
-        where("valetGroup", "==", requestData.valetGroup)
-    ));
-
-    const promises = [];
-
-    usersSnap.forEach((userDoc) => {
-        promises.push(createUserNotification({
-            userId: userDoc.id,
-            title: requestData.valetGroup === "front"
-                ? "Customer Pickup Request"
-                : "Vehicle Move Request",
-            body: `RO ${requestData.ro} · Tag ${requestData.tag}\n${requestTypeLabel(requestData.requestType)} to ${requestData.toLocationLabel || ""}`,
-            url: `/requests.html?requestId=${encodeURIComponent(requestId)}`,
-            type: "valetRequest",
-            roId: requestData.ro
-        }));
-    });
-
-    await Promise.all(promises);
-
-    return usersSnap.size;
-}
-
 async function dismissValetRequestNotifications(requestId, requestData) {
     const usersSnap = await getDocs(query(
         collection(db, "users"),
@@ -369,8 +341,6 @@ async function submitRequest() {
 
     await setDoc(requestRef, data);
 
-    const notifiedCount = await notifyValets(requestRef.id, data);
-
     await updateDoc(doc(db, "ros", currentVehicle.id), {
         activeValetRequestId: requestRef.id,
         activeValetRequestType: type,
@@ -378,7 +348,7 @@ async function submitRequest() {
         updatedAt: serverTimestamp()
     });
 
-    setMsg(`Request submitted. Notified ${notifiedCount} valet user(s).`, true);
+    setMsg("Request submitted. Valets will be notified.", true);
 
     requestType.value = "";
     toArea.value = "";

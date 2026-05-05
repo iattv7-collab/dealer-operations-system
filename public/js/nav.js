@@ -2,6 +2,8 @@ import { auth } from "./firebase.js";
 import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import { getUserProfile } from "./guard.js";
 
+import { initNotifications } from "../ro/modules/notifications.js";
+
 export function renderNav() {
   const shell = `
   <style>
@@ -52,7 +54,21 @@ export function renderNav() {
     </div>
 
     <div class="af-bottom">
-      <a href="/home.html">Home</a>
+      <div style="display:flex; gap:8px;">
+        <a href="/home.html">Home</a>
+        <button id="nav-notifications" style="
+          background: rgba(255,255,255,0.08);
+          border: 1px solid rgba(255,255,255,0.35);
+          border-radius: 6px;
+          padding: 8px 10px;
+          color: #fff;
+          cursor: pointer;
+          font-family: 'Times New Roman';
+        ">
+          Notifications
+        </button>
+      </div>
+
       <a href="#" id="nav-signout">Sign out</a>
     </div>
   </div>
@@ -76,6 +92,10 @@ export function renderNav() {
       await signOut(auth);
       window.location.href = "/login.html";
     });
+
+    const notif = initNotifications();
+    notif.bindStatusToButton("nav-notifications");
+
   });
 
   return shell;

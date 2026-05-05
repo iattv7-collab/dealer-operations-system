@@ -1,6 +1,6 @@
 // public/ro/modules/notifications.js
 import { db, auth } from "../firebase.js";
-import { doc, setDoc, getDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
+import { collection, doc, setDoc, getDoc, getDocs, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 // Firebase Messaging (must already be configured in your firebase.js)
 import {
@@ -47,22 +47,64 @@ async function ensureServiceWorker() {
 
 async function loadRemoteToken() {
   try {
-    const snap = await getDoc(currentDeviceDoc());
-    if (!snap.exists()) return [];
+    const user = auth.currentUser;
+    if (!user) return [];
 
-    const token = snap.data()?.token || "";
-    return token ? [token] : [];
+    const snap = await getDocs(
+      collection(db, "users", user.uid, "notificationDevices")
+    );
+
+    const tokens = [];
+
+    snap.forEach((d) => {
+      const token = String(d.data()?.token || "").trim();
+      if (token) tokens.push(token);
+    });
+
+    return tokens;
   } catch {
     return [];
   }
 }
 
+async function tokenDocId(token) {
+  const data = new TextEncoder().encode(String(token || ""));
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 async function saveRemoteToken(token) {
   if (!token) return;
 
-  await setDoc(currentDeviceDoc(), {
+  const user = auth.currentUser;
+  if (!user) throw new Error("No signed-in user.");
+
+  const deviceType = getDeviceType();
+  const tokenId = await tokenDocId(token);
+
+  const tokenRef = doc(db, "notificationTokens", tokenId);
+  const oldSnap = await getDoc(tokenRef);
+  const oldUid = oldSnap.exists() ? String(oldSnap.data()?.uid || "") : "";
+
+  // If this device belonged to another user → remove it
+  if (oldUid && oldUid !== user.uid) {
+    await deleteDoc(doc(db, "users", oldUid, "notificationDevices", tokenId));
+  }
+
+  // Global ownership record
+  await setDoc(tokenRef, {
+    uid: user.uid,
     token,
-    deviceType: getDeviceType(),
+    deviceType,
+    updatedAtMs: Date.now()
+  }, { merge: true });
+
+  // Save under current user
+  await setDoc(doc(db, "users", user.uid, "notificationDevices", tokenId), {
+    token,
+    deviceType,
     updatedAtMs: Date.now()
   }, { merge: true });
 }
