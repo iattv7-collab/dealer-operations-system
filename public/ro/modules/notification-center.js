@@ -293,13 +293,52 @@ function showNotificationBanner(n) {
   // 🔊 SOUND
   try {
     const audio = new Audio("/sounds/notify.mp3");
-    audio.play().catch(() => {});
-  } catch {}
+    audio.play().catch(() => { });
+  } catch { }
 
   // 📳 VIBRATION (mobile only)
   if (navigator.vibrate) {
     navigator.vibrate([200, 100, 200]);
   }
+}
+
+export function initNotificationBadge({
+  userId,
+  badgeId,
+  includeDismissed = false,
+  filterType = "",
+}) {
+  if (!userId) throw new Error("initNotificationBadge requires userId");
+  if (!badgeId) throw new Error("initNotificationBadge requires badgeId");
+
+  const badgeEl = $(badgeId);
+  if (!badgeEl) throw new Error(`Notification badge #${badgeId} not found`);
+
+  const q = query(notificationsCol(userId), orderBy("createdAt", "desc"));
+
+  const unsub = onSnapshot(q, (snap) => {
+    let docs = snap.docs.map((d) => ({
+      id: d.id,
+      ...d.data(),
+    }));
+
+    if (!includeDismissed) {
+      docs = docs.filter((n) => !n.dismissed);
+    }
+
+    if (filterType) {
+      docs = docs.filter((n) => n.type === filterType);
+    }
+
+    const unreadCount = docs.filter((n) => !n.read && !n.dismissed).length;
+
+    badgeEl.textContent = unreadCount > 99 ? "99+" : String(unreadCount);
+    badgeEl.style.display = unreadCount ? "flex" : "none";
+  });
+
+  return {
+    unsubscribe: unsub,
+  };
 }
 
 export function initNotificationCenter({

@@ -246,29 +246,6 @@ function openReadyUpModal(followupDocs) {
             dueMs,
             isDue: isDueNow
           });
-
-          if (isDueNow) {
-            const notifId = `followup_${d.ro || d.id}`;
-            const notifRef = doc(db, "users", auth.currentUser.uid, "notifications", notifId);
-
-            getDoc(notifRef).then((snap) => {
-              if (!snap.exists()) {
-                const name = d.customerName || "";
-                const model = d.model || "";
-
-                setDoc(notifRef, {
-                  title: "Follow-up Due",
-                  body: `RO ${d.ro || d.id} – ${name} – ${model}`,
-                  url: `/ro/index.html?ro=${d.ro || d.id}`,
-                  type: "followup",
-                  roId: d.ro || d.id,
-                  read: false,
-                  dismissed: false,
-                  createdAt: Date.now()
-                });
-              }
-            });
-          }
         }
       });
     });
@@ -529,11 +506,49 @@ export function initFollowUp() {
         );
       }
 
-      unsubFollowup = onSnapshot(refOrQuery, (qs) => {
+      unsubFollowup = onSnapshot(refOrQuery, async (qs) => {
         const rows = [];
         qs.forEach((d) => rows.push({ id: d.id, ...d.data() }));
         rows.forEach((r) => { if (!r.ro) r.ro = r.id; });
+
         FOLLOWUP_CACHE = rows;
+
+        const settings = loadSettings();
+        const nowMs = Date.now();
+
+        for (const d of rows) {
+          if (String(d.followupStatus || "waiting") === "done") continue;
+
+          const dueList = computeDueListForArchived(d, settings);
+
+          for (const { slot, dueMs } of dueList) {
+            const sentKey = slot === 1 ? "followup1SentAtMs" : "followup2SentAtMs";
+            const alreadySent = !!d[sentKey];
+
+            if (!alreadySent && dueMs <= nowMs) {
+              const notifId = `followup_${d.ro || d.id}`;
+              const notifRef = doc(db, "users", auth.currentUser.uid, "notifications", notifId);
+
+              const snap = await getDoc(notifRef);
+
+              if (!snap.exists()) {
+                const name = d.customerName || "";
+                const model = d.model || "";
+
+                await setDoc(notifRef, {
+                  title: "Follow-up Due",
+                  body: `RO ${d.ro || d.id} – ${name} – ${model}`,
+                  url: `/ro/index.html?ro=${d.ro || d.id}`,
+                  type: "followup",
+                  roId: d.ro || d.id,
+                  read: false,
+                  dismissed: false,
+                  createdAt: Date.now()
+                });
+              }
+            }
+          }
+        }
       });
     });
   }

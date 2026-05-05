@@ -12,7 +12,7 @@ import { COL_ACTIVE, COL_ARCHIVE, safeUpdate } from "./modules/firestore.js?v=20
 import { initNotifications } from "./modules/notifications.js";
 import { initFollowUp } from "./modules/followup.js";
 
-import { initNotificationCenter } from "./modules/notification-center.js";
+import { initNotificationBadge } from "./modules/notification-center.js";
 
 import { initArchiveModal } from "./modules/archive.js";
 import { loadRemotePrivateSettings, openSettingsModal } from "./modules/settings.js";
@@ -1104,11 +1104,10 @@ async function listenActive() {
 
   renderSignedInInfo(user, profile);
   renderTrackerTabs();
-  // INIT NOTIFICATION CENTER
+  // INIT NOTIFICATION BADGE ONLY
   if (user && !notificationCenterApi) {
-    notificationCenterApi = initNotificationCenter({
+    notificationCenterApi = initNotificationBadge({
       userId: user.uid,
-      mountId: "notificationCenter",
       badgeId: "notifBadge"
     });
   }
