@@ -226,6 +226,8 @@ async function loadLocationCatalog(dealerId) {
 }
 
 async function dismissValetRequestNotifications(requestId, requestData) {
+    if (!requestId || !requestData) return;
+
     const usersSnap = await getDocs(query(
         collection(db, "users"),
         where("dealerId", "==", requestData.dealerId),
@@ -233,21 +235,29 @@ async function dismissValetRequestNotifications(requestId, requestData) {
         where("valetGroup", "==", requestData.valetGroup)
     ));
 
-    const url = `/requests.html?requestId=${encodeURIComponent(requestId)}`;
     const promises = [];
 
     for (const userDoc of usersSnap.docs) {
         const notifSnap = await getDocs(query(
             collection(db, "users", userDoc.id, "notifications"),
-            where("type", "==", "valetRequest"),
-            where("url", "==", url)
+            where("type", "==", "valetRequest")
         ));
 
         notifSnap.forEach((n) => {
-            promises.push(updateDoc(doc(db, "users", userDoc.id, "notifications", n.id), {
-                read: true,
-                dismissed: true
-            }));
+            const data = n.data() || {};
+            const url = String(data.url || "");
+
+            const matchesRequest =
+                String(data.requestId || "") === String(requestId) ||
+                url.includes(`requestId=${encodeURIComponent(requestId)}`) ||
+                url.includes(`requestId=${requestId}`);
+
+            if (matchesRequest) {
+                promises.push(updateDoc(doc(db, "users", userDoc.id, "notifications", n.id), {
+                    read: true,
+                    dismissed: true
+                }));
+            }
         });
     }
 
@@ -489,6 +499,8 @@ function renderRequests(rows) {
             const id = tr?.dataset?.id;
             if (!id) return;
 
+            const request = rows.find(r => r.id === id);
+
             const ok = confirm("Cancel this request?");
             if (!ok) return;
 
@@ -499,6 +511,21 @@ function renderRequests(rows) {
                 cancelledByName: currentProfile?.name || currentUser.email || currentUser.uid,
                 updatedAt: serverTimestamp()
             });
+
+            if (request?.roId) {
+                await updateDoc(doc(db, "ros", request.roId), {
+                    activeValetRequestId: null,
+                    activeValetRequestType: null,
+                    activeValetRequestStatus: null,
+                    activeMoveRequestId: null,
+                    requestedDestinationArea: null,
+                    requestedDestinationKey: null,
+                    requestedDestinationLabel: null,
+                    updatedAt: serverTimestamp()
+                });
+            }
+
+            await dismissValetRequestNotifications(id, request);
         };
     });
 }

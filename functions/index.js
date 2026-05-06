@@ -304,12 +304,46 @@ async function sendPushToUser(userId, payload) {
 
   return admin.messaging().sendEachForMulticast({
     tokens,
+
     notification: {
-      title: String(payload.title || "Notification"),
+      title: String(payload.title || "ArrowFlow"),
       body: String(payload.body || "")
     },
+
     data: {
-      url: String(payload.url || "/ro/index.html")
+      url: String(payload.url || "/")
+    },
+
+    android: {
+      priority: "high",
+      notification: {
+        sound: "default",
+        channelId: "default",
+        priority: "max",
+        defaultSound: true,
+        defaultVibrateTimings: true,
+        defaultLightSettings: true,
+        visibility: "public"
+      }
+    },
+
+    webpush: {
+      headers: {
+        Urgency: "high"
+      },
+
+      notification: {
+        requireInteraction: true,
+        vibrate: [300, 150, 300, 150, 500],
+        renotify: true,
+        silent: false,
+        icon: "/icon-192.png",
+        badge: "/icon-192.png"
+      },
+
+      fcmOptions: {
+        link: String(payload.url || "/")
+      }
     }
   });
 }
