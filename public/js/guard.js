@@ -16,6 +16,7 @@ export const VALID_ROLES = [
   "qc",
   "foreman",
   "tech",
+  "loaneradmin",
   "pending"
 ];
 

@@ -305,11 +305,18 @@
                 defaultRoles: ["admin", "manager", "wash"]
             },
             {
-                key: "loaners",
-                title: "Loaners",
-                desc: "Loaner fleet and return processing.",
+                key: "loanerfleet",
+                title: "Loaner Fleet",
+                desc: "Manage loaner fleet records and assignments.",
                 href: "/loaners.html",
-                defaultRoles: ["admin", "manager", "advisor", "wash"]
+                defaultRoles: ["admin", "manager", "loaneradmin"]
+            },
+            {
+                key: "loanerreturns",
+                title: "Loaner Returns",
+                desc: "Process returned loaners and update return details.",
+                href: "/loaner-returns.html",
+                defaultRoles: ["admin", "manager", "loaneradmin", "advisor", "wash", "valet", "staff"]
             },
             {
                 key: "manager",

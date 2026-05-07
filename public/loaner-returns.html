@@ -6,6 +6,7 @@
   <meta charset="utf-8">
   <title>Loaner Returns</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="/css/arrowflow.css">
   <link rel="stylesheet" href="/ro/styles.css">
 
   <style>
@@ -158,22 +159,7 @@
 
 <body>
 
-  <div style="
-    background:#0b3d91;
-    color:#fff;
-    padding:14px 16px;
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    border-bottom:4px solid #00a8c6;
-  ">
-    <div style="font-size:22px;font-weight:bold;">ArrowFlow</div>
-
-    <div>
-      <a href="/home.html" style="color:#fff;margin-right:15px;text-decoration:none;">Home</a>
-      <a href="#" id="logoutBtn" style="color:#fff;text-decoration:none;">Logout</a>
-    </div>
-  </div>
+  <div id="nav"></div>
 
   <div class="loaner-wrap">
 
@@ -233,17 +219,16 @@
   </div>
 
   <script type="module">
-    import { auth } from "/js/firebase.js";
-    import { signOut } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
+    import { renderNav } from "/js/nav.js";
+    import { requireRole } from "/js/guard.js";
 
-    document.getElementById("logoutBtn").addEventListener("click", async (e) => {
-      e.preventDefault();
-      await signOut(auth);
-      window.location.href = "/login.html";
-    });
+    // loaner-returns.html
+    requireRole(["admin", "manager", "loaneradmin", "advisor", "wash", "valet", "staff"]);
+
+    document.getElementById("nav").innerHTML = renderNav("loaners");
   </script>
 
-  <script type="module" src="/js/loanerReturns.js?v=5"></script>
+  <script type="module" src="/js/loanerReturns.js?v=6"></script>
 
 </body>
 

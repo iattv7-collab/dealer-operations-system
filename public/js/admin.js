@@ -24,7 +24,21 @@ const pendingTable = document.getElementById("pendingTable");
 const usersTable = document.getElementById("usersTable");
 
 
-const ROLES = ["admin", "manager", "advisor", "wash", "valet", "staff", "dropoff", "booker", "qc", "pending", "foreman", "tech"];
+const ROLES = [
+  "admin",
+  "manager",
+  "advisor",
+  "wash",
+  "valet",
+  "staff",
+  "dropoff",
+  "booker",
+  "qc",
+  "foreman",
+  "tech",
+  "loaneradmin",
+  "pending"
+];
 const TAB_KEYS = [
   "home",
   "scanner",
@@ -32,7 +46,8 @@ const TAB_KEYS = [
   "advisor",
   "valet",
   "wash",
-  "loaners",
+  "loanerfleet",
+  "loanerreturns",
   "manager",
   "admin",
   "dropoff",
@@ -53,7 +68,8 @@ const TAB_LABELS = {
   advisor: "Advisor",
   valet: "Valet",
   wash: "Wash",
-  loaners: "Loaners",
+  loanerfleet: "Loaner Fleet",
+  loanerreturns: "Loaner Returns",
   manager: "Manager",
   admin: "Admin",
   dropoff: "Send to Wash",
@@ -67,7 +83,19 @@ const TAB_LABELS = {
   tech: "Tech",
 };
 
-const ROLES_FOR_TABS = ["admin", "manager", "advisor", "wash", "valet", "staff", "booker", "qc", "foreman", "tech"];
+const ROLES_FOR_TABS = [
+  "admin",
+  "manager",
+  "advisor",
+  "wash",
+  "valet",
+  "staff",
+  "booker",
+  "qc",
+  "foreman",
+  "tech",
+  "loaneradmin"
+];
 
 const DEFAULT_TAB_VISIBILITY = {
   home: ["admin", "manager", "advisor", "wash", "staff", "valet", "booker", "qc"],
@@ -76,7 +104,17 @@ const DEFAULT_TAB_VISIBILITY = {
   advisor: ["admin", "manager", "advisor"],
   valet: ["admin", "manager", "valet"],
   wash: ["admin", "manager", "wash"],
-  loaners: ["admin", "manager", "advisor", "wash"],
+  loanerfleet: ["admin", "manager", "loaneradmin"],
+
+  loanerreturns: [
+    "admin",
+    "manager",
+    "loaneradmin",
+    "advisor",
+    "wash",
+    "valet",
+    "staff"
+  ],
   manager: ["admin", "manager"],
   admin: ["admin"],
   dropoff: ["admin", "manager", "advisor", "wash", "staff", "valet", "qc"],
@@ -170,6 +208,16 @@ function waitForAuthUser() {
 
 let tabVisibilityBaseline = "";
 
+function makeRowSelectable(table, tr) {
+  tr.addEventListener("click", () => {
+    table.querySelectorAll("tr.row-selected").forEach((row) => {
+      row.classList.remove("row-selected");
+    });
+
+    tr.classList.add("row-selected");
+  });
+}
+
 function getTabVisibilityButton() {
   return document.getElementById("saveTabVisibilityBtn");
 }
@@ -226,6 +274,8 @@ async function loadTabVisibility() {
 
   TAB_KEYS.forEach((tabKey) => {
     const tr = document.createElement("tr");
+
+    makeRowSelectable(table, tr);
 
     const tdLabel = document.createElement("td");
     tdLabel.textContent = TAB_LABELS[tabKey] || tabKey;
@@ -547,6 +597,8 @@ async function loadPending() {
   snap.forEach((docSnap) => {
     const data = docSnap.data();
     const tr = document.createElement("tr");
+
+    makeRowSelectable(pendingTable, tr);
 
     const nameInput = document.createElement("input");
     nameInput.value = data.name || "";

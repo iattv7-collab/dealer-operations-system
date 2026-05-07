@@ -144,6 +144,18 @@
       padding: 6px 8px;
     }
 
+    #pendingTable tr:hover td,
+    #usersTable tr:hover td,
+    #tabVisibilityTable tr:hover td {
+      background: #fff7c2 !important;
+    }
+
+    #pendingTable tr.row-selected td,
+    #usersTable tr.row-selected td,
+    #tabVisibilityTable tr.row-selected td {
+      background: #dbeafe !important;
+    }
+
     #columnsModalGrid {
       display: grid;
       grid-template-columns: 1fr;
@@ -311,6 +323,7 @@
               <th>qc</th>
               <th>foreman</th>
               <th>tech</th>
+              <th>loaneradmin</th>
             </tr>
           </thead>
           <tbody id="tabVisibilityTable"></tbody>
