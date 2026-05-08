@@ -110,8 +110,9 @@ export async function scanVinWithCamera(videoEl, statusEl) {
     videoEl.srcObject = null;
   };
 
-  const timeoutMs = 15000;
-  let stopped = false;
+  const timeoutMs = 7000;
+const start = Date.now();
+let stopped = false;
 
   setTimeout(() => {
     stopped = true;
@@ -176,7 +177,7 @@ export async function scanVinWithCamera(videoEl, statusEl) {
 
     return {
       vin: "",
-      reason: "No VIN found after 10 seconds"
+      reason: "No VIN found after 7 seconds"
     };
   } catch (err) {
     stopCamera();

@@ -85,30 +85,10 @@
       table-layout: fixed;
     }
 
-    .fleet-grid th,
-    .fleet-grid td {
-      border: 1px solid #cfcfcf;
-      padding: 3px 6px;
-      font-size: 12px;
-      line-height: 1.1;
-      white-space: nowrap;
-      vertical-align: middle;
-      background: #fff;
-    }
-
     .fleet-grid th {
       background: #12a8c6;
       color: #fff;
       font-weight: bold;
-    }
-
-    .fleet-grid input,
-    .fleet-grid select,
-    .fleet-grid button {
-      font-size: 12px;
-      padding: 2px 4px;
-      height: 24px;
-      box-sizing: border-box;
     }
 
     .mini-input {
@@ -125,12 +105,6 @@
       display: flex;
       gap: 3px;
       flex-wrap: wrap;
-    }
-
-    .actions button {
-      font-size: 11px;
-      height: 22px;
-      padding: 1px 5px;
     }
 
     .col-unit {
@@ -229,7 +203,10 @@
 
     <!-- ADD -->
     <div class="section">
-      <h2>Add Loaner</h2>
+      <button id="toggleAddLoanerBtn">+ Add Loaner</button>
+
+      <div id="addLoanerSection" style="display:none; margin-top:12px;">
+        <h2>Add Loaner</h2>
 
       <div class="row">
         <button id="scanFleetBtn">Scan VIN</button>
@@ -254,8 +231,9 @@
         <div id="fleetMsg" class="msg"></div>
       </div>
     </div>
+   </div>
 
-    <!-- TABLE -->
+  <!-- TABLE -->
     <div class="section">
       <h2>Fleet List</h2>
 
@@ -317,10 +295,19 @@
   requireRole(["admin", "manager", "loaneradmin"]);
 
   document.getElementById("nav").innerHTML = renderNav("loaners");
+
+  const toggleAddLoanerBtn = document.getElementById("toggleAddLoanerBtn");
+  const addLoanerSection = document.getElementById("addLoanerSection");
+
+  toggleAddLoanerBtn.addEventListener("click", () => {
+    const open = addLoanerSection.style.display !== "none";
+    addLoanerSection.style.display = open ? "none" : "block";
+    toggleAddLoanerBtn.textContent = open ? "+ Add Loaner" : "Hide Add Loaner";
+  });
 </script>
 
   <!-- MAIN JS -->
-  <script type="module" src="/js/loaners.js?v=6"></script>
+  <script type="module" src="/js/loaners.js?v=7"></script>
 
 </body>
 

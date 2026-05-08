@@ -4,13 +4,17 @@
 // PURPOSE: Create and manage live fleet records
 // ==============================================
 
-import { db } from "/js/firebase.js";
+import { auth, db } from "/js/firebase.js";
+import { getUserProfile } from "/js/guard.js";
+import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import {
   doc,
   setDoc,
   getDocs,
   getDoc,
   collection,
+  query,
+  where,
   serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
@@ -57,7 +61,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   let fleetRows = [];
-
+  let currentUser = null;
+  let currentProfile = null;
+  let currentDealerId = 0;
 
   $("scanFleetBtn").onclick = async () => {
     try {
@@ -134,6 +140,7 @@ document.addEventListener("DOMContentLoaded", () => {
       ref,
       {
         vin,
+        dealerId: currentDealerId,
         last8: vin.slice(-8),
         unitNumber: $("unitNumber").value.trim(),
         plate: $("plate").value.trim(),
@@ -256,12 +263,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
        <td>
          <div class="actions">
-         <button data-vin="${escapeAttr(vin)}" class="save-row-btn">Save</button>
-         <button data-vin="${escapeAttr(vin)}" data-status="At Wash" class="quick-status-btn">Wash</button>
-         <button data-vin="${escapeAttr(vin)}" data-status="Available" class="quick-status-btn">Available</button>
-         <button data-vin="${escapeAttr(vin)}" data-status="Hold" class="quick-status-btn">Hold</button>
-         <button data-vin="${escapeAttr(vin)}" class="remove-row-btn">Remove from Fleet</button>
-       </div>
+           <button data-vin="${escapeAttr(vin)}" class="save-row-btn">Update</button>
+           <button data-vin="${escapeAttr(vin)}" class="remove-row-btn">Remove from Fleet</button>
+         </div>
       </td>
       </tr>
      `;
@@ -278,17 +282,7 @@ document.addEventListener("DOMContentLoaded", () => {
         await saveRow(btn.dataset.vin);
       });
     });
-
-    document.querySelectorAll(".quick-status-btn").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const vin = btn.dataset.vin;
-        const nextStatus = btn.dataset.status;
-        const statusEl = document.getElementById(`status-${makeSafeId(vin)}`);
-        if (statusEl) statusEl.value = nextStatus;
-        await saveRow(vin);
-      });
-    });
-
+    
     document.querySelectorAll(".remove-row-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         await removeRow(btn.dataset.vin);
@@ -297,85 +291,117 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function saveRow(vin) {
-  const cleanVin = normalizeVin(vin);
-  if (!cleanVin) return;
+    const cleanVin = normalizeVin(vin);
+    if (!cleanVin) return;
 
-  const safeId = makeSafeId(cleanVin);
+    const safeId = makeSafeId(cleanVin);
 
-  const assignedRo = document.getElementById(`ro-${safeId}`)?.value.trim() || "";
-  const location = document.getElementById(`location-${safeId}`)?.value.trim() || "";
-  const notes = document.getElementById(`notes-${safeId}`)?.value.trim() || "";
-  let status = document.getElementById(`status-${safeId}`)?.value || "";
+    const assignedRo = document.getElementById(`ro-${safeId}`)?.value.trim() || "";
+    const location = document.getElementById(`location-${safeId}`)?.value.trim() || "";
+    const notes = document.getElementById(`notes-${safeId}`)?.value.trim() || "";
+    let status = document.getElementById(`status-${safeId}`)?.value || "";
 
-  const fleetRow = fleetRows.find(x => normalizeVin(x.vin) === cleanVin) || {};
-  const previousRo = String(fleetRow.assignedRo || "").trim();
+    const fleetRow = fleetRows.find(x => normalizeVin(x.vin) === cleanVin) || {};
+    const previousRo = String(fleetRow.assignedRo || "").trim();
 
-  // If RO is entered, confirm it exists in RO Tracker
-  if (assignedRo) {
-    const roRef = doc(db, "ros", assignedRo);
-    const roSnap = await getDoc(roRef);
-
-    if (!roSnap.exists()) {
-      alert(`RO # ${assignedRo} was not found in RO Tracker.`);
+    if (assignedRo && previousRo && previousRo !== assignedRo) {
+      alert(`This loaner is already assigned to RO # ${previousRo}. Return it first before assigning it to another RO.`);
       return;
     }
 
-    // Business rule: assigned loaner = Out
-    status = "Out";
+    // If RO is entered, confirm it exists in RO Tracker
+    if (assignedRo) {
+      const roQuery = query(
+        collection(db, "ros"),
+        where("dealerId", "==", currentDealerId),
+        where("ro", "==", assignedRo)
+      );
+
+      const roSnap = await getDocs(roQuery);
+
+      if (roSnap.empty) {
+        alert(`RO # ${assignedRo} was not found in RO Tracker.`);
+        return;
+      }
+
+      const roDoc = roSnap.docs[0];
+      const roRef = roDoc.ref;
+
+      const roData = roDoc.data();
+
+      if (
+        roData?.hasLoaner &&
+        roData?.loanerVin &&
+        normalizeVin(roData.loanerVin) !== cleanVin
+      ) {
+        alert(`RO # ${assignedRo} already has a different loaner assigned. Return that loaner first.`);
+        return;
+      }
+      // Business rule: assigned loaner = Out
+      status = "Out";
+
+      await setDoc(
+        roRef,
+        {
+          hasLoaner: true,
+          loanerUnitNumber: fleetRow.unitNumber || "",
+          loanerVin: cleanVin,
+          loanerStatus: "Out",
+          loanerAssignedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+    }
+
+    // If loaner was previously assigned to another RO, clear old RO loaner info
+    if (previousRo && previousRo !== assignedRo) {
+      await setDoc(
+        doc(db, "ros", previousRo),
+        {
+          hasLoaner: false,
+          loanerUnitNumber: "",
+          loanerVin: "",
+          loanerStatus: "",
+          loanerAssignedAt: null,
+          updatedAt: serverTimestamp()
+        },
+        { merge: true }
+      );
+    }
+
+    // If RO was cleared, clear status unless user selected something else
+    if (!assignedRo && previousRo) {
+      status = status || "Available";
+    }
 
     await setDoc(
-      roRef,
+      doc(db, "loanerFleet", cleanVin),
       {
-        hasLoaner: true,
-        loanerUnitNumber: fleetRow.unitNumber || "",
-        loanerVin: cleanVin,
-        loanerStatus: "Out",
-        loanerAssignedAt: serverTimestamp(),
+        assignedRo,
+        status,
+        location,
+        notes,
         updatedAt: serverTimestamp()
       },
       { merge: true }
     );
+
+    await load();
   }
-
-  // If loaner was previously assigned to another RO, clear old RO loaner info
-  if (previousRo && previousRo !== assignedRo) {
-    await setDoc(
-      doc(db, "ros", previousRo),
-      {
-        hasLoaner: false,
-        loanerUnitNumber: "",
-        loanerVin: "",
-        loanerStatus: "",
-        loanerAssignedAt: null,
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
-  }
-
-  // If RO was cleared, clear status unless user selected something else
-  if (!assignedRo && previousRo) {
-    status = status || "Available";
-  }
-
-  await setDoc(
-    doc(db, "loanerFleet", cleanVin),
-    {
-      assignedRo,
-      status,
-      location,
-      notes,
-      updatedAt: serverTimestamp()
-    },
-    { merge: true }
-  );
-
-  await load();
-}
 
   async function removeRow(vin) {
     const cleanVin = normalizeVin(vin);
     if (!cleanVin) return;
+
+    const fleetRow = fleetRows.find(x => normalizeVin(x.vin) === cleanVin) || {};
+    const assignedRo = String(fleetRow.assignedRo || "").trim();
+    const status = String(fleetRow.status || "").trim().toUpperCase();
+
+    if (assignedRo || status === "OUT") {
+      alert("This loaner is currently out. Return it before removing it from the fleet.");
+      return;
+    }
 
     const skip = !!$("skipRemoveConfirm")?.checked;
     if (!skip) {
@@ -447,7 +473,14 @@ document.addEventListener("DOMContentLoaded", () => {
   async function load() {
     try {
       console.log("loading loanerFleet...");
-      const snap = await getDocs(collection(db, "loanerFleet"));
+      if (!currentDealerId) return;
+
+      const q = query(
+        collection(db, "loanerFleet"),
+        where("dealerId", "==", currentDealerId)
+      );
+
+      const snap = await getDocs(q);
       console.log("loanerFleet docs:", snap.size);
 
       fleetRows = [];
@@ -472,6 +505,20 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  load();
+  onAuthStateChanged(auth, async (user) => {
+    currentUser = user || null;
+
+    if (!user) {
+      fleetRows = [];
+      renderFleetTable();
+      updateCounts();
+      return;
+    }
+
+    currentProfile = await getUserProfile(user);
+    currentDealerId = Number(currentProfile?.dealerId || 0);
+
+    await load();
+  });
 
 }); // <-- THIS closes DOMContentLoaded
