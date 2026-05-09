@@ -4,7 +4,7 @@ import { listenTickets, findTicketAnywhereByRoOrTag } from "./rosWash.js";
 
 import { tabDefsForRole } from "./ui/roles.js";
 import { colsForView } from "./ui/columns.js";
-import { sortActiveQueue } from "./ui/sort.js";
+import { buildSmartWashQueue } from "./ui/sort.js";
 import { computeEtaMap } from "./ui/scheduler.js";
 
 import { ensureBaseStyles, buildTabs, buildTableSkeleton, el } from "./ui/dom.js";
@@ -109,286 +109,289 @@ export function mountTicketsUI({
   }
 
   function buildFoundLink(label, onClick) {
-  const span = document.createElement("span");
-  span.textContent = label;
-  span.style.cursor = "pointer";
-  span.style.color = "#0a7a2a";
-  span.style.fontWeight = "bold";
-  span.style.textDecoration = "underline";
-  span.style.display = "inline-block";
-  span.style.padding = "2px 8px";
-  span.style.border = "1px solid #0a7a2a";
-  span.style.borderRadius = "999px";
-  span.style.margin = "2px 6px 2px 0";
-  span.style.background = "#eefaf0";
-  span.onclick = onClick;
-  return span;
-}
-
-function stageInfoForTicket(t) {
-  const status = String(t?.status || t?.washStatus || "").toLowerCase();
-  const hasQc = !!t?.qcAssignedTo && !t?.qcDoneAt;
-
-  if (String(t?.pickupStatus || "").toLowerCase() === "requested") {
-    return { tabId: "pickup", tabLabel: "Pickup" };
+    const span = document.createElement("span");
+    span.textContent = label;
+    span.style.cursor = "pointer";
+    span.style.color = "#0a7a2a";
+    span.style.fontWeight = "bold";
+    span.style.textDecoration = "underline";
+    span.style.display = "inline-block";
+    span.style.padding = "2px 8px";
+    span.style.border = "1px solid #0a7a2a";
+    span.style.borderRadius = "999px";
+    span.style.margin = "2px 6px 2px 0";
+    span.style.background = "#eefaf0";
+    span.onclick = onClick;
+    return span;
   }
 
-  if (status === "queued" || status === "washing") {
-    return { tabId: "active", tabLabel: "Wash" };
+  function stageInfoForTicket(t) {
+    const status = String(t?.status || t?.washStatus || "").toLowerCase();
+    const hasQc = !!t?.qcAssignedTo && !t?.qcDoneAt;
+
+    if (String(t?.pickupStatus || "").toLowerCase() === "requested") {
+      return { tabId: "pickup", tabLabel: "Pickup" };
+    }
+
+    if (status === "queued" || status === "washing") {
+      return { tabId: "active", tabLabel: "Wash" };
+    }
+
+    if (status === "washed") {
+      if (hasQc) return { tabId: "washed", tabLabel: "QC" };
+      return { tabId: "washed", tabLabel: "Washed" };
+    }
+
+    if (status === "closed") {
+      return { tabId: "closed", tabLabel: "Archive" };
+    }
+
+    return { tabId: null, tabLabel: "In Shop" };
   }
 
-  if (status === "washed") {
-    if (hasQc) return { tabId: "washed", tabLabel: "QC" };
-    return { tabId: "washed", tabLabel: "Washed" };
+  function buildSearchResultEntry(found) {
+    const stage = stageInfoForTicket(found);
+
+    return {
+      status: String(found?.status || "").toLowerCase(),
+      tabId: stage.tabId,
+      tabLabel: stage.tabLabel,
+      ro: found?.ro || "",
+      tag: found?.tag || "",
+      location: found?.location || "",
+    };
   }
 
-  if (status === "closed") {
-    return { tabId: "closed", tabLabel: "Archive" };
-  }
+  let searchSeq = 0;
 
-  return { tabId: null, tabLabel: "In Shop" };
-}
+  rerender = () => {
+    const tabDef = TAB_DEFS.find((t) => t.id === currentTab) || TAB_DEFS[0];
 
-function buildSearchResultEntry(found) {
-  const stage = stageInfoForTicket(found);
+    let rows = [];
+    let set = null;
 
-  return {
-    status: String(found?.status || "").toLowerCase(),
-    tabId: stage.tabId,
-    tabLabel: stage.tabLabel,
-    ro: found?.ro || "",
-    tag: found?.tag || "",
-    location: found?.location || "",
-  };
-}
+    if (currentTab === "pickup") {
+      rows = (lastRows || []).filter((r) =>
+        String(r.pickupStatus || "").toLowerCase() === "requested"
+      );
+    } else {
+      if (!Array.isArray(tabDef.statuses)) {
+        tbody.innerHTML = "";
+        const tr = el("tr");
+        const td = el("td", { className: "muted", text: "Coming soon." });
+        td.setAttribute("colspan", String(cols.length));
+        tr.appendChild(td);
+        tbody.appendChild(tr);
+        return;
+      }
 
-let searchSeq = 0;
+      set = new Set(tabDef.statuses.map((s) => String(s).toLowerCase()));
 
-rerender = () => {
-  const tabDef = TAB_DEFS.find((t) => t.id === currentTab) || TAB_DEFS[0];
+      rows = (lastRows || []).filter((r) =>
+        set.has(String(r.status || "").toLowerCase())
+      );
+    }
 
-  let rows = [];
-  let set = null;
+    if (searchText) {
+      const allMatches = (lastRows || []).filter((t) => {
+        const tag = String(t.tag || "").toLowerCase();
+        const ro = String(t.ro || "").toLowerCase();
+        return tag.includes(searchText) || ro.includes(searchText);
+      });
 
-  if (currentTab === "pickup") {
-    rows = (lastRows || []).filter((r) =>
-      String(r.pickupStatus || "").toLowerCase() === "requested"
-    );
-  } else {
-    if (!Array.isArray(tabDef.statuses)) {
-      tbody.innerHTML = "";
+      if (allMatches.length) {
+        searchResultInfo = null;
+
+        if (currentTab === "pickup") {
+          const inCurrentTab = allMatches.filter((t) =>
+            String(t.pickupStatus || "").toLowerCase() === "requested"
+          );
+
+          if (inCurrentTab.length) {
+            rows = inCurrentTab;
+          } else {
+            const mapped = allMatches.map((found) => buildSearchResultEntry(found));
+
+            const seen = new Set();
+            const results = mapped.filter((x) => {
+              const key = `${x.tabId}|${x.status}|${x.ro}|${x.tag}|${x.location}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+
+            searchResultInfo = {
+              type: "foundElsewhere",
+              results,
+            };
+
+            rows = [];
+          }
+        } else {
+          const inCurrentTab = allMatches.filter((t) =>
+            set.has(String(t.status || "").toLowerCase())
+          );
+
+          if (inCurrentTab.length) {
+            rows = inCurrentTab;
+          } else {
+            const mapped = allMatches.map((found) => buildSearchResultEntry(found));
+
+            const seen = new Set();
+            const results = mapped.filter((x) => {
+              const key = `${x.tabId}|${x.status}|${x.ro}|${x.tag}|${x.location}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+
+            searchResultInfo = {
+              type: "foundElsewhere",
+              results,
+            };
+
+            rows = [];
+          }
+        }
+      } else {
+        rows = [];
+        if (!searchResultInfo) {
+          searchResultInfo = { type: "searching", results: [] };
+        }
+      }
+    } else {
+      searchResultInfo = null;
+    }
+
+    let etaMap = null;
+
+    if (currentTab === "active") {
+      const minutesPerCar = Number(sys?.washDurationMin) || 15;
+      const bufferMin = Number(sys?.bufferMin) || 0;
+
+      const baysOpen = Number.isFinite(sys?.effectiveBays)
+        ? Math.floor(sys.effectiveBays)
+        : 0;
+
+      rows = buildSmartWashQueue(rows, {
+        baysOpen,
+        minutesPerCar: minutesPerCar + bufferMin,
+      });
+
+      etaMap = computeEtaMap(rows, {
+        minutesPerCar: minutesPerCar + bufferMin,
+        baysOpen,
+      });
+    }
+
+    tbody.innerHTML = "";
+
+    if (!rows.length) {
       const tr = el("tr");
-      const td = el("td", { className: "muted", text: "Coming soon." });
+      const td = el("td", { className: "muted" });
       td.setAttribute("colspan", String(cols.length));
+
+      if (searchText && searchResultInfo) {
+        if (searchResultInfo.type === "searching") {
+          td.textContent = "Searching...";
+        } else if (searchResultInfo.type === "notfound") {
+          td.textContent = "No ticket found.";
+        } else if (searchResultInfo.type === "foundElsewhere") {
+          const wrap = document.createElement("div");
+
+          const intro = document.createElement("div");
+          intro.style.marginBottom = "8px";
+          intro.textContent =
+            searchResultInfo.results.length === 1
+              ? "Found in:"
+              : "Found in multiple places:";
+          wrap.appendChild(intro);
+
+          searchResultInfo.results.forEach((r) => {
+            const base =
+              r.ro && r.tag
+                ? `${r.tabLabel} (RO ${r.ro} / Tag ${r.tag})`
+                : r.ro
+                  ? `${r.tabLabel} (RO ${r.ro})`
+                  : r.tag
+                    ? `${r.tabLabel} (Tag ${r.tag})`
+                    : r.tabLabel;
+
+            const label = r.location
+              ? `${base} — ${r.location}`
+              : base;
+
+            if (r.tabId) {
+              wrap.appendChild(
+                buildFoundLink(label, () => switchToTab(r.tabId))
+              );
+            } else {
+              const plain = document.createElement("span");
+              plain.textContent = label;
+              plain.style.display = "inline-block";
+              plain.style.margin = "2px 6px 2px 0";
+              wrap.appendChild(plain);
+            }
+          });
+
+          td.appendChild(wrap);
+        } else {
+          td.textContent = "No tickets.";
+        }
+      } else {
+        td.textContent = "No tickets.";
+      }
+
       tr.appendChild(td);
       tbody.appendChild(tr);
       return;
     }
 
-    set = new Set(tabDef.statuses.map((s) => String(s).toLowerCase()));
+    const splitActionKeys = new Set([
+      "requestRewash",
+      "pickupRequestAction",
+      "setNeedByAction",
+      "startWash",
+      "markComplete",
+      "cpBookedAction",
+      "wtyBookedAction",
+      "requestQc",
+      "noQc",
+      "qcDoneAction",
+      "archiveAction",
+    ]);
 
-    rows = (lastRows || []).filter((r) =>
-      set.has(String(r.status || "").toLowerCase())
-    );
-  }
+    const hasSplitActions = cols.some((c) => splitActionKeys.has(c.key));
 
-  if (searchText) {
-    const allMatches = (lastRows || []).filter((t) => {
-      const tag = String(t.tag || "").toLowerCase();
-      const ro = String(t.ro || "").toLowerCase();
-      return tag.includes(searchText) || ro.includes(searchText);
-    });
+    rows.forEach((t) => {
+      const tr = renderRow(t, role, cols, etaMap);
 
-    if (allMatches.length) {
-      searchResultInfo = null;
-
-      if (currentTab === "pickup") {
-        const inCurrentTab = allMatches.filter((t) =>
-          String(t.pickupStatus || "").toLowerCase() === "requested"
-        );
-
-        if (inCurrentTab.length) {
-          rows = inCurrentTab;
-        } else {
-          const mapped = allMatches.map((found) => buildSearchResultEntry(found));
-
-          const seen = new Set();
-          const results = mapped.filter((x) => {
-            const key = `${x.tabId}|${x.status}|${x.ro}|${x.tag}|${x.location}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          });
-
-          searchResultInfo = {
-            type: "foundElsewhere",
-            results,
-          };
-
-          rows = [];
-        }
-      } else {
-        const inCurrentTab = allMatches.filter((t) =>
-          set.has(String(t.status || "").toLowerCase())
-        );
-
-        if (inCurrentTab.length) {
-          rows = inCurrentTab;
-        } else {
-          const mapped = allMatches.map((found) => buildSearchResultEntry(found));
-
-          const seen = new Set();
-          const results = mapped.filter((x) => {
-            const key = `${x.tabId}|${x.status}|${x.ro}|${x.tag}|${x.location}`;
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          });
-
-          searchResultInfo = {
-            type: "foundElsewhere",
-            results,
-          };
-
-          rows = [];
-        }
-      }
-    } else {
-      rows = [];
-      if (!searchResultInfo) {
-        searchResultInfo = { type: "searching", results: [] };
-      }
-    }
-  } else {
-    searchResultInfo = null;
-  }
-
-  let etaMap = null;
-
-  if (currentTab === "active") {
-    rows = rows.slice().sort(sortActiveQueue);
-
-    const minutesPerCar = Number(sys?.washDurationMin) || 15;
-    const bufferMin = Number(sys?.bufferMin) || 0;
-
-    const baysOpen = Number.isFinite(sys?.effectiveBays)
-      ? Math.floor(sys.effectiveBays)
-      : 0;
-
-    etaMap = computeEtaMap(rows, {
-      minutesPerCar: minutesPerCar + bufferMin,
-      baysOpen,
-    });
-  }
-
-  tbody.innerHTML = "";
-
-  if (!rows.length) {
-    const tr = el("tr");
-    const td = el("td", { className: "muted" });
-    td.setAttribute("colspan", String(cols.length));
-
-    if (searchText && searchResultInfo) {
-      if (searchResultInfo.type === "searching") {
-        td.textContent = "Searching...";
-      } else if (searchResultInfo.type === "notfound") {
-        td.textContent = "No ticket found.";
-      } else if (searchResultInfo.type === "foundElsewhere") {
-        const wrap = document.createElement("div");
-
-        const intro = document.createElement("div");
-        intro.style.marginBottom = "8px";
-        intro.textContent =
-          searchResultInfo.results.length === 1
-            ? "Found in:"
-            : "Found in multiple places:";
-        wrap.appendChild(intro);
-
-        searchResultInfo.results.forEach((r) => {
-          const base =
-            r.ro && r.tag
-              ? `${r.tabLabel} (RO ${r.ro} / Tag ${r.tag})`
-              : r.ro
-                ? `${r.tabLabel} (RO ${r.ro})`
-                : r.tag
-                  ? `${r.tabLabel} (Tag ${r.tag})`
-                  : r.tabLabel;
-
-          const label = r.location
-            ? `${base} — ${r.location}`
-            : base;
-
-          if (r.tabId) {
-            wrap.appendChild(
-              buildFoundLink(label, () => switchToTab(r.tabId))
-            );
-          } else {
-            const plain = document.createElement("span");
-            plain.textContent = label;
-            plain.style.display = "inline-block";
-            plain.style.margin = "2px 6px 2px 0";
-            wrap.appendChild(plain);
-          }
+      if (hasSplitActions) {
+        const actionMap = buildActionsCell({
+          t,
+          role,
+          tab: currentTab,
+          correctionsPerms: {
+            ...(correctionsPerms || {}),
+            canEditTickets: canEditTickets,
+          },
+          splitMode: true,
         });
 
-        td.appendChild(wrap);
-      } else {
-        td.textContent = "No tickets.";
+        if (actionMap && typeof actionMap === "object") {
+          Object.entries(actionMap).forEach(([key, node]) => {
+            const td = tr.querySelector(`td[data-action-key="${key}"]`);
+            if (td && node) {
+              td.innerHTML = "";
+              td.appendChild(node);
+            }
+          });
+        }
       }
-    } else {
-      td.textContent = "No tickets.";
-    }
 
-    tr.appendChild(td);
-    tbody.appendChild(tr);
-    return;
-  }
-
-  const splitActionKeys = new Set([
-    "requestRewash",
-    "pickupRequestAction",
-    "setNeedByAction",
-    "startWash",
-    "markComplete",
-    "cpBookedAction",
-    "wtyBookedAction",
-    "requestQc",
-    "noQc",
-    "qcDoneAction",
-    "archiveAction",
-  ]);
-
-  const hasSplitActions = cols.some((c) => splitActionKeys.has(c.key));
-
-  rows.forEach((t) => {
-    const tr = renderRow(t, role, cols, etaMap);
-
-    if (hasSplitActions) {
-      const actionMap = buildActionsCell({
-        t,
-        role,
-        tab: currentTab,
-        correctionsPerms: {
-          ...(correctionsPerms || {}),
-          canEditTickets: canEditTickets,
-        },
-        splitMode: true,
-      });
-
-      if (actionMap && typeof actionMap === "object") {
-        Object.entries(actionMap).forEach(([key, node]) => {
-          const td = tr.querySelector(`td[data-action-key="${key}"]`);
-          if (td && node) {
-            td.innerHTML = "";
-            td.appendChild(node);
-          }
-        });
-      }
-    }
-
-    tbody.appendChild(tr);
-  });
-};
+      tbody.appendChild(tr);
+    });
+  };
 
   if (searchEl) {
     searchEl.addEventListener("input", async () => {

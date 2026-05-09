@@ -60,13 +60,13 @@ export async function requestRewashWithNeedBy(ticketId, user, role, needByMs) {
   }
 }
 
-export async function setNeedBy(ticketId, user, needByMs) {
+export async function clearNeedBy(ticketId, user, role = "unknown") {
   const ref = doc(db, "ros", ticketId);
   await updateDoc(ref, {
-    priorityType: "needby",
-    needByAtMs: needByMs,
-    needBySetBy: user.uid,
-    updatedAt: serverTimestamp()
+    priorityType: "normal",
+    needByAtMs: null,
+    needBySetBy: null,
+    ...buildLastEditedPatch(role, user.uid, ["priorityType", "needByAtMs", "needBySetBy"])
   });
 }
 
@@ -436,6 +436,16 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
         return;
       }
 
+      if (ms <= Date.now()) {
+        await clearNeedBy(id, user, role);
+
+        if (msgEl) {
+          msgEl.className = "err";
+          msgEl.textContent = "Past time rejected. Need By was cleared.";
+        }
+        return;
+      }
+
       await requestRewashWithNeedBy(id, user, role, ms);
       if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "Rewash requested."; }
       return;
@@ -448,6 +458,14 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
       if (ms === null) return;
       if (!Number.isFinite(ms)) {
         if (msgEl) { msgEl.className = "err"; msgEl.textContent = "Invalid date/time."; }
+        return;
+      }
+
+      if (ms <= Date.now()) {
+        if (msgEl) {
+          msgEl.className = "err";
+          msgEl.textContent = "You cannot select a past time.";
+        }
         return;
       }
 

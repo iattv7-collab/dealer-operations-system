@@ -28,6 +28,14 @@ export const COLUMN_CATALOG = {
     editRoles: ["advisor", "manager", "admin"], // keep strict
   },
 
+  customerName: {
+    key: "customerName",
+    label: "Customer",
+    field: "customerName",
+    type: "text",
+    editRoles: ["advisor", "manager", "admin"],
+  },
+
   ro: {
     key: "ro",
     label: "RO",
@@ -412,16 +420,10 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
 
   wash: [
     "tag",
-    "ro",
-    "advisor",
-    "needBy",
-    "location",
-    "notes",
     "priority",
+    "needBy",
     "startWash",
     "markComplete",
-    "requestRewash",
-    "pickupRequestAction",
   ],
 
   staff: [

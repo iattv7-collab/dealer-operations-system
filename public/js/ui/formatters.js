@@ -78,6 +78,7 @@ export function fmtShortWhen(msLike, nowMs = Date.now()) {
 
 export function formatCell({ key, t, etaMap, fmtCreated, fmtTs, fmtTime }) {
   if (key === "tag") return t.tag || "";
+  if (key === "customerName") return t.customerName || "";
   if (key === "ro") return t.ro || "";
 
   // Foreman / Tech fields

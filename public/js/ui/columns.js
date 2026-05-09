@@ -49,7 +49,45 @@ export function colsForView(viewKey, extraKeys = []) {
     blocked.add("updatedAt");
   }
 
-  const finalKeys = [...new Set(chosenKeys)].filter((k) => !blocked.has(k));
+  let finalKeys = [...new Set(chosenKeys)].filter((k) => !blocked.has(k));
+
+  if (normalizedView === "wash") {
+    const washOrder = [
+      "tag",
+      "model",
+      "location",
+      "priority",
+      "needBy",
+      "startWash",
+      "markComplete",
+    ];
+
+    finalKeys = washOrder.filter((k) => finalKeys.includes(k));
+  }
+
+if (normalizedView === "advisor") {
+  const advisorOrder = [
+    "tag",
+    "ro",
+    "model",
+    "customerName",
+    "location",
+    "status",
+    "priority",
+    "needBy",
+    "setNeedByAction",
+    "washed",
+    "requestRewash",
+    "pickupRequestAction",
+    "cpBooked",
+    "cpBookedAction",
+    "noQc",
+    "requestQc",
+    "notes",
+  ];
+
+  finalKeys = advisorOrder.filter((k) => finalKeys.includes(k));
+}
 
   return buildColumnsFromKeys(finalKeys);
 }
