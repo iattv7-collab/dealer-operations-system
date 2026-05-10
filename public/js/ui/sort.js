@@ -1,11 +1,12 @@
 // public/js/ui/sort.js
 
-function hasNeedBy(t) {
-  return typeof t?.needByAtMs === "number" && t.needByAtMs > 0;
+function isWaiter(t) {
+  return t?.customerWaiting === true;
 }
 
-function isWaiter(t) {
-  return t?.waiter === true || t?.customerWaiting === true;
+function hasNeedBy(t) {
+  if (isWaiter(t)) return false;
+  return typeof t?.needByAtMs === "number" && t.needByAtMs > 0;
 }
 
 function isRewash(t) {
@@ -13,7 +14,11 @@ function isRewash(t) {
 }
 
 function arrivalMs(t) {
-  return typeof t?.createdAtMs === "number" ? t.createdAtMs : 0;
+  if (typeof t?.washQueuedAtMs === "number" && t.washQueuedAtMs > 0) {
+    return t.washQueuedAtMs;
+  }
+
+  return 0;
 }
 
 function finishTimes(rows, baysOpen, slotMs) {

@@ -5,6 +5,9 @@ import { pickDateTimeMs } from "./datetimePicker.js";
 import { pickQcUserUid } from "./qcUsers.js";
 import { capsFor } from "./roles.js";
 import { isRewashTicket } from "./formatters.js";
+import { buildSmartWashQueue } from "./sort.js";
+import { computeEtaMap } from "./scheduler.js";
+import { getSystemSettings } from "../settings.js";
 import { el } from "./dom.js";
 
 import { updateDoc, doc, serverTimestamp, getDoc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
@@ -60,6 +63,17 @@ export async function requestRewashWithNeedBy(ticketId, user, role, needByMs) {
   }
 }
 
+export async function setNeedBy(ticketId, user, needByMs, role = "unknown") {
+  const ref = doc(db, "ros", ticketId);
+  await updateDoc(ref, {
+    priorityType: "needby",
+    needByAtMs: needByMs,
+    needBySetBy: user.uid,
+    ...buildLastEditedPatch(role, user.uid, ["priorityType", "needByAtMs", "needBySetBy"])
+  });
+}
+
+
 export async function clearNeedBy(ticketId, user, role = "unknown") {
   const ref = doc(db, "ros", ticketId);
   await updateDoc(ref, {
@@ -68,6 +82,91 @@ export async function clearNeedBy(ticketId, user, role = "unknown") {
     needBySetBy: null,
     ...buildLastEditedPatch(role, user.uid, ["priorityType", "needByAtMs", "needBySetBy"])
   });
+}
+
+export async function setWaiterStatus(ticketId, user, role = "unknown", isWaiter = true) {
+  const ref = doc(db, "ros", ticketId);
+
+  const patch = {
+    customerWaiting: isWaiter,
+    priorityType: isWaiter ? "waiter" : "normal",
+    ...buildLastEditedPatch(role, user.uid, [
+      "customerWaiting",
+      "priorityType",
+      "needByAtMs",
+      "needBySetBy"
+    ])
+  };
+
+  if (isWaiter) {
+    patch.needByAtMs = null;
+    patch.needBySetBy = null;
+  }
+
+  await updateDoc(ref, patch);
+}
+
+async function validateNeedByRequest({
+  ticketId,
+  needByMs,
+  lastRows
+}) {
+
+  const sys = await getSystemSettings();
+
+  const minutesPerCar =
+    Number(sys?.washDurationMin || 15) +
+    Number(sys?.bufferMin || 0);
+
+  const baysOpen = Math.max(
+    1,
+    Number(sys?.effectiveBays || 1)
+  );
+
+  const simulated = (lastRows || []).map((r) => {
+    if (r.id !== ticketId) return { ...r };
+
+    return {
+      ...r,
+      priorityType: "needby",
+      needByAtMs: needByMs
+    };
+  });
+
+  const scheduleOpts = {
+    ...(sys || {}),
+    baysOpen,
+    minutesPerCar
+  };
+
+  const queue = buildSmartWashQueue(simulated, scheduleOpts);
+
+  const etaMap = computeEtaMap(queue, scheduleOpts);
+
+  for (const t of queue) {
+
+    if (
+      typeof t.needByAtMs !== "number" ||
+      t.needByAtMs <= 0
+    ) {
+      continue;
+    }
+
+    const eta = etaMap.get(t.id);
+
+    if (!eta) continue;
+
+    if (eta > t.needByAtMs) {
+
+      return {
+        ok: false,
+        failedTicket: t,
+        eta
+      };
+    }
+  }
+
+  return { ok: true };
 }
 
 export function setRowButtonsDisabled(tr, disabled) {
@@ -119,7 +218,17 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
   const isClosed = status === "closed";
 
   bRewash.disabled = isClosed || !(caps.canRewash && canRequestRewash(t));
-  bNeedBy.disabled = isClosed || !(caps.canNeedBy && (status === "queued" || status === "washing"));
+  const isWaiter = t.customerWaiting === true;
+
+  if (isWaiter && caps.canNeedBy) {
+    bNeedBy.textContent = "Remove Waiter";
+    bNeedBy.classList.add("btn-clear-waiter");
+    bNeedBy.disabled = isClosed;
+  } else {
+    bNeedBy.disabled =
+      isClosed ||
+      !(caps.canNeedBy && (status === "queued" || status === "washing"));
+  }
   bWashing.disabled = isClosed || !(caps.canWashOps && status === "queued");
   bWashed.disabled = isClosed || !(caps.canWashOps && status === "washing");
   bArchive.disabled = !(caps.canArchive && !isClosed);
@@ -454,6 +563,17 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
     if (btn.classList.contains("btn-needby")) {
       if (!caps.canNeedBy) return;
 
+      if (btn.classList.contains("btn-clear-waiter")) {
+        await setWaiterStatus(id, user, role, false);
+
+        if (msgEl) {
+          msgEl.className = "ok";
+          msgEl.textContent = "Waiter removed.";
+        }
+
+        return;
+      }
+
       const ms = await pickDateTimeMs("Set Need By date/time:");
       if (ms === null) return;
       if (!Number.isFinite(ms)) {
@@ -469,7 +589,28 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
         return;
       }
 
-      await setNeedBy(id, user, ms);
+      const validation = await validateNeedByRequest({
+        ticketId: id,
+        needByMs: ms,
+        lastRows
+      });
+
+      if (!validation.ok) {
+
+        const etaText = new Date(validation.eta)
+          .toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit"
+          });
+
+        alert(
+          `That Need By time is not possible.\n\nEarliest available completion: ${etaText}`
+        );
+
+        return;
+      }
+
+      await setNeedBy(id, user, ms, role);
       if (msgEl) { msgEl.className = "ok"; msgEl.textContent = "Need By saved."; }
       return;
     }

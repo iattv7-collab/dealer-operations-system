@@ -22,8 +22,101 @@ function startedAtMs(t) {
   return null;
 }
 
+function parseHHMM(v) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || ""));
+  if (!m) return null;
+  return { h: Number(m[1]), m: Number(m[2]) };
+}
+
+function dayConfig(d, opts = {}) {
+  const day = d.getDay(); // 0 Sun, 6 Sat
+
+  if (day === 0) {
+    return {
+      open: opts.sunOpen || "00:00",
+      close: opts.sunClose || "00:00",
+      bays: Number(opts.sunBays || 0),
+    };
+  }
+
+  if (day === 6) {
+    return {
+      open: opts.satOpen || "08:00",
+      close: opts.satClose || "15:00",
+      bays: Number(opts.satBays || 0),
+    };
+  }
+
+  return {
+    open: opts.mfOpen || "07:30",
+    close: opts.mfClose || "19:00",
+    bays: Number(opts.mfBays || 0),
+  };
+}
+
+function windowForDate(d, opts = {}) {
+  const cfg = dayConfig(d, opts);
+  const open = parseHHMM(cfg.open);
+  const close = parseHHMM(cfg.close);
+
+  if (!open || !close || cfg.bays <= 0) return null;
+
+  const openMs = new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate(),
+    open.h,
+    open.m,
+    0,
+    0
+  ).getTime();
+
+  const closeMs = new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate(),
+    close.h,
+    close.m,
+    0,
+    0
+  ).getTime();
+
+  if (closeMs <= openMs) return null;
+
+  return { openMs, closeMs };
+}
+
+function nextValidStartMs(fromMs, slotMs, opts = {}) {
+  let cursor = fromMs;
+
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(cursor);
+    const win = windowForDate(d, opts);
+
+    if (win) {
+      const start = Math.max(cursor, win.openMs);
+
+      if (start + slotMs <= win.closeMs) {
+        return start;
+      }
+    }
+
+    const next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 0, 0);
+    cursor = next.getTime();
+  }
+
+  return null;
+}
+
+function finishFrom(startMs, slotMs, opts = {}) {
+  const validStart = nextValidStartMs(startMs, slotMs, opts);
+  return validStart ? validStart + slotMs : null;
+}
+
 export function computeEtaMap(activeSorted, opts = {}) {
   const map = new Map();
+
+  if (opts.isOpen === false) return map;
 
   const baysOpen = Number.isFinite(opts.baysOpen)
     ? Math.floor(opts.baysOpen)
@@ -39,7 +132,10 @@ export function computeEtaMap(activeSorted, opts = {}) {
   const slotMs = minutesPerCar * 60 * 1000;
   const now = Date.now();
 
-  const bayAvailableAt = Array.from({ length: baysOpen }, () => now);
+  const firstStart = nextValidStartMs(now, slotMs, opts);
+  if (!firstStart) return map;
+
+  const bayAvailableAt = Array.from({ length: baysOpen }, () => firstStart);
 
   const rows = Array.isArray(activeSorted) ? activeSorted : [];
 
@@ -58,14 +154,14 @@ export function computeEtaMap(activeSorted, opts = {}) {
 
     if (status === "washing") {
       const started = startedAtMs(t);
-
       finishMs = started
         ? Math.max(now, started + slotMs)
-        : now + slotMs;
+        : finishFrom(bayAvailableAt[bayIndex], slotMs, opts);
     } else {
-      const startMs = Math.max(now, bayAvailableAt[bayIndex]);
-      finishMs = startMs + slotMs;
+      finishMs = finishFrom(bayAvailableAt[bayIndex], slotMs, opts);
     }
+
+    if (!finishMs) return;
 
     bayAvailableAt[bayIndex] = finishMs;
     map.set(t.id, finishMs);

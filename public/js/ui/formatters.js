@@ -8,7 +8,7 @@ export function isRewashTicket(t) {
 }
 
 export function priorityLabel(t) {
-  if (t.waiter === true) return "WAITer";
+  if (t.customerWaiting === true) return "WAITER";
 
   if (typeof t.needByAtMs === "number" && t.needByAtMs > 0) {
     if (isRewashTicket(t)) return "REWASH";
@@ -108,9 +108,19 @@ export function formatCell({ key, t, etaMap, fmtCreated, fmtTs, fmtTime }) {
   }
 
   if (key === "needBy") {
-    return typeof t.needByAtMs === "number" && t.needByAtMs > 0
-      ? fmtShortWhen(t.needByAtMs)
-      : "";
+
+    if (t.customerWaiting === true) {
+      return "ASAP";
+    }
+
+    if (
+      typeof t.needByAtMs === "number" &&
+      t.needByAtMs > 0
+    ) {
+      return fmtShortWhen(t.needByAtMs);
+    }
+
+    return "";
   }
 
   if (key === "eta") {

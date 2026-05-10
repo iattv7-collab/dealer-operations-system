@@ -273,15 +273,15 @@ export function mountTicketsUI({
         ? Math.floor(sys.effectiveBays)
         : 0;
 
-      rows = buildSmartWashQueue(rows, {
+      const scheduleOpts = {
+        ...(sys || {}),
         baysOpen,
         minutesPerCar: minutesPerCar + bufferMin,
-      });
+      };
 
-      etaMap = computeEtaMap(rows, {
-        minutesPerCar: minutesPerCar + bufferMin,
-        baysOpen,
-      });
+      rows = buildSmartWashQueue(rows, scheduleOpts);
+
+      etaMap = computeEtaMap(rows, scheduleOpts);
     }
 
     tbody.innerHTML = "";

@@ -204,10 +204,18 @@ export async function pickDateTimeMs(titleText = "Select date & time") {
 
     saveBtn.addEventListener("click", () => {
       const ms = computeMs();
+
       if (!Number.isFinite(ms)) {
         preview.textContent = "Selected: Please pick a valid date/time.";
         return;
       }
+
+      if (ms <= Date.now()) {
+        alert("You cannot select a past time.");
+        preview.textContent = "Selected: Past time not allowed.";
+        return;
+      }
+
       close(ms);
     });
 
