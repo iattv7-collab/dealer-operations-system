@@ -27,7 +27,8 @@ export function renderRow(t, role, cols, etaMap) {
       c.key === "requestQc" ||
       c.key === "noQc" ||
       c.key === "qcDoneAction" ||
-      c.key === "archiveAction"
+      c.key === "archiveAction" ||
+      c.key === "removeWashQueueAction"
     ) {
       const td = el("td");
       td.dataset.col = c.key;

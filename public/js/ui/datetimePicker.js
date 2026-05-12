@@ -1,6 +1,9 @@
 // public/js/ui/datetimePicker.js
 
-export async function pickDateTimeMs(titleText = "Select date & time") {
+export async function pickDateTimeMs(
+  titleText = "Select date & time",
+  scheduleOpts = {}
+) {
   if (!document.getElementById("__dtpicker_styles")) {
     const st = document.createElement("style");
     st.id = "__dtpicker_styles";
@@ -99,23 +102,80 @@ export async function pickDateTimeMs(titleText = "Select date & time") {
     const todayStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`;
     dateInput.value = todayStr;
 
-    // 5-minute slots (08:00 -> 19:00)
-    const slots = [];
+    function parseHHMM(v) {
+      const m = /^(\d{1,2}):(\d{2})$/.exec(String(v || ""));
+      if (!m) return null;
 
-    const startHour = 8;
-    const endHour = 19;
+      return {
+        h: Number(m[1]),
+        m: Number(m[2])
+      };
+    }
 
-    for (let h = startHour; h <= endHour; h++) {
-      for (let m = 0; m < 60; m += 5) {
+    function buildSlotsForDate(dateStr) {
 
-        // stop exactly at 19:00 (not beyond)
-        if (h === endHour && m > 0) break;
+      const d = new Date(`${dateStr}T00:00:00`);
+      const day = d.getDay();
 
-        const hh = String(h).padStart(2, "0");
-        const mm = String(m).padStart(2, "0");
+      let openStr = "07:30";
+      let closeStr = "19:00";
+
+      if (day === 6) {
+        openStr = scheduleOpts.satOpen || "08:00";
+        closeStr = scheduleOpts.satClose || "15:00";
+      } else if (day === 0) {
+        openStr = scheduleOpts.sunOpen || "00:00";
+        closeStr = scheduleOpts.sunClose || "00:00";
+      } else {
+        openStr = scheduleOpts.mfOpen || "07:30";
+        closeStr = scheduleOpts.mfClose || "19:00";
+      }
+
+      const open = parseHHMM(openStr);
+      const close = parseHHMM(closeStr);
+
+      if (!open || !close) return [];
+
+      const slotMinutes =
+        Number(scheduleOpts.minutesPerCar || 15);
+
+      const openMs = new Date(
+        d.getFullYear(),
+        d.getMonth(),
+        d.getDate(),
+        open.h,
+        open.m,
+        0,
+        0
+      ).getTime();
+
+      const closeMs = new Date(
+        d.getFullYear(),
+        d.getMonth(),
+        d.getDate(),
+        close.h,
+        close.m,
+        0,
+        0
+      ).getTime();
+
+      const slots = [];
+
+      for (
+        let ms = openMs + slotMinutes * 60000;
+        ms <= closeMs;
+        ms += slotMinutes * 60000
+      ) {
+
+        const dt = new Date(ms);
+
+        const hh = String(dt.getHours()).padStart(2, "0");
+        const mm = String(dt.getMinutes()).padStart(2, "0");
 
         slots.push(`${hh}:${mm}`);
       }
+
+      return slots;
     }
 
     function buildTimeOptions() {
@@ -124,27 +184,27 @@ export async function pickDateTimeMs(titleText = "Select date & time") {
       const baseDate = dateInput.value;
       const isToday = baseDate === todayStr;
 
+      const slots = buildSlotsForDate(baseDate);
+
       // Suggest next slot as default
       const nowMs = Date.now();
       let firstValidValue = null;
       let suggestedValue = null;
 
       slots.forEach((t) => {
+        const ms = new Date(`${baseDate}T${t}:00`).getTime();
+        const past = isToday && Number.isFinite(ms) && ms <= nowMs;
+
+        if (past) return;
+
         const opt = document.createElement("option");
         opt.value = t;
+        opt.textContent = t;
 
-        let label = t;
-
-        if (baseDate) {
-          const ms = new Date(`${baseDate}T${t}:00`).getTime();
-          const past = isToday && Number.isFinite(ms) && ms < nowMs;
-          if (past) label = `${t} (past)`;
-          if (!firstValidValue && Number.isFinite(ms) && (!isToday || ms >= nowMs)) {
-            firstValidValue = t;
-          }
+        if (!firstValidValue) {
+          firstValidValue = t;
         }
 
-        opt.textContent = label;
         timeSelect.appendChild(opt);
       });
 
@@ -157,7 +217,7 @@ export async function pickDateTimeMs(titleText = "Select date & time") {
       } else if (firstValidValue) {
         timeSelect.value = firstValidValue;
       } else {
-        timeSelect.value = slots[0];
+        timeSelect.value = firstValidValue || "";
       }
 
       // Store current
@@ -167,9 +227,21 @@ export async function pickDateTimeMs(titleText = "Select date & time") {
     function computeMs() {
       const d = dateInput.value;
       const t = timeSelect.value;
+
       if (!d || !t) return NaN;
-      const ms = new Date(`${d}T${t}:00`).getTime();
-      return ms;
+
+      const [year, month, day] = d.split("-").map(Number);
+      const [hour, minute] = t.split(":").map(Number);
+
+      return new Date(
+        year,
+        month - 1,
+        day,
+        hour,
+        minute,
+        0,
+        0
+      ).getTime();
     }
 
     function updatePreview() {

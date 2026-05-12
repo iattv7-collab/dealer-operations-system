@@ -281,6 +281,14 @@ export const COLUMN_CATALOG = {
     editRoles: [],
   },
 
+  removeWashQueueAction: {
+    key: "removeWashQueueAction",
+    label: "Remove",
+    field: null,
+    type: "action",
+    editRoles: [],
+  },
+
   year: {
     key: "year",
     label: "Year",
@@ -424,6 +432,7 @@ export const DEFAULT_COLUMNS_BY_VIEW = {
     "needBy",
     "startWash",
     "markComplete",
+    "removeWashQueueAction",
   ],
 
   staff: [

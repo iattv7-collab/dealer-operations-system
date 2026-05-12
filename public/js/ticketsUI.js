@@ -358,6 +358,7 @@ export function mountTicketsUI({
       "requestQc",
       "noQc",
       "qcDoneAction",
+      "removeWashQueueAction",
       "archiveAction",
     ]);
 

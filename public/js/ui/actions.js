@@ -1,11 +1,11 @@
 // public/js/ui/actions.js
 import { auth, db } from "../firebase.js";
-import { requestRewash, setTicketStatus, requestPickup, claimPickup } from "../rosWash.js";
+import { requestRewash, setTicketStatus, requestPickup, claimPickup, removeFromWashQueue } from "../rosWash.js";
 import { pickDateTimeMs } from "./datetimePicker.js";
 import { pickQcUserUid } from "./qcUsers.js";
 import { capsFor } from "./roles.js";
 import { isRewashTicket } from "./formatters.js";
-import { buildSmartWashQueue } from "./sort.js";
+
 import { computeEtaMap } from "./scheduler.js";
 import { getSystemSettings } from "../settings.js";
 import { el } from "./dom.js";
@@ -67,9 +67,17 @@ export async function setNeedBy(ticketId, user, needByMs, role = "unknown") {
   const ref = doc(db, "ros", ticketId);
   await updateDoc(ref, {
     priorityType: "needby",
+    customerWaiting: false,
+    washWaiterAtMs: null,
     needByAtMs: needByMs,
     needBySetBy: user.uid,
-    ...buildLastEditedPatch(role, user.uid, ["priorityType", "needByAtMs", "needBySetBy"])
+    ...buildLastEditedPatch(role, user.uid, [
+      "priorityType",
+      "customerWaiting",
+      "washWaiterAtMs",
+      "needByAtMs",
+      "needBySetBy"
+    ])
   });
 }
 
@@ -90,9 +98,11 @@ export async function setWaiterStatus(ticketId, user, role = "unknown", isWaiter
   const patch = {
     customerWaiting: isWaiter,
     priorityType: isWaiter ? "waiter" : "normal",
+    washWaiterAtMs: isWaiter ? Date.now() : null,
     ...buildLastEditedPatch(role, user.uid, [
       "customerWaiting",
       "priorityType",
+      "washWaiterAtMs",
       "needByAtMs",
       "needBySetBy"
     ])
@@ -124,22 +134,39 @@ async function validateNeedByRequest({
   );
 
   const simulated = (lastRows || []).map((r) => {
-    if (r.id !== ticketId) return { ...r };
+    const copy = { ...r };
 
-    return {
-      ...r,
-      priorityType: "needby",
-      needByAtMs: needByMs
-    };
+    if (copy.id === ticketId) {
+      copy.priorityType = "needby";
+      copy.needByAtMs = needByMs;
+    }
+
+    return copy;
   });
+
+  // Freeze existing protected tickets in their current order
+  const existingNeedBy = simulated
+    .filter((t) =>
+      typeof t.needByAtMs === "number" &&
+      t.needByAtMs > 0 &&
+      t.id !== ticketId
+    )
+    .sort((a, b) => (a.needByAtMs || 0) - (b.needByAtMs || 0));
+
+  const newNeedBy = simulated.find((t) => t.id === ticketId);
+
+  const protectedTickets = [
+    ...existingNeedBy,
+    ...(newNeedBy ? [newNeedBy] : [])
+  ].sort((a, b) => (a.needByAtMs || 0) - (b.needByAtMs || 0));
+
+  const queue = simulated.slice();
 
   const scheduleOpts = {
     ...(sys || {}),
     baysOpen,
     minutesPerCar
   };
-
-  const queue = buildSmartWashQueue(simulated, scheduleOpts);
 
   const etaMap = computeEtaMap(queue, scheduleOpts);
 
@@ -156,7 +183,18 @@ async function validateNeedByRequest({
 
     if (!eta) continue;
 
-    if (eta > t.needByAtMs) {
+    const etaMinute = Math.floor(Number(eta) / 60000);
+    const needByMinute = Math.floor(Number(t.needByAtMs) / 60000);
+
+    console.log("NEED BY CHECK", {
+      ticket: t.id,
+      eta,
+      needByAtMs: t.needByAtMs,
+      etaMinute,
+      needByMinute
+    });
+
+    if (etaMinute > needByMinute) {
 
       return {
         ok: false,
@@ -166,7 +204,7 @@ async function validateNeedByRequest({
     }
   }
 
-  return { ok: true };
+  return { ok: true };;
 }
 
 export function setRowButtonsDisabled(tr, disabled) {
@@ -196,6 +234,12 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
   const bWashed = el("button", { type: "button", className: "btn-washed", text: "Mark Complete" });
 
   const bArchive = el("button", { type: "button", className: "btn-archive", text: "Archive" });
+
+  const bRemoveWash = el("button", {
+    type: "button",
+    className: "btn-remove-wash",
+    text: "Remove"
+  });
 
   const bPickup = el("button", { type: "button", className: "btn-pickup", text: "Request Pickup" });
 
@@ -232,6 +276,10 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
   bWashing.disabled = isClosed || !(caps.canWashOps && status === "queued");
   bWashed.disabled = isClosed || !(caps.canWashOps && status === "washing");
   bArchive.disabled = !(caps.canArchive && !isClosed);
+
+  bRemoveWash.disabled =
+    isClosed ||
+    !(caps.canWashOps || role === "manager" || role === "admin");
 
   const pickupStatus = String(t.pickupStatus || "").toLowerCase();
   const pickupAlreadyActive = pickupStatus === "requested" || pickupStatus === "on_the_way";
@@ -298,6 +346,7 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
 
   if (isQc) wrap.appendChild(bQcDone);
 
+  wrap.appendChild(bRemoveWash);
   wrap.appendChild(bArchive);
 
   // Corrections buttons ONLY in Corrections tab, and only for allowed fields
@@ -330,6 +379,9 @@ export function buildActionsCell({ t, role, tab = "", correctionsPerms = {}, spl
     if (wrap.contains(bRequestQc)) actionMap.requestQc = bRequestQc;
     if (wrap.contains(bNoQc)) actionMap.noQc = bNoQc;
     if (wrap.contains(bQcDone)) actionMap.qcDoneAction = bQcDone;
+    if (wrap.contains(bRemoveWash)) {
+      actionMap.removeWashQueueAction = bRemoveWash;
+    }
     if (wrap.contains(bArchive)) actionMap.archiveAction = bArchive;
 
     return actionMap;
@@ -574,7 +626,22 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
         return;
       }
 
-      const ms = await pickDateTimeMs("Set Need By date/time:");
+      const sys = await getSystemSettings();
+
+      const ms = await pickDateTimeMs(
+        "Set Need By date/time:",
+        {
+          mfOpen: sys?.mfOpen,
+          mfClose: sys?.mfClose,
+          satOpen: sys?.satOpen,
+          satClose: sys?.satClose,
+          sunOpen: sys?.sunOpen,
+          sunClose: sys?.sunClose,
+          minutesPerCar:
+            Number(sys?.washDurationMin || 15) +
+            Number(sys?.bufferMin || 0)
+        }
+      );
       if (ms === null) return;
       if (!Number.isFinite(ms)) {
         if (msgEl) { msgEl.className = "err"; msgEl.textContent = "Invalid date/time."; }
@@ -603,8 +670,17 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
             minute: "2-digit"
           });
 
+        const selectedText = new Date(ms)
+          .toLocaleString([], {
+            month: "numeric",
+            day: "numeric",
+            year: "numeric",
+            hour: "numeric",
+            minute: "2-digit"
+          });
+
         alert(
-          `That Need By time is not possible.\n\nEarliest available completion: ${etaText}`
+          `That Need By time is not possible.\n\nSelected: ${selectedText}\nEarliest available completion: ${etaText}`
         );
 
         return;
@@ -656,6 +732,28 @@ export async function handleTableClick({ e, role, tab = "", lastRows, msgEl, cor
       return;
     }
 
+
+    if (btn.classList.contains("btn-remove-wash")) {
+
+      if (!(caps.canWashOps || role === "manager" || role === "admin")) {
+        return;
+      }
+
+      const ok = confirm(
+        "Remove this vehicle from the wash queue?\n\nThis will clear its wash queue timing and queue position."
+      );
+
+      if (!ok) return;
+
+      await removeFromWashQueue(id, user, role);
+
+      if (msgEl) {
+        msgEl.className = "ok";
+        msgEl.textContent = "Vehicle removed from wash queue.";
+      }
+
+      return;
+    }
 
     if (btn.classList.contains("btn-archive")) {
       if (!caps.canArchive) return;

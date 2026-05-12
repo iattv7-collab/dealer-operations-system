@@ -31,11 +31,13 @@ function parseHHMM(v) {
 function dayConfig(d, opts = {}) {
   const day = d.getDay(); // 0 Sun, 6 Sat
 
+  const fallbackBays = Number(opts.baysOpen || opts.effectiveBays || 0);
+
   if (day === 0) {
     return {
       open: opts.sunOpen || "00:00",
       close: opts.sunClose || "00:00",
-      bays: Number(opts.sunBays || 0),
+      bays: Number(opts.sunBays || fallbackBays),
     };
   }
 
@@ -43,14 +45,14 @@ function dayConfig(d, opts = {}) {
     return {
       open: opts.satOpen || "08:00",
       close: opts.satClose || "15:00",
-      bays: Number(opts.satBays || 0),
+      bays: Number(opts.satBays || fallbackBays),
     };
   }
 
   return {
     open: opts.mfOpen || "07:30",
     close: opts.mfClose || "19:00",
-    bays: Number(opts.mfBays || 0),
+    bays: Number(opts.mfBays || fallbackBays),
   };
 }
 
@@ -163,8 +165,10 @@ export function computeEtaMap(activeSorted, opts = {}) {
 
     if (!finishMs) return;
 
-    bayAvailableAt[bayIndex] = finishMs;
-    map.set(t.id, finishMs);
+finishMs = Math.floor(finishMs / 60000) * 60000;
+
+bayAvailableAt[bayIndex] = finishMs;
+map.set(t.id, finishMs);;
   });
 
   return map;

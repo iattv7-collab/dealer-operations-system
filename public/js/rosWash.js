@@ -95,6 +95,7 @@ export async function createWashTicket(data, user, role = "staff") {
     washQueuedAtMs: nowMs,
     washQueuedBy: user.uid,
     priorityType: waiter ? "waiter" : "normal",
+    washWaiterAtMs: waiter ? nowMs : null,
     updatedAt: serverTimestamp(),
     ...auditUser(user),
     washEvents: arrayUnion(
@@ -109,6 +110,7 @@ export async function createWashTicket(data, user, role = "staff") {
       "washQueuedAtMs",
       "washQueuedBy",
       "priorityType",
+      "washWaiterAtMs",
       "updatedAt",
       "updatedByUid",
       "updatedByName",
@@ -365,6 +367,66 @@ export async function setTicketStatus(ticketId, nextStatus, user, role = "unknow
   await updateDoc(ref, patch);
 }
 
+
+export async function removeFromWashQueue(ticketId, user, role = "unknown") {
+  if (!user) throw new Error("Not authenticated.");
+  if (!ticketId) throw new Error("Missing ticket id.");
+
+  const ref = doc(db, COL, ticketId);
+  const nowMs = Date.now();
+
+    await updateDoc(ref, {
+    washStatus: "",
+    washQueuedAt: null,
+    washQueuedAtMs: null,
+    washQueuedBy: null,
+    washingStartedAt: null,
+    washingStartedAtMs: null,
+    washingStartedBy: null,
+    washedAt: null,
+    washedAtMs: null,
+    washedBy: null,
+    washWaiterAtMs: null,
+    washNotes: "",
+    priorityType: "normal",
+    customerWaiting: false,
+    needByAtMs: null,
+    needBySetBy: null,
+    isRewashCycle: false,
+    rewashRequestedAtMs: null,
+    rewashRequestedBy: null,
+    updatedAt: serverTimestamp(),
+    ...auditUser(user),
+    washEvents: arrayUnion(
+      makeEvent({ type: "wash_removed", atMs: nowMs, by: user.uid, role, cycle: "wash" })
+    ),
+    ...lastEditPatch(user, role, [
+      "washStatus",
+      "washQueuedAt",
+      "washQueuedAtMs",
+      "washQueuedBy",
+      "washingStartedAt",
+      "washingStartedAtMs",
+      "washingStartedBy",
+      "washedAt",
+      "washedAtMs",
+      "washedBy",
+      "washWaiterAtMs",
+      "washNotes",
+      "priorityType",
+      "customerWaiting",
+      "needByAtMs",
+      "needBySetBy",
+      "isRewashCycle",
+      "rewashRequestedAtMs",
+      "rewashRequestedBy",
+      "washEvents"
+    ])
+  });
+}
+
+
+
 /* -------------------------------------------
    Listen from master `ros`
    - maps wash fields into the existing wash UI shape
@@ -417,10 +479,10 @@ export function listenTickets(options, callback) {
             // Prefer main notes first, then wash notes if main notes empty
             notes: data.notes || data.washNotes || "",
 
-            // Prefer main createdAtMs, fallback to wash queue timestamp
-            createdAtMs: typeof data.createdAtMs === "number"
-              ? data.createdAtMs
-              : (typeof data.washQueuedAtMs === "number" ? data.washQueuedAtMs : 0)
+            // Wash list arrival time must be when ticket entered wash queue
+            createdAtMs: typeof data.washQueuedAtMs === "number"
+              ? data.washQueuedAtMs
+              : 0
           };
         });
 
@@ -428,8 +490,6 @@ export function listenTickets(options, callback) {
           const set = new Set(statuses.map((s) => String(s).toLowerCase()));
           rows = rows.filter((r) => set.has(String(r.status || "").toLowerCase()));
         }
-
-        rows.sort((a, b) => Number(b.createdAtMs || 0) - Number(a.createdAtMs || 0));
         callback(rows);
       },
       (err) => {
