@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RO Scanner Test — Porsche West Broward</title>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 20px; background: #f5f5f5; }
+    .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h1 { margin-top: 0; }
+    #result { margin-top: 20px; }
+    .chosen { font-size: 1.4em; font-weight: bold; color: #0a7a0a; }
+    .bad { color: #b00020; }
+    pre { background: #f6f6f6; padding: 12px; border-radius: 6px; overflow-x: auto; white-space: pre-wrap; font-size: 13px; }
+    .candidates { margin: 10px 0; }
+    .candidates span { display: inline-block; margin: 4px 8px 4px 0; padding: 4px 8px; background: #eee; border-radius: 4px; }
+    button { padding: 10px 16px; font-size: 16px; }
+    input[type=file] { font-size: 16px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>RO Scanner Test (Tesseract.js)</h1>
+    <p>Upload a Porsche West Broward Reynolds RO photo. This extracts the <strong>tag number</strong> while trying to avoid the advisor number (usually 1023) and other short numbers.</p>
+    
+    <input type="file" id="file" accept="image/*" />
+    <button id="scan">Scan</button>
+    <div id="status"></div>
+    
+    <div id="result" style="display:none;">
+      <div>Chosen tag: <span id="chosen" class="chosen"></span></div>
+      <div class="candidates">All candidate numbers: <span id="candidates"></span></div>
+      <h3>Raw OCR text</h3>
+      <pre id="raw"></pre>
+    </div>
+  </div>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+    const chosenEl = document.getElementById("chosen");
+    const candidatesEl = document.getElementById("candidates");
+    const rawEl = document.getElementById("raw");
+
+    document.getElementById("scan").addEventListener("click", async () => {
+      const file = document.getElementById("file").files[0];
+      if (!file) {
+        statusEl.textContent = "Please choose an image first.";
+        return;
+      }
+
+      statusEl.textContent = "Running OCR… (this may take 5–15 seconds)";
+      resultEl.style.display = "none";
+
+      try {
+        const { data: { text } } = await Tesseract.recognize(file, "eng", {
+          logger: m => {
+            if (m.status === "recognizing text") {
+              statusEl.textContent = `OCR: ${Math.round(m.progress * 100)}%`;
+            }
+          }
+        });
+
+        const tag = extractTagFromText(text);
+        const candidates = extractAllCandidates(text);
+
+        chosenEl.textContent = tag || "(none found)";
+        chosenEl.className = tag ? "chosen" : "bad";
+        candidatesEl.innerHTML = candidates.map(n => `<span>${n}</span>`).join("");
+        rawEl.textContent = text || "(empty)";
+        resultEl.style.display = "block";
+        statusEl.textContent = "Done.";
+      } catch (err) {
+        statusEl.textContent = "Error: " + err.message;
+        console.error(err);
+      }
+    });
+
+    // ============================================================
+    // extractTagFromText — copy-paste friendly for DEXP later
+    // Rules tuned for Porsche West Broward Reynolds ROs
+    // ============================================================
+    function extractTagFromText(rawText) {
+      const text = String(rawText || "").replace(/\r/g, "");
+      const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+
+      // Known advisor / employee numbers to reject (expand as needed)
+      const REJECT = new Set(["1023", "1024", "1025"]); // add more if observed
+
+      function isGoodTag(n) {
+        const s = String(n || "").trim();
+        if (!/^\d{3,5}$/.test(s)) return false;          // 3–5 digits typical for tags
+        if (REJECT.has(s)) return false;
+        if (/^0+$/.test(s)) return false;                // all zeros
+        return true;
+      }
+
+      // 1. Prefer explicit TAG NO / TAG # label
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        let m = line.match(/TAG\s*(?:NO|#|NUMBER)?\s*[:.]?\s*(\d{2,6})/i);
+        if (m && isGoodTag(m[1])) return m[1];
+
+        if (/TAG\s*(?:NO|#)/i.test(line)) {
+          for (let j = 1; j <= 6; j++) {
+            const next = lines[i + j] || "";
+            const num = next.match(/\b(\d{3,5})\b/);
+            if (num && isGoodTag(num[1])) return num[1];
+          }
+        }
+      }
+
+      // 2. Collect all 3–5 digit numbers that are not rejected
+      const allNums = [];
+      const seen = new Set();
+      const re = /\b(\d{3,5})\b/g;
+      let match;
+      while ((match = re.exec(text)) !== null) {
+        const n = match[1];
+        if (isGoodTag(n) && !seen.has(n)) {
+          seen.add(n);
+          allNums.push(n);
+        }
+      }
+
+      // 3. Prefer numbers that appear near the top (header area) and are not the RO
+      // RO is usually the longest / first large number
+      const roCandidates = (text.match(/\b\d{5,7}\b/g) || []);
+      const ro = roCandidates[0] || "";
+
+      // Filter out the RO if it slipped in
+      const filtered = allNums.filter(n => n !== ro);
+
+      // Prefer the first good one that appears early in the text (header)
+      if (filtered.length) return filtered[0];
+
+      // Fallback: any good candidate
+      return allNums[0] || "";
+    }
+
+    function extractAllCandidates(rawText) {
+      const text = String(rawText || "");
+      const set = new Set();
+      const re = /\b(\d{2,6})\b/g;
+      let m;
+      while ((m = re.exec(text)) !== null) {
+        set.add(m[1]);
+      }
+      return Array.from(set).sort((a, b) => a.length - b.length || a.localeCompare(b));
+    }
+  </script>
+</body>
+</html>

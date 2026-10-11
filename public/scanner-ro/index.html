@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Scan Repair Order (DEXP Baseline)</title>
+    <style>
+      body { font-family: system-ui, sans-serif; margin: 0; padding: 16px; background: #f5f5f5; }
+      .page-card { max-width: 480px; margin: 0 auto; background: white; padding: 16px; border-radius: 12px; }
+      .file-upload-field { display: block; background: #0a4d8c; color: white; text-align: center; padding: 14px; border-radius: 8px; font-weight: 600; margin-bottom: 16px; }
+      .file-upload-field input { display: none; }
+      .form-grid label { display: block; margin-bottom: 12px; font-size: 14px; font-weight: 600; }
+      .form-grid input, .form-grid textarea { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; font-size: 16px; box-sizing: border-box; }
+      .action-row { margin-top: 16px; }
+      #scannerMessage { font-weight: 600; min-height: 1.2em; }
+      .scanner-preview { margin-top: 16px; text-align: center; }
+      .scanner-preview img { max-width: 100%; border-radius: 8px; }
+      .ocr-debug-text { width: 100%; min-height: 120px; font-family: monospace; font-size: 12px; }
+    </style>
+  </head>
+  <body>
+    <main class="page-shell">
+      <section class="page-card">
+        <div class="toolbar-row">
+          <label class="file-upload-field">
+            Scan Repair Order
+            <input id="roImageInput" type="file" accept="image/*" capture="environment" />
+          </label>
+        </div>
+
+        <section class="form-grid">
+          <label>RO Number <input id="roNumberInput" type="text" readonly /></label>
+          <label>Tag Number <input id="tagNumberInput" type="text" readonly /></label>
+          <label>Advisor Name <input id="advisorNameInput" type="text" readonly /></label>
+          <label>Advisor Number <input id="advisorNumberInput" type="text" readonly /></label>
+          <label>VIN <input id="vinInput" type="text" readonly /></label>
+          <label>Customer Name <input id="customerNameInput" type="text" readonly /></label>
+          <label>Customer Phone <input id="customerPhoneInput" type="text" readonly /></label>
+          <label>Concern / Complaint <textarea id="concernInput" readonly></textarea></label>
+        </section>
+
+        <p id="scannerMessage" class="page-message"></p>
+
+        <section id="imagePreviewWrap" class="scanner-preview" style="display:none;">
+          <img id="imagePreview" alt="RO preview" />
+        </section>
+
+        <section class="ocr-debug-section">
+          <h3>OCR Debug Text</h3>
+          <textarea id="ocrDebugText" class="ocr-debug-text" readonly></textarea>
+        </section>
+      </section>
+    </main>
+
+    <script type="module" src="/pages/scanner-ro/scanner-ro.js"></script>
+  </body>
+</html>
