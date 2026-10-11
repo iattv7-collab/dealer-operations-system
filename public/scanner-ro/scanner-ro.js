@@ -1,4 +1,4 @@
-/ public/pages/scanner-ro/scanner-ro.js
+// public/pages/scanner-ro/scanner-ro.js
 // Baseline recreation of DEXP scanner-ro.js (OCR + extraction only, no Firestore/save for testing)
 
 import { scanROImage } from "/js/services/ocr/ro-ocr-service.js";
