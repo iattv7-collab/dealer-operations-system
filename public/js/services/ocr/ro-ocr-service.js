@@ -436,20 +436,15 @@ function extractTagNumber(text) {
     const cutoff = source.search(/I hereby authorize/i);
     const region = cutoff >= 0 ? source.slice(0, cutoff) : source;
 
-    // Find TAG label (handles TAGNO, TAG NO, TAG. NO, etc.)
     const tagMatch = region.match(/TAG\s*\.?\s*NO\.?/i);
     if (!tagMatch) return "";
 
     const start = tagMatch.index + tagMatch[0].length;
-
-    // Look only a short distance after the TAG label
     const after = region.slice(start, start + 120);
 
-    // Stop early if we hit ADVISOR
     const advisorPos = after.search(/ADVISOR/i);
     const window = advisorPos >= 0 ? after.slice(0, advisorPos) : after;
 
-    // Grab the first 3–6 digit number in that small window
     const match = window.match(/\b(\d{3,6})\b/);
     return match ? match[1] : "";
 }
