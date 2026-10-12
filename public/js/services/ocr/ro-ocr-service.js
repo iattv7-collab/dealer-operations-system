@@ -434,32 +434,24 @@ function normalizeColor(color = "") {
 function extractTagNumber(text) {
     const source = String(text || "");
     const cutoff = source.search(/I hereby authorize/i);
-    const region =
-        cutoff >= 0 ? source.slice(0, cutoff) : source;
+    const region = cutoff >= 0 ? source.slice(0, cutoff) : source;
 
-    const tagIndex = region.search(/TAG\s*\.?\s*NO/i);
+    // Find TAG label (handles TAGNO, TAG NO, TAG. NO, etc.)
+    const tagMatch = region.match(/TAG\s*\.?\s*NO\.?/i);
+    if (!tagMatch) return "";
 
-    if (tagIndex < 0) {
-        return "";
-    }
+    const start = tagMatch.index + tagMatch[0].length;
 
-    const afterTag = region
-        .slice(tagIndex)
-        .replace(/\b\d{3}[-.\s]\d{3}[-.\s]\d{4}\b/g, " ");
+    // Look only a short distance after the TAG label
+    const after = region.slice(start, start + 120);
 
-    const fourDigit = afterTag.match(/\b\d{4}\b/g) || [];
+    // Stop early if we hit ADVISOR
+    const advisorPos = after.search(/ADVISOR/i);
+    const window = advisorPos >= 0 ? after.slice(0, advisorPos) : after;
 
-    if (fourDigit.length) {
-        return fourDigit[fourDigit.length - 1];
-    }
-
-    const other = afterTag.match(/\b\d{3,5}\b/g) || [];
-
-    if (other.length) {
-        return other[other.length - 1];
-    }
-
-    return "";
+    // Grab the first 3–6 digit number in that small window
+    const match = window.match(/\b(\d{3,6})\b/);
+    return match ? match[1] : "";
 }
 
 function extractAdvisorName(text) {
